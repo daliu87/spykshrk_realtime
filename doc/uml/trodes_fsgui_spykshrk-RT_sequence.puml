@@ -1,0 +1,206 @@
+@startuml
+
+skinparam sequence {
+BoxBorderColor #ffffff
+GroupBorderColor #cccccc
+ParticipantBackgroundColor<<Trodes>> #ffeeee
+ParticipantBackgroundColor<<Realtime Main>> #eeeeff
+}
+skinparam shadowing false
+actor "Experimenter" as User
+
+box "Trodes" #fff0f0
+participant MCU <<(H, #FF0000) Hardware>>
+participant ECU <<(H, #FF0000) Hardware>>
+participant TrodesMain <<(P, #ffaaaa) Process>>
+participant FSGui <<(P, #ffaaaa) Process>>
+end box
+
+box "Realtime Main Process" #f5f5ff
+    participant FSSocketRecvManager <<(O, #aaaaff) Object>>
+    participant FSMPIManager <<(O, #aaaaff) Object>>
+    participant RippleStimDecider <<(O, #aaaaff) Object>>
+    participant FSSocketSendManager <<(O, #aaaaff) Object>>
+end box
+
+box "Realtime Ripple Process" #eeeeff
+    participant RippleMPIRecvInterface <<(O, #aaaaff) Object>>
+    participant RippleMPISendInterface <<(O, #aaaaff) Object>>
+    participant RippleManager <<(O, #aaaaff) Object>>
+    participant TrodesSocketStreamIterator <<(O, #aaaaff) Object>>
+end box
+
+User -> TrodesMain: //Load Workspace//
+==Init==
+FSGui -> FSSocketRecvManager: ECUHARDWAREINFO
+FSSocketRecvManager -> FSSocketSendManager: set_ecusocket()
+FSGui -> FSSocketRecvManager: MCUHARDWAREINFO
+FSSocketRecvManager -> FSSocketSendManager: set_mcusocket()
+FSGui -> FSSocketRecvManager: NUMNTRODES
+FSSocketRecvManager -> FSMPIManager: set_num_trodes()
+FSGui -> FSSocketRecvManager: NUMPOINTSPERSPIKE
+FSGui -> FSSocketRecvManager: NUMCHANPERNTRODE
+FSGui -> FSSocketRecvManager: NDIGITALPORTS
+
+loop num_n_trodes
+    FSGui -> FSSocketRecvManager: STARTDATACLIENT
+    FSSocketRecvManager -> FSMPIManager: set_dataclient_message()
+end loop
+
+FSSocketRecvManager -> FSSocketRecvManager: state_change(waiting)
+
+
+==Waiting==
+
+group <font color=#aaaaaa> optional
+    FSGui -> FSSocketRecvManager: FS_CONFIG_FILE
+end group
+
+FSGui -> FSSocketRecvManager: SETSCRIPTFUNCTIONVALID
+FSSocketRecvManager -> FSSocketSendManager: modify_validfunction(is_valid, func)
+
+group <font color=#aaaaaa> //async//
+    loop 1 sec intervals
+        FSGui -> FSSocketRecvManager: FS_QUERY_RT_FEEDBACK_STATUS
+        FSSocketRecvManager -> FSMPIManager: request_status_message()
+        FSMPIManager -> FSSocketSendManager: send_status_update(...)
+        FSSocketSendManager --> FSGui: FS_RT_STATUS
+    end loop
+
+    loop user interaction
+        User -> FSGui: //Select continuous channels//
+        FSGui -> FSSocketRecvManager: ENABLECONTDATASOCKET
+        FSSocketRecvManager -> FSSocketRecvManager: enabled_cont_channels
+    end loop
+
+    group <font color=#aaaaaa> optional
+        loop user interaction
+            User -> FSGui: //Select spike channels//
+            FSGui -> FSSocketRecvManager: ENABLESPIKEDATASOCKET
+            FSSocketRecvManager -> FSSocketRecvManager: enabled_spike_channels
+        end loop
+    end group
+end group
+
+User -> FSGui: //Enable stream//
+FSGui -> FSSocketRecvManager: TURNONDATASTREAM
+FSSocketRecvManager -> FSMPIManager: turn_on_datastream(cont_channels, spike_channels)
+activate FSMPIManager
+FSSocketRecvManager -> FSSocketRecvManager: state_change(processing)
+
+
+==Processing==
+
+group <font color=#aaaaaa> //async// optional
+    User -> FSGui: //Adjust ripple filter parameters//
+    FSGui -> FSSocketRecvManager: FS_SET_RIPPLE_STIM_PARAMS
+    FSSocketRecvManager -> FSMPIManager: update_ripple_param(...)
+    User -> FSGui: //Adjust ripple filter baseline mean parameters//
+    FSGui -> FSSocketRecvManager: FS_SET_CUSTOM_RIPPLE_BASELINE_MEAN
+    FSSocketRecvManager -> FSMPIManager: set_custom_ripple_baseline_mean(...)
+    User -> FSGui: //Adjust ripple filter baseline std parameters//
+    FSGui -> FSSocketRecvManager: FS_SET_CUSTOM_RIPPLE_BASELINE_STD
+    FSSocketRecvManager -> FSMPIManager: set_custom_ripple_baseline_std(...)
+    User -> FSGui: //Adjust spatial filter parameters//
+    FSGui -> FSSocketRecvManager: FS_SET_SPATIAL_STIM_PARAMS
+    User -> FSGui: //Reset feedback//
+    FSGui -> FSSocketRecvManager: FS_RESET_RT_FEEDBACK
+    FSSocketRecvManager -> FSMPIManager: reset_filters(...)
+end group
+
+group <font color=#aaaaaa> //async// optional
+    User -> FSGui: //Adjust latency test parameters//
+    FSGui -> FSSocketRecvManager: FS_SET_LATENCY_TEST_PARAMS
+    FSSocketRecvManager -> FSMPIManager: <color #aaaaaa> update_latency_param(...)
+    User -> FSGui: //Start latency test//
+    FSGui -> FSSocketRecvManager: FS_START_LATENCY_TEST
+    FSSocketRecvManager -> FSMPIManager: <color #aaaaaa> start_latency_test(...)
+    activate FSMPIManager #00ff00
+    loop defined by latency parameters
+        FSMPIManager -> FSSocketSendManager: <color #aaaaaa> send_latency_pulse(...)
+        FSSocketSendManager --> ECU: <color #aaaaaa> ECU_SHORTCUT_MESSAGE(latency_pulse_id)
+    end loop
+    User -> FSGui: //Stop latency test//
+    FSGui -> FSSocketRecvManager: FS_STOP_LATENCY_TEST
+    deactivate FSMPIManager
+end group
+
+group <font color=#aaaaaa> optional
+    User -> TrodesMain: //Create save file//
+    FSGui -> FSSocketRecvManager: FS_CREATE_SAVE_FILE
+    FSSocketRecvManager -> FSMPIManager: create_save_file(...)
+    activate FSMPIManager #ddddff
+    User -> TrodesMain: //Start recording//
+    FSGui -> FSSocketRecvManager: FS_START_RECORDING
+    FSSocketRecvManager -> FSMPIManager: start_record()
+    activate FSMPIManager #9999ff
+end group
+
+User -> FSGui: //Start stimulation//
+FSGui -> FSSocketRecvManager: FS_START_RT_FEEDBACK
+FSSocketRecvManager -> FSMPIManager: enable_stimulation()
+activate FSMPIManager #ff9999
+FSSocketRecvManager -> FSSocketRecvManager: state_change(stimulating)
+
+
+==Stimulating==
+
+group <font color=#aaaaaa> optional
+    loop every sample
+    FSMPIManager -> RippleStimDecider: update_ripple_threshold_state(...)
+    alt ripple_detected
+        RippleStimDecider -> FSSocketSendManager: start_stimulation()
+        activate RippleStimDecider
+        FSSocketSendManager --> ECU: ECU_SHORTCUT_MESSAGE(stim_start_id)
+        activate ECU
+        FSSocketSendManager --> MCU: MCU_SETTLE_COMMAND
+    else ripple_end
+        RippleStimDecider -> FSSocketSendManager: stop_stimulation()
+        deactivate RippleStimDecider
+        FSSocketSendManager --> ECU: ECU_SHORTCUT_MESSAGE(stim_stop_id)
+        deactivate ECU
+    end alt
+    end loop
+end group
+
+User -> FSGui: //Stop Stimulation//
+FSGui -> FSSocketRecvManager: FS_STOP_RT_FEEDBACK
+FSSocketRecvManager -> FSMPIManager: stop_stimulation()
+deactivate FSMPIManager
+
+FSSocketRecvManager -> FSSocketRecvManager: state_change(processing)
+
+
+==Processing==
+
+group <font color=#aaaaaa> optional
+    User -> TrodesMain: //Stop recording//
+    FSGui -> FSSocketRecvManager: FS_STOP_RECORDING
+    FSSocketRecvManager -> FSMPIManager: create_save_file(...)
+    deactivate FSMPIManager
+    User -> TrodesMain: //Close file//
+    FSGui -> FSSocketRecvManager: FS_FS_CLOSE_SAVE_FILE
+    FSSocketRecvManager -> FSMPIManager: start_record()
+    deactivate FSMPIManager
+end group
+
+User -> FSGui: //Turn off datastream//
+FSGui -> FSSocketRecvManager: TURNOFFDATASTREAM
+FSSocketRecvManager -> FSMPIManager: turn_off_datastream()
+deactivate FSMPIManager
+FSSocketRecvManager -> FSSocketRecvManager: state_change(waiting)
+
+
+==Waiting==
+
+User -> TrodesMain: //Quit program//
+FSGui -> FSSocketRecvManager: QUIT
+FSSocketRecvManager -> FSSocketRecvManager: state_change(terminate)
+
+
+==Terminate==
+
+
+
+@enduml
+

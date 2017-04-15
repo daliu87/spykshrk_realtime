@@ -1,0 +1,24 @@
+@startuml
+
+interface trodes.FSData.fsdata_mpi.FSDataNode {
+    FSDataThread data_thread
+    __init__()
+    main_loop()
+}
+
+class threading.Thread {
+    __init__()
+    run()
+    start()
+    ...
+}
+
+interface trodes.FSData.fsdata_mpi.FSDataThread {
+    __init__()
+    run()
+}
+
+trodes.FSData.fsdata_mpi.FSDataThread -up-|> threading.Thread
+trodes.FSData.fsdata_mpi.FSDataNode *- trodes.FSData.fsdata_mpi.FSDataThread: has 1 >
+
+@enduml

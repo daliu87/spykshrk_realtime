@@ -17,6 +17,41 @@ from mpi4py import MPI
 #     bp = lambda: None
 
 
+class RippleStimDecider(realtime_process.RealtimeClass):
+    def __init__(self, send_manager, ripple_n_above_thresh=sys.maxsize):
+        super().__init__()
+        self._send_manager = send_manager
+        self._ripple_n_above_thresh = ripple_n_above_thresh
+        self._ripple_thresh_states = {}
+        self._enabled = False
+
+    def reset(self):
+        self._ripple_thresh_states = {}
+
+    def enable(self):
+        self.class_log.info('Enabled stim decider.')
+        self._enabled = True
+        self.reset()
+
+    def disable(self):
+        self.class_log.info('Disable stim decider.')
+        self._enabled = False
+        self.reset()
+
+    def update_n_threshold(self, ripple_n_above_thresh):
+        self._ripple_n_above_thresh = ripple_n_above_thresh
+
+    def update_ripple_threshold_state(self, timestamp, ntrode_index, threshold_state):
+        if self._enabled:
+            self._ripple_thresh_states[ntrode_index] = threshold_state
+            num_above = 0
+            for state in self._ripple_thresh_states.values():
+                num_above += state
+
+            if num_above >= self._ripple_n_above_thresh:
+                self._send_manager.start_stimulation()
+
+
 class MainProcess(realtime_process.RealtimeProcess):
 
     def __init__(self, comm: MPI.Comm, rank, ripple_ranks, latency_rank):

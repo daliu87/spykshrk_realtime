@@ -1,0 +1,42 @@
+@startuml
+
+class FSGuiSocketHandler
+class FSSocketSendManager
+class FSSocketRecvManager
+
+class FSMPIManager
+
+class RippleStimDecider
+
+abstract RealtimeProcess
+class MainProcess
+RealtimeProcess <|-down- MainProcess
+
+abstract RealtimeThread
+class MainThread
+
+RealtimeThread <|-down- MainThread
+
+RealtimeProcess <-> RealtimeThread
+
+MainProcess -[hidden] MainThread
+MainProcess *-- FSSocketRecvManager
+
+
+MainThread *-- FSMPIManager
+
+FSMPIManager --> RippleStimDecider
+FSMPIManager --> FSSocketSendManager
+RippleStimDecider --> FSSocketSendManager
+
+FSSocketRecvManager --> FSSocketSendManager
+FSSocketRecvManager --> FSMPIManager
+FSSocketRecvManager *-- FSGuiSocketHandler
+FSSocketRecvManager *-- FSDataState
+
+FSSocketSendManager *-- FSGuiSocketHandler
+
+
+enum FSDataState
+
+@enduml

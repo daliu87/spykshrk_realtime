@@ -1,0 +1,183 @@
+@startuml
+
+node "SpikeGadgets\n ECU/MCU" as sg #FFAAAA {
+    component [Gigabit Ethernet] as sg.gige
+    interface udp as sg.udp
+    sg.udp - sg.gige
+}
+
+node Trodes as trodes  #AAAAFF{
+    component [MessageHandler] as trodes.messagehandler
+    interface tcp as trodes.message_tcp
+    trodes.message_tcp - trodes.messagehandler
+
+    frame SourceThread {
+        component [EthernetSource]
+        EthernetSource <-up- sg.udp
+    }
+
+    frame StreamThread {
+        component [StreamProcessors]
+        interface "tcp/udp" as trodes.stream_socket
+        trodes.stream_socket - StreamProcessors
+    }
+
+    frame SpikeThread {
+        component [SpikeProcessors]
+        interface "tcp/udp" as trodes.spike_socket
+        trodes.spike_socket - SpikeProcessors
+    }
+}
+
+node CameraHardware as camera_hardware #FFAAAA{
+    [Gigabit Ethernet] as camera_hardware.gige
+    () udp as camera_hardware.udp
+    camera_hardware.udp - camera_hardware.gige
+}
+
+node CameraModule as camera #CCCCCC{
+    component [TrodesModuleNetwork] as camera.trodesmodulenetwork
+    camera.trodesmodulenetwork <-up- trodes.message_tcp
+
+    frame ImageProcessingThread {
+        component [Position Data] as camera.pos_data
+        interface "tcp/udp" as camera.pos_socket
+        camera.pos_socket - camera.pos_data
+    }
+
+    frame CameraHardwareThread {
+        [Camera Wrapper] as camera.wrapper
+        camera.wrapper <- camera_hardware.udp
+    }
+}
+
+node FSGui as fsgui #CCCCCC{
+    component [TrodesModuleNetwork] as fsgui.trodesmodulenetwork
+    fsgui.trodesmodulenetwork <-up- trodes.message_tcp
+
+    component [FSDataMessaging] as fsgui.fsdata_messaging
+    interface "API" as fsgui.fsdata_api
+    interface "tcp/udp" as fsgui.fsdata_message_socket
+    fsgui.fsdata_messaging - fsgui.fsdata_api
+    fsgui.fsdata_api - fsgui.fsdata_message_socket
+}
+
+package "Realtime System" as fsdata #CCCCCC{
+
+    node MainProcess as fsdata.main #FFFFFF{
+
+        frame SocketThread {
+            [FSSocketManager] as fsdata.main.supervisor
+        }
+
+        frame MPIThread {
+            [StimDecider] as fsdata.main.stim
+            () mpi as fsdata.main.mpi
+            () API as fsdata.main.api
+            [FSMPIManager] as fsdata.main.mpimanager
+            fsdata.main.api - fsdata.main.mpimanager
+            fsdata.main.mpi - fsdata.main.mpimanager
+        }
+
+        fsdata.main.supervisor - fsdata.main.api
+
+        fsdata.main.stim -up-> fsdata.main.supervisor
+        fsdata.main.supervisor -up-> sg.udp
+        fsdata.main.supervisor <-up- fsgui.fsdata_message_socket
+
+    }
+
+    node RippleProcess* as fsdata.ripple #FFFF99 {
+
+        frame CommandThread as fsdata.ripple.commandthread {
+            [Controller] as fsdata.ripple.controller
+            fsdata.ripple.controller <-up- fsdata.main.mpi
+        }
+
+        frame DataThread as fsdata.ripple.datathread{
+            [DataProcessor] as fsdata.ripple.data_processor
+            fsdata.ripple.data_processor <-up- trodes.stream_socket
+
+            [EventEngine] as fsdata.ripple.event
+            () mpi as fsdata.ripple.mpi_event
+            fsdata.ripple.mpi_event - fsdata.ripple.event
+        }
+
+    }
+
+    node SpatialProcess as fsdata.spatial #FF99FF{
+        frame CommandThread as fsdata.spatial.commandthread {
+            [Controller] as fsdata.spatial.controller
+            fsdata.spatial.controller <-up- fsdata.main.mpi
+        }
+
+        frame DataThread as fsdata.spatial.datathread {
+            [DataProcessor] as fsdata.spatial.data_processor
+            fsdata.spatial.data_processor <-up- camera.pos_socket
+
+            [Linearizer] as fsdata.spatial.linear
+            () mpi as fsdata.spatial.mpi_linear
+            fsdata.spatial.mpi_linear - fsdata.spatial.linear
+
+            [EventEngine] as fsdata.spatial.event
+            () mpi as fsdata.spatial.mpi_event
+            fsdata.spatial.mpi_event - fsdata.spatial.event
+        }
+    }
+
+    node ReplayEncoderProcess* as fsdata.replay_encoder #99FF99{
+
+        frame CommandThread as fsdata.replay_encoder.commandthread {
+            [Controller] as fsdata.replay_encoder.controller
+            fsdata.replay_encoder.controller <-up- fsdata.main.mpi
+        }
+
+        frame DataThread as fsdata.replay_encoder.datathread {
+            [DataProcessor] as fsdata.replay_encoder.data_processor
+            fsdata.replay_encoder.data_processor <-up- trodes.spike_socket
+            fsdata.replay_encoder.data_processor <-- fsdata.spatial.mpi_linear
+
+            [ModelPublisher] as fsdata.replay_encoder.model
+            () mpi as fsdata.replay_encoder.mpi
+            fsdata.replay_encoder.mpi - fsdata.replay_encoder.model
+        }
+    }
+
+    node ReplayDecoderProcess as fsdata.replay_decoder #33FF33{
+
+        frame CommandThread as fsdata.replay_decoder.commandthread {
+            [Controller] as fsdata.replay_decoder.controller
+            fsdata.replay_decoder.controller <-up- fsdata.main.mpi
+        }
+
+        frame DataThread as fsdata.replay_decoder.datathread {
+            [PointProcessDecoder] as fsdata.replay_decoder.pp
+            fsdata.replay_decoder.pp - fsdata.replay_encoder.mpi
+
+            [EventEngine] as fsdata.replay_decoder.event
+            () mpi as fsdata.replay_decoder.mpi_event
+            fsdata.replay_decoder.mpi_event - fsdata.replay_decoder.event
+        }
+    }
+
+    node LatencyTesterProcess as fsdata.latency_tester {
+        frame CommandThread as fsdata.latency_tester.commandthread {
+        }
+
+        frame DataThread as fsdata.latency_tester.datathread {
+
+        }
+
+        fsdata.latency_tester.commandthread <-- fsdata.main.mpi
+        fsdata.latency_tester.datathread <-- trodes.stream_socket
+        fsdata.latency_tester.datathread --> fsdata.main.stim
+
+    }
+
+    fsdata.main.stim <-- fsdata.spatial.mpi_event
+    fsdata.main.stim <-- fsdata.ripple.mpi_event
+    fsdata.main.stim <-- fsdata.replay_decoder.mpi_event
+
+}
+
+@enduml
