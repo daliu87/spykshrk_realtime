@@ -1,5 +1,6 @@
 @startuml
 
+package "Acquisition" as sg_all {
 node "SpikeGadgets\n ECU/MCU" as sg #FFAAAA {
     component [Gigabit Ethernet] as sg.gige
     interface udp as sg.udp
@@ -13,7 +14,7 @@ node Trodes as trodes  #AAAAFF{
 
     frame SourceThread {
         component [EthernetSource]
-        EthernetSource <-up- sg.udp
+        EthernetSource <- sg.udp
     }
 
     frame StreamThread {
@@ -37,7 +38,7 @@ node CameraHardware as camera_hardware #FFAAAA{
 
 node CameraModule as camera #CCCCCC{
     component [TrodesModuleNetwork] as camera.trodesmodulenetwork
-    camera.trodesmodulenetwork <-up- trodes.message_tcp
+    camera.trodesmodulenetwork <- trodes.message_tcp
 
     frame ImageProcessingThread {
         component [Position Data] as camera.pos_data
@@ -60,6 +61,7 @@ node FSGui as fsgui #CCCCCC{
     interface "tcp/udp" as fsgui.fsdata_message_socket
     fsgui.fsdata_messaging - fsgui.fsdata_api
     fsgui.fsdata_api - fsgui.fsdata_message_socket
+}
 }
 
 package "Realtime System" as fsdata #CCCCCC{

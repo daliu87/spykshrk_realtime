@@ -1,5 +1,5 @@
 
-import trodes.FSData.realtime_process as realtime_process
+import spykshrk.realtime.realtime_process as realtime_process
 
 
 class NumTrodesMessage(realtime_process.RealtimeMessage):

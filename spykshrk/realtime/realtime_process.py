@@ -1,12 +1,8 @@
 import threading
 import logging
-import selectors
 from abc import ABCMeta, abstractmethod
-import traceback
-import sys
-import struct
 
-import trodes.FSData.binary_record as binary_record
+import spykshrk.realtime.binary_record as binary_record
 
 
 class RealtimeClass(object):

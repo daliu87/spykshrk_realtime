@@ -323,6 +323,7 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
     def process_next_data(self):
         pass
 
+
 class RippleMPIRecvInterface(realtime_process.RealtimeClass):
 
     def __init__(self, comm: MPI.Comm, rank, ripple_manager: RippleManager, main_rank=0):

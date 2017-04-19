@@ -3,6 +3,7 @@ import spykshrk.realtime.realtime_process as realtime_process
 
 from mpi4py import MPI
 
+import sys
 
 # try:
 #     __IPYTHON__
@@ -17,7 +18,7 @@ from mpi4py import MPI
 #     bp = lambda: None
 
 
-class RippleStimDecider(realtime_process.RealtimeClass):
+class StimDecider(realtime_process.RealtimeClass):
     def __init__(self, send_manager, ripple_n_above_thresh=sys.maxsize):
         super().__init__()
         self._send_manager = send_manager

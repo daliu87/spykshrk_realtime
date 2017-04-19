@@ -1,0 +1,25 @@
+@startuml
+
+box "Main Rank"
+    participant MainProcess
+    participant MainThread
+    participant StimDecider
+end box
+
+box "Ripple Rank"
+    participant RippleProcess
+    participant RippleMPIRecvInterface
+    participant RippleMPISendInterface
+    participant RippleDataThread
+    participant RippleManager
+    participant RippleFilter
+end box
+
+RippleProcess -> RippleMPISendInterface: init
+RippleProcess -> RippleDataThread: init
+RippleProcess -> RippleMPIRecvInterface: init
+RippleDataThread -> RippleManager: init
+
+
+
+@enduml
