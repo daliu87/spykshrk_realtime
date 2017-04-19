@@ -9,6 +9,7 @@ import sys
 import getopt
 from mpi4py import MPI
 import time
+import json
 
 
 def main(argv):
@@ -21,7 +22,9 @@ def main(argv):
 
     for opt, arg in opts:
         if opt == '--config':
-            port = int(arg)
+            config_filename = arg
+
+    config = json.load(open(config_filename, 'r'))
 
     # setup MPI
     comm = MPI.COMM_WORLD           # type: MPI.Comm
@@ -74,17 +77,13 @@ def main(argv):
 
     # MPI node management
 
-    supervisor_rank = 0
-    latency_rank = 1
-    ripple_ranks = [2, 3]
-    if rank == supervisor_rank:
+    if rank == config['rank_config']['supervisor']:
         # Supervisor node
-        main_proc = main_process.MainProcess(comm=comm, rank=rank, ripple_ranks=ripple_ranks,
-                                             latency_rank=latency_rank)
+        main_proc = main_process.MainProcess(comm=comm, rank=rank, config=config)
         main_proc.main_loop()
 
-    if rank in ripple_ranks:
-        ripple_proc = ripple_process.RippleProcess(comm, rank)
+    if rank in config['rank_config']['ripples']:
+        ripple_proc = ripple_process.RippleProcess(comm, rank, config=config)
         ripple_proc.main_loop()
 
 #cProfile.runctx('main(sys.argv[1:])', globals(), locals(), 'fsdatapy_profile')

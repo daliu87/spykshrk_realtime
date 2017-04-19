@@ -55,10 +55,9 @@ class StimDecider(realtime_process.RealtimeClass):
 
 class MainProcess(realtime_process.RealtimeProcess):
 
-    def __init__(self, comm: MPI.Comm, rank, ripple_ranks, latency_rank):
+    def __init__(self, comm: MPI.Comm, rank, config):
 
-        super().__init__(MainThread, comm=comm, rank=rank, ripple_ranks=ripple_ranks,
-                         latency_rank=latency_rank)
+        super().__init__(MainThread, comm=comm, rank=rank, config=config)
 
         # TODO temporary measure to enable type hinting (typing.Generics is broken for PyCharm 2016.2.3)
         self.thread = self.thread   # type: MainThread
@@ -72,7 +71,7 @@ class MainProcess(realtime_process.RealtimeProcess):
 
 class MainThread(realtime_process.RealtimeThread):
 
-    def __init__(self, parent, comm: MPI.Comm, rank, ripple_ranks, latency_rank):
+    def __init__(self, parent, comm: MPI.Comm, rank, config):
         super().__init__(parent)
 
         self._stop_next = False

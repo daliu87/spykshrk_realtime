@@ -1,0 +1,21 @@
+{
+    "simulator": {
+        "animal_info": {
+            "base_dir": "/opt/data36/daliu/other/mkarlsso/",
+            "name": "bond",
+            "days": [4],
+            "epochs": [1], 
+            "tetrodes": [5, 11, 12, 13, 14, 17]
+        }
+    }, 
+
+    "rank_config": {
+        "supervisor": 0,
+        "simulator": 1,
+        "latency": 2,
+        "position": 3,
+        "ripples": [4,5],
+        "encoders": [6,7],
+        "decoder": 8
+    }
+}
