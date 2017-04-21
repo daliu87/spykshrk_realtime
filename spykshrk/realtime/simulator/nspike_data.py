@@ -10,7 +10,7 @@ import os.path
 from glob import glob
 import math
 
-from trodes.FSData.datatypes import LFPPoint, LinPosPoint, SpikePoint
+from spykshrk.realtime.datatypes import LFPPoint, LinPosPoint, SpikePoint
 
 try:
     from IPython.terminal.debugger import TerminalPdb
@@ -49,21 +49,21 @@ class AnimalInfo:
     file lists that points to the data to process.
     """
 
-    def __init__(self, animal_dir, animal_name, days, tetrodes, tetrodes_ca1, epoch_encode, timescale, new_data):
+    def __init__(self, base_dir, name, days, epochs, tetrodes, timescale=10000,
+                 new_data=True):
         """ init function
         Data:
             dir_base - root directory of animal data
             animal_name - name of animal
             days - array of which days of data to process
             tetrodes - array of which tetrodes to process
-            epoch_encode - list of epochs for encoding
+            epochs - list of epochs for encoding
         """
-        self.animal_dir = animal_dir
-        self.animal_name = animal_name
+        self.base_dir = base_dir
+        self.name = name
         self.days = days
+        self.epochs = epochs
         self.tetrodes = tetrodes
-        self.tetrodes_ca1 = tetrodes_ca1
-        self.epoch_encode = epoch_encode
         self.timescale = timescale
         self.times = self.parse_times()
         self.new_data = new_data
@@ -76,8 +76,8 @@ class AnimalInfo:
         """
         times = {}
         for day in self.days:
-            day_path = os.path.join(self.animal_dir, self.animal_name,
-                                    '%s%02d/times.mat' % (self.animal_name, day))
+            day_path = os.path.join(self.base_dir, self.name,
+                                    '%s%02d/times.mat' % (self.name, day))
             mat = loadmat(day_path)
             time_ranges = mat['ranges']
             times.setdefault(day, time_ranges[1::, :].astype('int32').tolist())
@@ -92,8 +92,8 @@ class AnimalInfo:
         """
         path_list = []
         for day in self.days:
-            day_path = os.path.join(self.animal_dir, self.animal_name,
-                                    '%s%02d' % (self.animal_name, day))
+            day_path = os.path.join(self.base_dir, self.name,
+                                    '%s%02d' % (self.name, day))
             for tet in self.tetrodes:
                 tet_path_glob = os.path.join(day_path, '%02d*' % tet)
                 tet_paths = glob(tet_path_glob)
@@ -107,15 +107,15 @@ class AnimalInfo:
                 if len(tet_paths) < 1:
                     print(('WARNING: %s day %02d does not have file for tetrode %02d,' +
                           ' skipping tetrode (%s)') %
-                          (self.animal_name, day, tet, tet_path_glob))
+                          (self.name, day, tet, tet_path_glob))
                     continue
                 elif len(tet_paths) > 1:
                     print(('WARNING: %s day %02d has multiple directories for tetrode %02d,' +
                           'by default using first entry\n(%s)') %
-                          (self.animal_name, day, tet, tet_paths))
+                          (self.name, day, tet, tet_paths))
 
                 spike_data_path = os.path.join(tet_paths[0], '%s%02d-%02d.mat'
-                                               % (self.animal_name, day, tet))
+                                               % (self.name, day, tet))
 
                 path_list.append((day, tet, spike_data_path))
 
@@ -130,20 +130,20 @@ class AnimalInfo:
         path_list = []
 
         for day in self.days:
-            day_path = os.path.join(self.animal_dir, self.animal_name, '%s%02d'
-                                    % (self.animal_name, day))
+            day_path = os.path.join(self.base_dir, self.name, '%s%02d'
+                                    % (self.name, day))
             for tet in self.tetrodes:
                 tet_path_glob = os.path.join(day_path, '%02d*.eeg' % tet)
                 tet_paths = glob(tet_path_glob)
                 if len(tet_paths) < 1:
                     print(('WARNING: %s day %02d does not have eeg file for tetrode %02d,' +
                            ' skipping tetrode (%s)')
-                          % (self.animal_name, day, tet, tet_path_glob))
+                          % (self.name, day, tet, tet_path_glob))
                     continue
                 elif len(tet_paths) > 1:
                     print(('WARNING: %s day %02d has multiple eeg files for tetrode %02d,' +
                            'by default using first entry\n(%s)')
-                          % (self.animal_name, day, tet, tet_paths))
+                          % (self.name, day, tet, tet_paths))
                 path_list.append((day, tet, tet_paths[0]))
         return path_list
 
@@ -156,23 +156,23 @@ class AnimalInfo:
         """
         path_list = []
         for day in self.days:
-            day_path = os.path.join(self.animal_dir, self.animal_name, '%s%02d'
-                                    % (self.animal_name, day))
+            day_path = os.path.join(self.base_dir, self.name, '%s%02d'
+                                    % (self.name, day))
             for tet in self.tetrodes:
                 tet_path_glob = os.path.join(day_path, '%02d*' % tet, '%s%02d-%02d_params.mat'
-                                             % (self.animal_name, day, tet))
+                                             % (self.name, day, tet))
                 tet_paths = glob(tet_path_glob)
 
                 # directory sanity check
                 if len(tet_paths) < 1:
                     print(('WARNING: %s day %02d does not have file for tetrode %02d,' +
                            ' skipping tetrode (%s)')
-                          % (self.animal_name, day, tet, tet_path_glob))
+                          % (self.name, day, tet, tet_path_glob))
                     continue
                 elif len(tet_paths) > 1:
                     print(('WARNING: %s day %02d has multiple directories for tetrode %02d,' +
                            'by default using first entry\n(%s)')
-                          % (self.animal_name, day, tet, tet_paths))
+                          % (self.name, day, tet, tet_paths))
 
                 path_list.append((day, tet, tet_paths[0]))
         return path_list
@@ -186,21 +186,21 @@ class AnimalInfo:
         """
         path_list = []
         for day in self.days:
-            anim_prefix = self.animal_name[0:3].title()
-            day_glob = os.path.join(self.animal_dir, anim_prefix.title()[0:3],
-                                    '%slinpos%02d.mat' % (self.animal_name[0:3].lower(), day))
+            anim_prefix = self.name[0:3].title()
+            day_glob = os.path.join(self.base_dir, anim_prefix.title()[0:3],
+                                    '%slinpos%02d.mat' % (self.name[0:3].lower(), day))
             day_path = glob(day_glob)
-            print(self.animal_dir + anim_prefix.title()[0:3])
+            print(self.base_dir + anim_prefix.title()[0:3])
             print(day_path)
             # directory sanity check
             if len(day_path) < 1:
                 print('WARNING: %s day %02d does not have file %slinpos%02d.mat'
-                      % (self.animal_name, day, self.animal_name[0:3].lower(), day))
+                      % (self.name, day, self.name[0:3].lower(), day))
                 continue
             elif len(day_path) > 1:
                 print(('WARNING: %s day %02d has multiple directories %slinpos%02d.mat' +
                        'which should not happen...')
-                      % (self.animal_name, day, self.animal_name[0:3].lower(), day))
+                      % (self.name, day, self.name[0:3].lower(), day))
 
             path_list.append((day, day_path[0]))
         return path_list
@@ -214,14 +214,14 @@ class AnimalInfo:
         is not in an epoch or if the epoch is not being encoded, return -1
         """
         time = self.times[day]
-        for ii in self.epoch_encode:
+        for ii in self.epochs:
             if time[ii][0] <= cur_time <= time[ii][1]:
                 return ii
         return -1
 
     def get_epoch_time_range(self, day, epoch):
         time = self.times[day]
-        if epoch not in self.epoch_encode:
+        if epoch not in self.epochs:
             raise ConfigurationError('Epoch requested not an '
                                      'epoch being processed')
 
@@ -315,7 +315,7 @@ class SpikeData:
             day_waves = mat['waves']
             # Make sure not empty
             if day_timestamps.any() and day_waves.any():
-                for epoch in self.anim.epoch_encode:
+                for epoch in self.anim.epochs:
                     epoch_start, epoch_end = self.anim.get_epoch_time_range(day, epoch)
                     epoch_mask = ((day_timestamps >= epoch_start) &
                                   (day_timestamps <= epoch_end)).ravel()
@@ -352,7 +352,7 @@ class SpikeData:
 
     def __call__(self):
         for day in self.days:
-            for epoch in self.anim.epoch_encode:
+            for epoch in self.anim.epochs:
 
                 timebin_itr = sorted(list(self.timebin_uniq[(day, epoch)]))
                 for timebin_num in timebin_itr:
@@ -477,7 +477,7 @@ class EEGData:
             # processing file done
             print('merging')
             day_data = day_data.merge(pd.DataFrame(index=tet_eeg_time_list,
-                    data=tet_eeg_data_list, columns = [tet]),
+                    data=tet_eeg_data_list, columns=[tet]),
                     how='outer', left_index=True, right_index=True, copy=False)
             # re add merged data to dict
             self.data[day] = day_data
@@ -497,7 +497,7 @@ class EEGData:
 
             day_data = self.data[day]
 
-            for epoch in self.anim.epoch_encode:
+            for epoch in self.anim.epochs:
 
                 epoch_end_time = self.anim.times[day][epoch][1]
                 dt_idx = math.ceil(self.timestep / self.dt)
@@ -673,7 +673,7 @@ class PosMatData:
             posdata = mat['linpos'][0, day - 1]
 
             self.timebin_uniq = {}
-            for epoch in anim.epoch_encode:
+            for epoch in anim.epochs:
                 postime_epoch = posdata[0, epoch]['statematrix'][0, 0]['time'][0, 0]
                 poslindist_epoch = posdata[0, epoch]['statematrix'][0, 0]['linearDistanceToWells'][0, 0]
                 possegind_epoch = posdata[0, epoch]['statematrix'][0, 0]['segmentIndex'][0, 0]
@@ -714,7 +714,7 @@ class PosMatData:
 
     def __call__(self):
         for day in self.days:
-            for epoch in self.anim.epoch_encode:
+            for epoch in self.anim.epochs:
                 # get the list of unique timebins
                 timebin_itr = self.timebin_uniq[(day, epoch)]
                 # align start to epoch start time

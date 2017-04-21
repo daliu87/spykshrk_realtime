@@ -1,6 +1,6 @@
 {
     "simulator": {
-        "animal_info": {
+        "nspike_animal_info": {
             "base_dir": "/opt/data36/daliu/other/mkarlsso/",
             "name": "bond",
             "days": [4],
@@ -9,7 +9,7 @@
         }
     }, 
 
-    "rank_config": {
+    "rank": {
         "supervisor": 0,
         "simulator": 1,
         "latency": 2,

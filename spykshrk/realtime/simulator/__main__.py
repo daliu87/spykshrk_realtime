@@ -1,6 +1,7 @@
 # import trodes.FSData.fsDataMain as fsDataMain
 import spykshrk.realtime.main_process as main_process
 import spykshrk.realtime.ripple_process as ripple_process
+import spykshrk.realtime.simulator.simulator_process as simulator_process
 import datetime
 import logging
 import logging.config
@@ -20,6 +21,8 @@ def main(argv):
         logging.error('Usage: ...')
         sys.exit(2)
 
+    print(argv)
+    print(opts)
     for opt, arg in opts:
         if opt == '--config':
             config_filename = arg
@@ -77,14 +80,18 @@ def main(argv):
 
     # MPI node management
 
-    if rank == config['rank_config']['supervisor']:
+    if rank == config['rank']['supervisor']:
         # Supervisor node
         main_proc = main_process.MainProcess(comm=comm, rank=rank, config=config)
         main_proc.main_loop()
 
-    if rank in config['rank_config']['ripples']:
+    if rank in config['rank']['ripples']:
         ripple_proc = ripple_process.RippleProcess(comm, rank, config=config)
         ripple_proc.main_loop()
+
+    if rank == config['rank']['simulator']:
+        simulator_proc = simulator_process.SimulatorProcess(comm, rank, config=config)
+        simulator_proc.main_loop()
 
 #cProfile.runctx('main(sys.argv[1:])', globals(), locals(), 'fsdatapy_profile')
 main(sys.argv[1:])
