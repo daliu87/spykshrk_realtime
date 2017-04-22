@@ -57,7 +57,11 @@ class MainProcess(realtime_process.RealtimeProcess):
 
     def __init__(self, comm: MPI.Comm, rank, config):
 
-        super().__init__(MainThread, comm=comm, rank=rank, config=config)
+        self.comm = comm
+        self.rank = rank
+        self.config = config
+
+        super().__init__(comm=comm, rank=rank, config=config, ThreadClass=MainThread)
 
         # TODO temporary measure to enable type hinting (typing.Generics is broken for PyCharm 2016.2.3)
         self.thread = self.thread   # type: MainThread
@@ -66,13 +70,14 @@ class MainProcess(realtime_process.RealtimeProcess):
         self.thread.start()
 
         while True:
+
             pass
 
 
 class MainThread(realtime_process.RealtimeThread):
 
-    def __init__(self, parent, comm: MPI.Comm, rank, config):
-        super().__init__(parent)
+    def __init__(self, comm: MPI.Comm, rank, config, parent):
+        super().__init__(comm=comm, rank=rank, config=config, parent=parent)
 
         self._stop_next = False
 

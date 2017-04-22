@@ -103,9 +103,15 @@ class ExceptionLoggerWrapperMeta(type):
 
 class RealtimeProcess(RealtimeClass, metaclass=ExceptionLoggerWrapperMeta):
 
-    def __init__(self, ThreadClass, **kwds):
+    def __init__(self, comm, rank, config, ThreadClass, **kwds):
+
         super().__init__()
-        self.thread = ThreadClass(parent=self, **kwds)
+
+        self.comm = comm
+        self.rank = rank
+        self.config = config
+
+        self.thread = ThreadClass(comm=comm, rank=rank, config=config, parent=self, **kwds)
 
     def main_loop(self):
         self.thread.start()
@@ -113,11 +119,13 @@ class RealtimeProcess(RealtimeClass, metaclass=ExceptionLoggerWrapperMeta):
 
 class RealtimeThread(RealtimeClass, threading.Thread, metaclass=ExceptionLoggerWrapperMeta):
 
-    def __init__(self, parent):
+    def __init__(self, comm, rank, config, parent):
         super().__init__(name=self.__class__.__name__)
         super().__init__()
-        self.class_log.info('Thread started {}'.format(self.name))
         self.parent = parent
+        self.comm = comm
+        self.rank = rank
+        self.config = config
 
 
 class DataStreamIterator(RealtimeClass, metaclass=ABCMeta):

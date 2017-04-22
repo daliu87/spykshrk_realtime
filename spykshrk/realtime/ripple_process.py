@@ -384,9 +384,9 @@ class RippleProcess(realtime_process.RealtimeProcess):
     def __init__(self, comm: MPI.Comm, rank, config):
         self.local_rec_manager = binary_record.RemoteBinaryRecordsManager(manager_label='fsdata')
 
-        self.mpi_send = RippleMPISendInterface(comm, rank, main_rank)
+        self.mpi_send = RippleMPISendInterface(comm, rank, config['rank']['supervisor'])
 
-        super().__init__(ThreadClass=RippleDataThread, local_rec_manager=self.local_rec_manager)
+        super().__init__(comm, rank, config, ThreadClass=RippleDataThread, local_rec_manager=self.local_rec_manager)
 
         self.mpi_recv = RippleMPIRecvInterface(comm, rank, self.thread.rip_man, main_rank)
 
@@ -408,8 +408,8 @@ class RippleProcess(realtime_process.RealtimeProcess):
 
 class RippleDataThread(realtime_process.RealtimeThread):
 
-    def __init__(self, local_rec_manager, parent: RippleProcess):
-        super().__init__(parent=parent)
+    def __init__(self, comm, rank, config, parent: RippleProcess, local_rec_manager):
+        super().__init__(comm, rank, config, parent=parent)
 
         self.rip_man = RippleManager(local_rec_manager, parent.mpi_send)
 
