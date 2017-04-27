@@ -156,7 +156,7 @@ class DataStreamIterator(RealtimeClass, metaclass=ABCMeta):
         pass
 
 
-class TerminateOnErrorMessage(RealtimeMessage):
+class TerminateErrorMessage(RealtimeMessage):
     def __init__(self, message):
         self.message = message
         pass

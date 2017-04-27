@@ -26,8 +26,8 @@ class SimulatorThread(realtime_process.RealtimeThread):
         except TypeError as err:
             self.class_log.exception("TypeError: nspike_animal_info does not match nspike_data.AnimalInfo arguments.",
                                      exc_info=err)
-            comm.send(realtime_process.TerminateOnErrorMessage("For SimulatorThread, nspike_animal_info config did"
-                                                               "not match nspike_data.AnimalInfo arguments."),
+            comm.send(realtime_process.TerminateErrorMessage("For SimulatorThread, nspike_animal_info config did"
+                                                             "not match nspike_data.AnimalInfo arguments."),
                       config['rank']['supervisor'])
 
         nspike_data.EEGDataStream(nspike_anim, 100)

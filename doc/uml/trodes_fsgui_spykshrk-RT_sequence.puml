@@ -14,13 +14,14 @@ participant MCU <<(H, #FF0000) Hardware>>
 participant ECU <<(H, #FF0000) Hardware>>
 participant TrodesMain <<(P, #ffaaaa) Process>>
 participant FSGui <<(P, #ffaaaa) Process>>
+participant SaveFolder <<(D, #f5f5dc) Directory>>
 end box
 
 box "Realtime Main Process" #f5f5ff
     participant FSSocketRecvManager <<(O, #aaaaff) Object>>
-    participant FSMPIManager <<(O, #aaaaff) Object>>
-    participant RippleStimDecider <<(O, #aaaaff) Object>>
     participant FSSocketSendManager <<(O, #aaaaff) Object>>
+    participant RippleStimDecider <<(O, #aaaaff) Object>>
+    participant FSMPIManager <<(O, #aaaaff) Object>>
 end box
 
 box "Realtime Ripple Process" #eeeeff
@@ -28,6 +29,10 @@ box "Realtime Ripple Process" #eeeeff
     participant RippleMPISendInterface <<(O, #aaaaff) Object>>
     participant RippleManager <<(O, #aaaaff) Object>>
     participant TrodesSocketStreamIterator <<(O, #aaaaff) Object>>
+    participant RippleFilter <<(O, #aaaaff) Object>>
+    participant TrodesDataSocketHandler <<(O, #aaaaff) Object>>
+    participant RemoteBinaryRecordsManager <<(O, #aaaaff) Object>>
+    participant BinaryRecordsFileWriter <<(O, #aaaaff) Object>>
 end box
 
 User -> TrodesMain: //Load Workspace//
@@ -44,7 +49,13 @@ FSGui -> FSSocketRecvManager: NDIGITALPORTS
 
 loop num_n_trodes
     FSGui -> FSSocketRecvManager: STARTDATACLIENT
-    FSSocketRecvManager -> FSMPIManager: set_dataclient_message()
+    FSSocketRecvManager -> FSMPIManager: set_dataclient_message(...)
+
+    loop num_ripple_ranks
+        FSMPIManager -> RippleMPIRecvInterface: mpi.send(DataClientMessage)
+        RippleMPIRecvInterface -> RippleManager: set_dataclient_info(DataClientMessage)
+        RippleManager -> TrodesSocketStreamIterator: set_sources(DataClientMessage)
+    end loop
 end loop
 
 FSSocketRecvManager -> FSSocketRecvManager: state_change(waiting)
@@ -63,6 +74,9 @@ group <font color=#aaaaaa> //async//
     loop 1 sec intervals
         FSGui -> FSSocketRecvManager: FS_QUERY_RT_FEEDBACK_STATUS
         FSSocketRecvManager -> FSMPIManager: request_status_message()
+        FSMPIManager -> RippleMPIRecvInterface: mpi.send(RequestStatusMessage)
+        RippleMPIRecvInterface -> RippleManager: process_status_dict_request()
+
         FSMPIManager -> FSSocketSendManager: send_status_update(...)
         FSSocketSendManager --> FSGui: FS_RT_STATUS
     end loop
@@ -90,6 +104,35 @@ FSSocketRecvManager -> FSSocketRecvManager: state_change(processing)
 
 
 ==Processing==
+loop num_ripple_ranks
+    FSMPIManager -> RippleMPIRecvInterface: mpi.send(TurnOnLFPMessage(rank_enable_list))
+    RippleMPIRecvInterface -> RippleManager: turn_on_lfp_stream(enable_list)
+    RippleManager -> TrodesSocketStreamIterator: set_enable(enable_list)
+    loop enable_list
+        RippleManager -> RippleFilter: //create//
+    end loop
+    RippleManager -> TrodesSocketStreamIterator: turn_on_stream()
+    loop enable_list
+        TrodesSocketStreamIterator -> TrodesDataSocketHandler: //create//
+        TrodesSocketStreamIterator -> TrodesDataSocketHandler: send_trodes_message(FSSocketMessageType.set_datatype, c)
+        TrodesDataSocketHandler --> TrodesMain: TRODESMESSAGE_SETDATATYPE
+        TrodesSocketStreamIterator -> TrodesDataSocketHandler: send_trodes_message(FSSocketMessageType.set_decimation, c)
+        TrodesDataSocketHandler --> TrodesMain: TRODESMESSAGE_SETDECIMATION
+        TrodesSocketStreamIterator -> TrodesDataSocketHandler: send_trodes_message(FSSocketMessageType.turn_on_datastream, c)
+        TrodesDataSocketHandler --> TrodesMain: TRODESMESSAGE_TURNONDATASTREAM
+    end loop
+end loop
+
+loop datastream
+    RippleManager -> TrodesSocketStreamIterator: __next__()
+    TrodesSocketStreamIterator -> TrodesDataSocketHandler: select() on trodes data socket list
+    activate TrodesDataSocketHandler #FF0000
+    TrodesMain -> TrodesDataSocketHandler: //raw continuous data packet//
+    deactivate TrodesDataSocketHandler
+    TrodesDataSocketHandler -> TrodesSocketStreamIterator: //raw continuous data point//
+    TrodesSocketStreamIterator -> RippleManager: //raw continuous data point//
+    RippleManager -> RippleFilter: process_data(data_point)
+end loop
 
 group <font color=#aaaaaa> //async// optional
     User -> FSGui: //Adjust ripple filter parameters//
@@ -129,10 +172,23 @@ group <font color=#aaaaaa> optional
     User -> TrodesMain: //Create save file//
     FSGui -> FSSocketRecvManager: FS_CREATE_SAVE_FILE
     FSSocketRecvManager -> FSMPIManager: create_save_file(...)
+    FSMPIManager -> RippleMPIRecvInterface: mpi.send(BinaryRecordCreateMessage)
+    RippleMPIRecvInterface -> RippleManager: set_record_writer_from_message()
+    RippleManager -> RemoteBinaryRecordsManager: create_writer_from_message(...)
+    RemoteBinaryRecordsManager -> BinaryRecordsFileWriter: //init//
+    BinaryRecordsFileWriter -> SaveFolder: //create file//
     activate FSMPIManager #ddddff
     User -> TrodesMain: //Start recording//
     FSGui -> FSSocketRecvManager: FS_START_RECORDING
     FSSocketRecvManager -> FSMPIManager: start_record()
+    FSMPIManager -> RippleMPIRecvInterface: mpi.send(StartRecordMessage)
+    RippleMPIRecvInterface -> RippleManager: start_record_writing()
+    loop writing recording
+        RippleFilter -> RippleManager: write_record(...)
+        RippleManager -> BinaryRecordsFileWriter: write_rec(...)
+        BinaryRecordsFileWriter -> SaveFolder: //write record//
+
+    end loop
     activate FSMPIManager #9999ff
 end group
 
@@ -147,6 +203,8 @@ FSSocketRecvManager -> FSSocketRecvManager: state_change(stimulating)
 
 group <font color=#aaaaaa> optional
     loop every sample
+    RippleManager -> RippleMPISendInterface: send_ripple_thresh_state()
+    RippleMPISendInterface -> FSMPIManager:
     FSMPIManager -> RippleStimDecider: update_ripple_threshold_state(...)
     alt ripple_detected
         RippleStimDecider -> FSSocketSendManager: start_stimulation()
