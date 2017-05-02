@@ -2,7 +2,7 @@ import numpy as np
 import sys
 from time import time
 
-from trodes.FSData.datatypes import LFPPoint, SpikePoint, LinPosPoint
+from spykshrk.realtime.datatypes import LFPPoint, SpikePoint, LinPosPoint
 
 
 class SimDataBuffer:

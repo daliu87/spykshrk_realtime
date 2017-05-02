@@ -2,12 +2,51 @@ from collections import deque
 from collections import OrderedDict
 
 import spykshrk.realtime.realtime_process as realtime_process
-from spykshrk.realtime.ripple_messages import NumTrodesMessage, TurnOffLFPMessage, TurnOnLFPMessage, \
-    RippleParameterMessage, CustomRippleBaselineMeanMessage, CustomRippleBaselineStdMessage, \
-    RippleStatusDictListMessage, RippleThresholdState
 from spykshrk.realtime.datatypes import LFPPoint
 from mpi4py import MPI
 import spykshrk.realtime.binary_record as binary_record
+
+
+class RippleParameterMessage(realtime_process.RealtimeMessage):
+    def __init__(self, rip_coeff1=1.2, rip_coeff2=0.2, ripple_threshold=5, samp_divisor=10000, n_above_thresh=1,
+                 lockout_time=7500, detect_no_ripple_time=60000, dio_gate_port=None, detect_no_ripples=False,
+                 dio_gate=False, enabled=False, use_custom_baseline=False, update_custom_baseline=False):
+        self.rip_coeff1 = rip_coeff1
+        self.rip_coeff2 = rip_coeff2
+        self.ripple_threshold = ripple_threshold
+        self.samp_divisor = samp_divisor
+        self.n_above_thresh = n_above_thresh
+        self.lockout_time = lockout_time
+        self.detect_no_ripple_time = detect_no_ripple_time
+        self.dio_gate_port = dio_gate_port
+        self.detect_no_ripples = detect_no_ripples
+        self.dio_gate = dio_gate
+        self.enabled = enabled
+        self.use_custom_baseline = use_custom_baseline
+        self.update_custom_baseline = update_custom_baseline
+
+
+class CustomRippleBaselineMeanMessage(realtime_process.RealtimeMessage):
+    def __init__(self, mean_dict):
+        self.mean_dict = mean_dict
+
+
+class CustomRippleBaselineStdMessage(realtime_process.RealtimeMessage):
+    def __init__(self, std_dict):
+        self.std_dict = std_dict
+
+
+class RippleStatusDictListMessage(realtime_process.RealtimeMessage):
+    def __init__(self, ripple_rank, status_dict_list):
+        self.ripple_rank = ripple_rank
+        self.status_dict_list = status_dict_list
+
+
+class RippleThresholdState(realtime_process.RealtimeMessage):
+    def __init__(self, timestamp, ntrode_index, threshold_state):
+        self.timestamp = timestamp
+        self.ntrode_index = ntrode_index
+        self.threshold_state = threshold_state
 
 
 class RippleFilter(realtime_process.RealtimeClass):
@@ -276,7 +315,7 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
 
         #self.mpi_send.send_record_register_message(self.get_record_register_message())
 
-    def set_num_trodes(self, message: NumTrodesMessage):
+    def set_num_trodes(self, message: realtime_process.NumTrodesMessage):
         self.num_ntrodes = message.num_ntrodes
         self.class_log.info('Set number of ntrodes: {:d}'.format(self.num_ntrodes))
 
@@ -341,7 +380,7 @@ class RippleMPIRecvInterface(realtime_process.RealtimeClass):
         if isinstance(message, realtime_process.TerminateMessage):
             raise StopIteration()
 
-        elif isinstance(message, NumTrodesMessage):
+        elif isinstance(message, realtime_process.NumTrodesMessage):
             self.rip_man.set_num_trodes(message)
 
         elif isinstance(message, RippleParameterMessage):
@@ -388,7 +427,7 @@ class RippleProcess(realtime_process.RealtimeProcess):
 
         super().__init__(comm, rank, config, ThreadClass=RippleDataThread, local_rec_manager=self.local_rec_manager)
 
-        self.mpi_recv = RippleMPIRecvInterface(comm, rank, self.thread.rip_man, main_rank)
+        self.mpi_recv = RippleMPIRecvInterface(comm, rank, self.thread.rip_man, config['rank']['supervisor'])
 
         # TODO temporary measure to enable type hinting (typing.Generics is broken for PyCharm 2016.2.3)
         self.thread = self.thread   # type: RippleDataThread
@@ -421,3 +460,5 @@ class RippleDataThread(realtime_process.RealtimeThread):
     def run(self):
         while not self.stop_next:
             self.rip_man.process_next_data()
+
+

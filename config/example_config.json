@@ -17,5 +17,8 @@
         "ripples": [4,5],
         "encoders": [6,7],
         "decoder": 8
+    }, 
+
+    "ripple": {
     }
 }

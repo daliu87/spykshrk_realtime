@@ -78,6 +78,8 @@ class MainThread(realtime_process.RealtimeThread):
 
     def __init__(self, comm: MPI.Comm, rank, config, parent):
         super().__init__(comm=comm, rank=rank, config=config, parent=parent)
+        ripple_ranks = self.config['rank']['ripples']
+
 
         self._stop_next = False
 
@@ -85,6 +87,8 @@ class MainThread(realtime_process.RealtimeThread):
         self._stop_next = True
 
     def run(self):
+
+
         while not self._stop_next:
             pass
 

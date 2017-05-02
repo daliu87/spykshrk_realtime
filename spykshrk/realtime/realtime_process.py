@@ -1,8 +1,17 @@
 import threading
+from mpi4py import MPI
 import logging
 from abc import ABCMeta, abstractmethod
+from enum import Enum
 
 import spykshrk.realtime.binary_record as binary_record
+
+
+class MPIMessageTag(Enum):
+    COMMAND_MESSAGE = 1
+    LFP_DATA = 2
+    POS_DATA = 3
+    SPIKE_DATA = 4
 
 
 class RealtimeClass(object):
@@ -100,10 +109,13 @@ class ExceptionLoggerWrapperMeta(type):
 
         return super(ExceptionLoggerWrapperMeta, mcs).__new__(mcs, name, bases, attrs)
 
+    def __init__(cls, name, bases, attrs):
+        super(ExceptionLoggerWrapperMeta, cls).__init__(name, bases, attrs)
+
 
 class RealtimeProcess(RealtimeClass, metaclass=ExceptionLoggerWrapperMeta):
 
-    def __init__(self, comm, rank, config, ThreadClass, **kwds):
+    def __init__(self, comm: MPI.Comm, rank, config, ThreadClass, **kwds):
 
         super().__init__()
 
@@ -119,7 +131,7 @@ class RealtimeProcess(RealtimeClass, metaclass=ExceptionLoggerWrapperMeta):
 
 class RealtimeThread(RealtimeClass, threading.Thread, metaclass=ExceptionLoggerWrapperMeta):
 
-    def __init__(self, comm, rank, config, parent):
+    def __init__(self, comm: MPI.Comm, rank, config, parent):
         super().__init__(name=self.__class__.__name__)
         super().__init__()
         self.parent = parent
@@ -200,4 +212,20 @@ class RequestStatusMessage(RealtimeMessage):
 class ResetFilterMessage(RealtimeMessage):
     def __init__(self):
         pass
+
+
+class NumTrodesMessage(RealtimeMessage):
+    def __init__(self, num_ntrodes):
+        self.num_ntrodes = num_ntrodes
+
+
+class TurnOnLFPMessage(RealtimeMessage):
+    def __init__(self, lfp_enable_list):
+        self.lfp_enable_list = lfp_enable_list
+
+
+class TurnOffLFPMessage(RealtimeMessage):
+    def __init__(self):
+        pass
+
 
