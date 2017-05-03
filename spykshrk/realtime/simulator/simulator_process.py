@@ -9,10 +9,14 @@ import spykshrk.realtime.simulator.nspike_data as nspike_data
 import spykshrk.realtime.simulator.sim_databuffer as sim_databuffer
 
 
-
 class ReqLFPChannelData(realtime_process.RealtimeMessage):
     def __init__(self, lfp_chan):
         self.lfp_chan = lfp_chan
+
+
+class SimNumTrodesMessage(realtime_process.RealtimeMessage):
+    def __init__(self, num_ntrodes):
+        self.num_ntrodes = num_ntrodes
 
 
 class SimulatorProcess(realtime_process.RealtimeProcess):
@@ -51,11 +55,10 @@ class SimulatorThread(realtime_process.RealtimeThread):
                                                              "not match nspike_data.AnimalInfo arguments."),
                       config['rank']['supervisor'])
 
-        for ripple_rank in self.config['rank']['ripples']:
-            self.comm.send(obj=realtime_process.NumTrodesMessage(len(self.config['simulator']
-                                                                     ['nspike_animal_info']['tetrodes'])),
-                           dest=ripple_rank,
-                           tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+        self.comm.send(obj=SimNumTrodesMessage(len(self.config['simulator']
+                                                   ['nspike_animal_info']['tetrodes'])),
+                       dest=config['rank']['supervisor'],
+                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
         self.start_datastream = threading.Event()
 
@@ -79,7 +82,12 @@ class SimulatorThread(realtime_process.RealtimeThread):
         while not self._stop_next:
             data_to_send = data_itr.__next__()
             if isinstance(data_to_send, datatypes.LFPPoint):
-                self.comm.send(obj=data_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_index])
+                try:
+                    self.comm.send(obj=data_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_index])
+                except KeyError as err:
+                    self.class_log.exception(("KeyError: Tetrode index ({:}) not in lfp channel request dict,"
+                                              "was likely never requested by a receiving/computing ranks.").
+                                             format(data_to_send.ntrode_index), exc_info=err)
 
             self.start_datastream.wait()
 

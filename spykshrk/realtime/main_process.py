@@ -1,5 +1,6 @@
 
 import spykshrk.realtime.realtime_process as realtime_process
+import spykshrk.realtime.simulator.simulator_process as simulator_process
 
 from mpi4py import MPI
 
@@ -66,12 +67,18 @@ class MainProcess(realtime_process.RealtimeProcess):
         # TODO temporary measure to enable type hinting (typing.Generics is broken for PyCharm 2016.2.3)
         self.thread = self.thread   # type: MainThread
 
+        self.terminate = False
+
     def main_loop(self):
         self.thread.start()
+        mpi_status = MPI.Status()
 
-        while True:
+        while not self.terminate:
+            message = self.comm.recv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
-            pass
+            if isinstance(message, simulator_process.SimNumTrodesMessage):
+                for rip_rank in self.config['rank']['ripples']:
+                    self.comm.send(realtime_process.NumTrodesMessage(message.num_ntrodes), dest=rip_rank)
 
 
 class MainThread(realtime_process.RealtimeThread):
@@ -80,14 +87,12 @@ class MainThread(realtime_process.RealtimeThread):
         super().__init__(comm=comm, rank=rank, config=config, parent=parent)
         ripple_ranks = self.config['rank']['ripples']
 
-
         self._stop_next = False
 
     def stop_thread_next(self):
         self._stop_next = True
 
     def run(self):
-
 
         while not self._stop_next:
             pass
