@@ -9,9 +9,7 @@ import spykshrk.realtime.binary_record as binary_record
 
 class MPIMessageTag(Enum):
     COMMAND_MESSAGE = 1
-    LFP_DATA = 2
-    POS_DATA = 3
-    SPIKE_DATA = 4
+    SIMULATOR_DATA = 2
 
 
 class RealtimeClass(object):
