@@ -76,9 +76,17 @@ class MainProcess(realtime_process.RealtimeProcess):
         while not self.terminate:
             message = self.comm.recv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
-            if isinstance(message, simulator_process.SimNumTrodesMessage):
+            if isinstance(message, simulator_process.SimTrodeListMessage):
+
                 for rip_rank in self.config['rank']['ripples']:
-                    self.comm.send(realtime_process.NumTrodesMessage(message.num_ntrodes), dest=rip_rank)
+                    self.comm.send(realtime_process.NumTrodesMessage(message.trode_list), dest=rip_rank)
+
+                # Round robin allocation of channels to ripple
+                enable_count = 0
+                for chan_ind, chan_enable in enumerate(cont_channel_enable):
+                    if chan_enable:
+                        all_ripple_process_enable[enable_count % num_ripple_processes].append(chan_ind)
+                        enable_count += 1
 
 
 class MainThread(realtime_process.RealtimeThread):

@@ -32,9 +32,9 @@ class PauseAllStreamMessages(realtime_process.RealtimeMessage):
         pass
 
 
-class SimNumTrodesMessage(realtime_process.RealtimeMessage):
-    def __init__(self, num_ntrodes):
-        self.num_ntrodes = num_ntrodes
+class SimTrodeListMessage(realtime_process.RealtimeMessage):
+    def __init__(self, trode_list):
+        self.trode_list = trode_list
 
 
 class SimulatorRemoteReceiver(realtime_process.RealtimeClass):
@@ -51,15 +51,15 @@ class SimulatorRemoteReceiver(realtime_process.RealtimeClass):
     def register_datatype_channel(self, datatype, channel):
         self.comm.send(ReqDatatypeChannelDataMessage(datatype, lfp_chan=channel),
                        dest=self.config['rank']['simulator'],
-                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE)
+                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def start_all_streams(self):
         self.comm.send(StartAllStreamMessage(), dest=self.config['rank']['simulator'],
-                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE)
+                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def stop_all_streams(self):
         self.comm.send(StopAllStreamMessage(), dest=self.config['rank']['simulator'],
-                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE)
+                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def __next__(self):
         message = self.comm.recv(tag=realtime_process.MPIMessageTag.SIMULATOR_DATA)
@@ -76,7 +76,7 @@ class SimulatorProcess(realtime_process.RealtimeProcess):
 
         mpi_status = MPI.Status()
         while not self.terminate:
-            message = self.comm.recv(status=mpi_status, tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE)
+            message = self.comm.recv(status=mpi_status, tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
             if isinstance(message, ReqDatatypeChannelDataMessage):
                 if message.datatype is SimulatorDatatypes.CONTINUOUS:
                     self.thread.update_cont_chan_req(mpi_status.source, message.lfp_chan)
@@ -115,8 +115,7 @@ class SimulatorThread(realtime_process.RealtimeThread):
                                                              "not match nspike_data.AnimalInfo arguments."),
                       config['rank']['supervisor'])
 
-        self.comm.send(obj=SimNumTrodesMessage(len(self.config['simulator']
-                                                   ['nspike_animal_info']['tetrodes'])),
+        self.comm.send(obj=SimTrodeListMessage(self.config['simulator']['nspike_animal_info']['tetrodes']),
                        dest=config['rank']['supervisor'],
                        tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 

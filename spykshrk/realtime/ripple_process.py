@@ -292,7 +292,7 @@ class RippleMPISendInterface(realtime_process.RealtimeClass):
 
 
 class RippleManager(realtime_process.BinaryRecordBase, realtime_process.RealtimeClass):
-    def __init__(self, local_rec_manager, ripple_mpi_send_interface: RippleMPISendInterface):
+    def __init__(self, local_rec_manager, send_interface: RippleMPISendInterface, data_interface):
         super().__init__(local_rec_manager=local_rec_manager,
                          rec_id=1,
                          rec_labels=['current_time',
@@ -303,7 +303,8 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
                                      'current_val'],
                          rec_format='Ii??dd')
 
-        self.mpi_send = ripple_mpi_send_interface
+        self.mpi_send = send_interface
+        self.data_interface = data_interface
 
         self.num_ntrodes = None
         self.lfp_enable_list = []
