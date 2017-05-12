@@ -19,6 +19,10 @@ class RealtimeClass(object):
                                                                self.__class__.__name__))
 
 
+class DataSourceError(RuntimeError):
+    pass
+
+
 class BinaryRecordBaseError(RuntimeError):
     pass
 

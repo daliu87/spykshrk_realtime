@@ -2,6 +2,7 @@ from collections import deque
 from collections import OrderedDict
 
 import spykshrk.realtime.realtime_process as realtime_process
+import spykshrk.realtime.simulator.simulator_process as simulator_process
 from spykshrk.realtime.datatypes import LFPPoint
 from mpi4py import MPI
 import spykshrk.realtime.binary_record as binary_record
@@ -451,7 +452,14 @@ class RippleDataThread(realtime_process.RealtimeThread):
     def __init__(self, comm, rank, config, parent: RippleProcess, local_rec_manager):
         super().__init__(comm, rank, config, parent=parent)
 
-        self.rip_man = RippleManager(local_rec_manager, parent.mpi_send)
+        if config['datasource'] == 'simulator':
+            data_interface = simulator_process
+        else:
+            raise realtime_process.DataSourceError("No valid data source selected")
+
+        self.rip_man = RippleManager(local_rec_manager=local_rec_manager,
+                                     send_interface=parent.mpi_send,
+                                     data_interface=data_interface)
 
         self.stop_next = False
 

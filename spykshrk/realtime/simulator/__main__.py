@@ -57,7 +57,7 @@ def main(argv):
                 'level': 'DEBUG',
                 'formatter': 'simple',
                 'filename': '{}_MPI-{:02d}_debug.log'.format(datetime.datetime.now().
-                                                             strftime('%Y-%m-%dT%H:%M:%S'), rank),
+                                                             strftime('%Y-%m-%dT%H%M%S'), rank),
                 'maxBytes': 10485760,
                 'backupCount': 20,
                 'encoding': 'utf8',

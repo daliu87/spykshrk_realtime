@@ -1,11 +1,12 @@
 {
+    "datasource": "simulator",
     "simulator": {
         "nspike_animal_info": {
-            "base_dir": "/opt/data36/daliu/other/mkarlsso/",
-            "name": "bond",
-            "days": [4],
+            "base_dir": "/home/daliu/data/",
+            "name": "test",
+            "days": [2],
             "epochs": [1], 
-            "tetrodes": [5, 11, 12, 13, 14, 17]
+            "tetrodes": [5, 11, 12, 14, 19]
         }
     }, 
 
@@ -20,6 +21,5 @@
     }, 
 
     "ripple": {
-        "source": "simulator"
     }
 }
