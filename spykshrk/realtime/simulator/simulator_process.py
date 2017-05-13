@@ -8,12 +8,6 @@ import spykshrk.realtime.datatypes as datatypes
 import spykshrk.realtime.simulator.nspike_data as nspike_data
 import spykshrk.realtime.simulator.sim_databuffer as sim_databuffer
 
-from enum import Enum
-
-class SimulatorDatatypes(Enum):
-    CONTINUOUS = 1
-    POSITION = 2
-    SPIKES = 3
 
 
 class ReqDatatypeChannelDataMessage(realtime_process.RealtimeMessage):
@@ -23,6 +17,11 @@ class ReqDatatypeChannelDataMessage(realtime_process.RealtimeMessage):
 
 
 class StartAllStreamMessage(realtime_process.RealtimeMessage):
+    def __init__(self):
+        pass
+
+
+class StopAllStreamMessage(realtime_process.RealtimeMessage):
     def __init__(self):
         pass
 
@@ -78,11 +77,11 @@ class SimulatorProcess(realtime_process.RealtimeProcess):
         while not self.terminate:
             message = self.comm.recv(status=mpi_status, tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
             if isinstance(message, ReqDatatypeChannelDataMessage):
-                if message.datatype is SimulatorDatatypes.CONTINUOUS:
+                if message.datatype is datatypes.Datatypes.CONTINUOUS:
                     self.thread.update_cont_chan_req(mpi_status.source, message.lfp_chan)
-                elif message.datatype is SimulatorDatatypes.SPIKES:
+                elif message.datatype is datatypes.Datatypes.SPIKES:
                     raise NotImplementedError("The Spike datatype is not implemented yet for the simulator.")
-                elif message.datatype is SimulatorDatatypes.POSITION:
+                elif message.datatype is datatypes.Datatypes.POSITION:
                     self.thread.update_pos_chan_req(mpi_status.source)
 
             elif isinstance(message, StartAllStreamMessage):

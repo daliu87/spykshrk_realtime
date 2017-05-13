@@ -1,3 +1,13 @@
+
+from enum import Enum
+
+
+class Datatypes(Enum):
+    CONTINUOUS = 1
+    POSITION = 2
+    SPIKES = 3
+
+
 class SpikePoint:
     def __init__(self, timestamp, ntrode_index, data):
         self.timestamp = timestamp

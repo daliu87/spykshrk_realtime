@@ -1,6 +1,7 @@
 
 import spykshrk.realtime.realtime_process as realtime_process
 import spykshrk.realtime.simulator.simulator_process as simulator_process
+import spykshrk.realtime.ripple_process as ripple_process
 
 from mpi4py import MPI
 
@@ -58,7 +59,7 @@ class MainProcess(realtime_process.RealtimeProcess):
 
     def __init__(self, comm: MPI.Comm, rank, config):
 
-        self.comm = comm
+        self.comm = comm    # type: MPI.Comm
         self.rank = rank
         self.config = config
 
@@ -87,6 +88,10 @@ class MainProcess(realtime_process.RealtimeProcess):
                 for chan_ind, chan_id in enumerate(message.trode_list):
                     all_ripple_process_enable[enable_count % len(self.config['rank']['ripples'])].append(chan_ind)
                     enable_count += 1
+
+                for rank_ind, rank in enumerate(self.config['rank']['ripples']):
+                    self.comm.send(obj=ripple_process.ChannelSelection(all_ripple_process_enable[rank_ind]), dest=rank)
+
 
 
 class MainThread(realtime_process.RealtimeThread):

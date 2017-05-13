@@ -8,6 +8,11 @@ from mpi4py import MPI
 import spykshrk.realtime.binary_record as binary_record
 
 
+class ChannelSelection(realtime_process.RealtimeMessage):
+    def __init__(self, ntrode_list):
+        self.ntrode_list = ntrode_list
+
+
 class RippleParameterMessage(realtime_process.RealtimeMessage):
     def __init__(self, rip_coeff1=1.2, rip_coeff2=0.2, ripple_threshold=5, samp_divisor=10000, n_above_thresh=1,
                  lockout_time=7500, detect_no_ripple_time=60000, dio_gate_port=None, detect_no_ripples=False,
@@ -321,6 +326,9 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
         self.num_ntrodes = message.num_ntrodes
         self.class_log.info('Set number of ntrodes: {:d}'.format(self.num_ntrodes))
 
+    def select_ntrodes(self, ntrode_list):
+        self.data_interface
+
     def update_ripple_parameter(self, parameter: RippleParameterMessage):
         self.param = parameter
         for rip_filter in self.ripple_filters.values():     # type: RippleFilter
@@ -384,6 +392,9 @@ class RippleMPIRecvInterface(realtime_process.RealtimeClass):
 
         elif isinstance(message, realtime_process.NumTrodesMessage):
             self.rip_man.set_num_trodes(message)
+
+        elif isinstance(message, ChannelSelection):
+            self.rip_man.select_ntrodes(message.ntrode_list)
 
         elif isinstance(message, RippleParameterMessage):
             self.rip_man.update_ripple_parameter(message)
@@ -453,7 +464,9 @@ class RippleDataThread(realtime_process.RealtimeThread):
         super().__init__(comm, rank, config, parent=parent)
 
         if config['datasource'] == 'simulator':
-            data_interface = simulator_process
+            data_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
+                                                                       rank=self.rank,
+                                                                       config=self.config)
         else:
             raise realtime_process.DataSourceError("No valid data source selected")
 
