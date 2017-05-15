@@ -27,6 +27,24 @@ class BinaryRecordBaseError(RuntimeError):
     pass
 
 
+class DataSourceReceiver(RealtimeClass, metaclass=ABCMeta):
+    @abstractmethod
+    def register_datatype_channel(self, datatype, channel):
+        pass
+
+    @abstractmethod
+    def start_all_streams(self):
+        pass
+
+    @abstractmethod
+    def stop_all_streams(self):
+        pass
+
+    @abstractmethod
+    def __next__(self):
+        pass
+
+
 class BinaryRecordBase(RealtimeClass):
     def __init__(self, local_rec_manager: binary_record.RemoteBinaryRecordsManager, rec_id, rec_labels, rec_format,
                  *args, **kwds):

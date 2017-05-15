@@ -11,9 +11,9 @@ import spykshrk.realtime.simulator.sim_databuffer as sim_databuffer
 
 
 class ReqDatatypeChannelDataMessage(realtime_process.RealtimeMessage):
-    def __init__(self, datatype, lfp_chan):
+    def __init__(self, datatype, channel):
         self. datatype = datatype
-        self.lfp_chan = lfp_chan
+        self.channel = channel
 
 
 class StartAllStreamMessage(realtime_process.RealtimeMessage):
@@ -36,7 +36,7 @@ class SimTrodeListMessage(realtime_process.RealtimeMessage):
         self.trode_list = trode_list
 
 
-class SimulatorRemoteReceiver(realtime_process.RealtimeClass):
+class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
     """ A Class to be created and used by ranks that need to communicate with the Simulator Process/Rank.
     
     Goal is to provide an abstraction layer for interacting with other sources.
@@ -48,7 +48,7 @@ class SimulatorRemoteReceiver(realtime_process.RealtimeClass):
         self.config = config
 
     def register_datatype_channel(self, datatype, channel):
-        self.comm.send(ReqDatatypeChannelDataMessage(datatype, lfp_chan=channel),
+        self.comm.send(ReqDatatypeChannelDataMessage(datatype=datatype, channel=channel),
                        dest=self.config['rank']['simulator'],
                        tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
@@ -78,7 +78,7 @@ class SimulatorProcess(realtime_process.RealtimeProcess):
             message = self.comm.recv(status=mpi_status, tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
             if isinstance(message, ReqDatatypeChannelDataMessage):
                 if message.datatype is datatypes.Datatypes.CONTINUOUS:
-                    self.thread.update_cont_chan_req(mpi_status.source, message.lfp_chan)
+                    self.thread.update_cont_chan_req(mpi_status.source, message.channel)
                 elif message.datatype is datatypes.Datatypes.SPIKES:
                     raise NotImplementedError("The Spike datatype is not implemented yet for the simulator.")
                 elif message.datatype is datatypes.Datatypes.POSITION:

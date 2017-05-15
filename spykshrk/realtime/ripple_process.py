@@ -6,6 +6,7 @@ import spykshrk.realtime.simulator.simulator_process as simulator_process
 from spykshrk.realtime.datatypes import LFPPoint
 from mpi4py import MPI
 import spykshrk.realtime.binary_record as binary_record
+import spykshrk.realtime.datatypes as datatypes
 
 
 class ChannelSelection(realtime_process.RealtimeMessage):
@@ -327,7 +328,9 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
         self.class_log.info('Set number of ntrodes: {:d}'.format(self.num_ntrodes))
 
     def select_ntrodes(self, ntrode_list):
-        self.data_interface
+        for ntrode in ntrode_list:
+            self.data_interface.register_datatype_channel(datatype=datatypes.Datatypes.CONTINUOUS,
+                                                          channel=ntrode)
 
     def update_ripple_parameter(self, parameter: RippleParameterMessage):
         self.param = parameter
