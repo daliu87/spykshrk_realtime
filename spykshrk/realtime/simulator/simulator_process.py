@@ -9,6 +9,9 @@ import spykshrk.realtime.simulator.nspike_data as nspike_data
 import spykshrk.realtime.simulator.sim_databuffer as sim_databuffer
 
 
+class SimulatorError(RuntimeError):
+    pass
+
 
 class ReqDatatypeChannelDataMessage(realtime_process.RealtimeMessage):
     def __init__(self, datatype, channel):
@@ -99,9 +102,9 @@ class SimulatorThread(realtime_process.RealtimeThread):
         self._stop_next = False
 
         try:
-            nspike_anim = nspike_data.AnimalInfo(**config['simulator']['nspike_animal_info'])
-            lfp_stream = nspike_data.EEGDataStream(nspike_anim, 100)
-            pos_stream = nspike_data.PosMatDataStream(nspike_anim, 1000)
+            self.nspike_anim = nspike_data.AnimalInfo(**config['simulator']['nspike_animal_info'])
+            lfp_stream = nspike_data.EEGDataStream(self.nspike_anim, 100)
+            pos_stream = nspike_data.PosMatDataStream(self.nspike_anim, 1000)
             self.databuffer = sim_databuffer.SimDataBuffer([lfp_stream(), pos_stream()])
 
             self.lfp_chan_req_dict = {}
@@ -124,12 +127,16 @@ class SimulatorThread(realtime_process.RealtimeThread):
         self._stop_next = True
 
     def update_cont_chan_req(self, dest_rank, lfp_chan):
+        if lfp_chan not in self.nspike_anim.tetrodes:
+            raise SimulatorError("Rank {:} tried to request channel ({:}) not available in animal info.".
+                                 format(dest_rank, lfp_chan))
         if lfp_chan in self.lfp_chan_req_dict:
             self.class_log.error(("LFP channels cannot be requested by more than one rank. Channel ({:}) requested by "
                                   "rank ({:}) but is already owned by rank ({:}). "
                                   "Overwriting previous assignment.").format(lfp_chan, dest_rank,
                                                                              self.lfp_chan_req_dict[lfp_chan]))
         self.lfp_chan_req_dict[lfp_chan] = dest_rank
+        self.class_log.debug("Continuous channel/ntrode {:} registered by rank {:}".format(lfp_chan, dest_rank))
 
     def update_pos_chan_req(self, dest_rank):
         self.pos_chan_req.append(dest_rank)

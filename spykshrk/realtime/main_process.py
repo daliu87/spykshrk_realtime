@@ -86,7 +86,7 @@ class MainProcess(realtime_process.RealtimeProcess):
                 enable_count = 0
                 all_ripple_process_enable = [[] for _ in self.config['rank']['ripples']]
                 for chan_ind, chan_id in enumerate(message.trode_list):
-                    all_ripple_process_enable[enable_count % len(self.config['rank']['ripples'])].append(chan_ind)
+                    all_ripple_process_enable[enable_count % len(self.config['rank']['ripples'])].append(chan_id)
                     enable_count += 1
 
                 for rank_ind, rank in enumerate(self.config['rank']['ripples']):
