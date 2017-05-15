@@ -33,6 +33,11 @@ class RippleParameterMessage(realtime_process.RealtimeMessage):
         self.update_custom_baseline = update_custom_baseline
 
 
+class TurnOnDataStream(realtime_process.RealtimeMessage):
+    def __init__(self):
+        pass
+
+
 class CustomRippleBaselineMeanMessage(realtime_process.RealtimeMessage):
     def __init__(self, mean_dict):
         self.mean_dict = mean_dict
@@ -332,6 +337,10 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
             self.data_interface.register_datatype_channel(datatype=datatypes.Datatypes.CONTINUOUS,
                                                           channel=ntrode)
 
+    def turn_on_datastreams(self):
+        self.class_log.debug("Turn on datastreams.")
+        self.data_interface.start_all_streams()
+
     def update_ripple_parameter(self, parameter: RippleParameterMessage):
         self.param = parameter
         for rip_filter in self.ripple_filters.values():     # type: RippleFilter
@@ -373,7 +382,7 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
         return status_list
 
     def process_next_data(self):
-        pass
+        self.class_log.debug(str(next(self.data_interface)))
 
 
 class RippleMPIRecvInterface(realtime_process.RealtimeClass):
@@ -398,6 +407,9 @@ class RippleMPIRecvInterface(realtime_process.RealtimeClass):
 
         elif isinstance(message, ChannelSelection):
             self.rip_man.select_ntrodes(message.ntrode_list)
+
+        elif isinstance(message, TurnOnDataStream):
+            self.rip_man.turn_on_datastreams()
 
         elif isinstance(message, RippleParameterMessage):
             self.rip_man.update_ripple_parameter(message)

@@ -121,7 +121,7 @@ class SimulatorThread(realtime_process.RealtimeThread):
                        dest=config['rank']['supervisor'],
                        tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
-        self.start_datastream = threading.Event()
+        self.start_datastream_event = threading.Event()
 
     def stop_thread_next(self):
         self._stop_next = True
@@ -142,15 +142,16 @@ class SimulatorThread(realtime_process.RealtimeThread):
         self.pos_chan_req.append(dest_rank)
 
     def start_datastream(self):
-        self.start_datastream.set()
+        self.class_log.debug("Start datastream.")
+        self.start_datastream_event.set()
 
     def pause_datastream(self):
-        self.start_datastream.clear()
+        self.start_datastream_event.clear()
 
     def run(self):
         data_itr = self.databuffer()
         while not self._stop_next:
-            self.start_datastream.wait()
+            self.start_datastream_event.wait()
             data_to_send = data_itr.__next__()
             if isinstance(data_to_send, datatypes.LFPPoint):
                 try:
@@ -160,5 +161,5 @@ class SimulatorThread(realtime_process.RealtimeThread):
                                               "was likely never requested by a receiving/computing ranks.").
                                              format(data_to_send.ntrode_index), exc_info=err)
 
-            self.start_datastream.wait()
+            self.start_datastream_event.wait()
 

@@ -89,8 +89,13 @@ class MainProcess(realtime_process.RealtimeProcess):
                     all_ripple_process_enable[enable_count % len(self.config['rank']['ripples'])].append(chan_id)
                     enable_count += 1
 
+                # Set channel assignments for all ripple ranks
                 for rank_ind, rank in enumerate(self.config['rank']['ripples']):
                     self.comm.send(obj=ripple_process.ChannelSelection(all_ripple_process_enable[rank_ind]), dest=rank)
+
+                # Then turn on data streaming to ripple ranks
+                for rank_ind, rank in enumerate(self.config['rank']['ripples']):
+                    self.comm.send(obj=ripple_process.TurnOnDataStream(), dest=rank)
 
 
 
