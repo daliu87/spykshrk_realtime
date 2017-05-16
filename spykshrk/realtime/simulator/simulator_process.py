@@ -64,7 +64,7 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
                        tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def __next__(self):
-        message = self.comm.recv(tag=realtime_process.MPIMessageTag.SIMULATOR_DATA)
+        message = self.comm.recv(tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
         return message
 
 
@@ -152,14 +152,20 @@ class SimulatorThread(realtime_process.RealtimeThread):
         data_itr = self.databuffer()
         while not self._stop_next:
             self.start_datastream_event.wait()
-            data_to_send = data_itr.__next__()
-            if isinstance(data_to_send, datatypes.LFPPoint):
-                try:
-                    self.comm.send(obj=data_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_index])
-                except KeyError as err:
-                    self.class_log.exception(("KeyError: Tetrode index ({:}) not in lfp channel request dict,"
-                                              "was likely never requested by a receiving/computing ranks.").
-                                             format(data_to_send.ntrode_index), exc_info=err)
+            try:
+                data_to_send = data_itr.__next__()
+                if isinstance(data_to_send, datatypes.LFPPoint):
+                    try:
+                        self.comm.send(obj=data_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
+                                       tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
+                    except KeyError as err:
+                        self.class_log.exception(("KeyError: Tetrode index ({:}) not in lfp channel request dict {:}, "
+                                                  "was likely never requested by a receiving/computing ranks.").
+                                                 format(data_to_send.ntrode_index, self.lfp_chan_req_dict), exc_info=err)
 
-            self.start_datastream_event.wait()
+                self.start_datastream_event.wait()
+            except StopIteration as err:
+                # Simulation is done, send terminate message
+                self.comm.send(obj=realtime_process.TerminateMessage(), dest=self.config['rank']['supervisor'],
+                               tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 

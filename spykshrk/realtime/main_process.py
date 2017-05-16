@@ -78,8 +78,9 @@ class MainProcess(realtime_process.RealtimeProcess):
             message = self.comm.recv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
             if isinstance(message, simulator_process.SimTrodeListMessage):
-
+                self.class_log.debug("Received ntrode list from simulator {:}.".format(message.trode_list))
                 for rip_rank in self.config['rank']['ripples']:
+                    self.class_log.debug("Sending number of ntrodes to ripple rank {:}".format(rip_rank))
                     self.comm.send(realtime_process.NumTrodesMessage(len(message.trode_list)), dest=rip_rank)
 
                 # Round robin allocation of channels to ripple
@@ -96,7 +97,6 @@ class MainProcess(realtime_process.RealtimeProcess):
                 # Then turn on data streaming to ripple ranks
                 for rank_ind, rank in enumerate(self.config['rank']['ripples']):
                     self.comm.send(obj=ripple_process.TurnOnDataStream(), dest=rank)
-
 
 
 class MainThread(realtime_process.RealtimeThread):

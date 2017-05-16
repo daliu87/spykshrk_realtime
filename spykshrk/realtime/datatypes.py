@@ -16,9 +16,10 @@ class SpikePoint:
 
 
 class LFPPoint:
-    def __init__(self, timestamp, ntrode_index, data):
+    def __init__(self, timestamp, ntrode_index, ntrode_id, data):
         self.timestamp = timestamp
         self.ntrode_index = ntrode_index
+        self.ntrode_id = ntrode_id
         self.data = data
 
     def __str__(self):

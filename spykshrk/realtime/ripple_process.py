@@ -325,6 +325,7 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
         self.custom_baseline_mean_dict = {}
         self.custom_baseline_std_dict = {}
         self.dataclient_info_list = {}
+        self.data_packet_counter = 0
 
         #self.mpi_send.send_record_register_message(self.get_record_register_message())
 
@@ -333,6 +334,7 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
         self.class_log.info('Set number of ntrodes: {:d}'.format(self.num_ntrodes))
 
     def select_ntrodes(self, ntrode_list):
+        self.class_log.debug("Registering continuous channels: {:}.".format(ntrode_list))
         for ntrode in ntrode_list:
             self.data_interface.register_datatype_channel(datatype=datatypes.Datatypes.CONTINUOUS,
                                                           channel=ntrode)
@@ -382,7 +384,11 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
         return status_list
 
     def process_next_data(self):
-        self.class_log.debug(str(next(self.data_interface)))
+
+        datapoint = next(self.data_interface)
+        self.data_packet_counter += 1
+        if (self.data_packet_counter % 1000) == 0:
+            self.class_log.debug("Received {:} datapoints.".format(self.data_packet_counter))
 
 
 class RippleMPIRecvInterface(realtime_process.RealtimeClass):
@@ -455,7 +461,7 @@ class RippleProcess(realtime_process.RealtimeProcess):
 
         super().__init__(comm, rank, config, ThreadClass=RippleDataThread, local_rec_manager=self.local_rec_manager)
 
-        self.mpi_recv = RippleMPIRecvInterface(comm, rank, self.thread.rip_man, config['rank']['supervisor'])
+        self.mpi_recv = RippleMPIRecvInterface(self.comm, self.rank, self.thread.rip_man, self.config['rank']['supervisor'])
 
         # TODO temporary measure to enable type hinting (typing.Generics is broken for PyCharm 2016.2.3)
         self.thread = self.thread   # type: RippleDataThread
@@ -477,17 +483,18 @@ class RippleDataThread(realtime_process.RealtimeThread):
 
     def __init__(self, comm, rank, config, parent: RippleProcess, local_rec_manager):
         super().__init__(comm, rank, config, parent=parent)
+        self.local_rec_manager = local_rec_manager
 
-        if config['datasource'] == 'simulator':
+        if self.config['datasource'] == 'simulator':
             data_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
                                                                        rank=self.rank,
                                                                        config=self.config)
+
+            self.rip_man = RippleManager(local_rec_manager=self.local_rec_manager,
+                                         send_interface=self.parent.mpi_send,
+                                         data_interface=data_interface)
         else:
             raise realtime_process.DataSourceError("No valid data source selected")
-
-        self.rip_man = RippleManager(local_rec_manager=local_rec_manager,
-                                     send_interface=parent.mpi_send,
-                                     data_interface=data_interface)
 
         self.stop_next = False
 
@@ -495,6 +502,7 @@ class RippleDataThread(realtime_process.RealtimeThread):
         self.stop_next = True
 
     def run(self):
+
         while not self.stop_next:
             self.rip_man.process_next_data()
 

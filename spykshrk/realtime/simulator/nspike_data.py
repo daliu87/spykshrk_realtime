@@ -645,6 +645,7 @@ class EEGDataStream:
                     if not np.isnan(tet_data):
                         yield LFPPoint(timestamp=int(timestamp * 3),
                                        ntrode_index=self.anim.tetrodes.index(tetnum),
+                                       ntrode_id=tetnum,
                                        data=tet_data)
 
 
