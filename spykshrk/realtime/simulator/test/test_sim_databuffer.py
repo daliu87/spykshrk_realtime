@@ -1,43 +1,40 @@
 from unittest import TestCase
 
-from trodes.FSData.nspike_data import AnimalInfo, EEGDataStream, SpkDataStream, PosMatDataStream
-from trodes.FSData.sim_databuffer import SimDataBuffer
+from spykshrk.realtime.simulator.nspike_data import AnimalInfo, EEGDataStream, SpkDataStream, PosMatDataStream
+from spykshrk.realtime.simulator.sim_databuffer import SimDataBuffer
+
+from spykshrk.realtime.datatypes import LFPPoint
 
 from franklab.franklab_data import FrankAnimalInfo, LFPData, RawPosData, SpikeAmpData
-from trodes.FSData.franklab_datastream import LFPDataStream, RawPosDataStream, SpikeDataStream
+from spykshrk.realtime.simulator.franklab_datastream import LFPDataStream, RawPosDataStream, SpikeDataStream
 
 
-def nspike_animal_test_init():
-    anim_dir = '/opt/data36/daliu/other/mkarlsso/'
+class TestNSpikeSimDataBuffer(TestCase):
 
-    timescale = 10000
+    def setUp(self):
+        anim_dir = '/home/daliu/data/'
 
-    animal_name = 'test'
-    days = [2]
-    tetrodes = [5, 11, 12, 14, 19]
-    tetrodes_ca1 = [5, 11, 12, 14, 19]
+        timescale = 10000
 
-    epoch_encode = [1]
-    new_data = True
-    anim = AnimalInfo(animal_dir=anim_dir,
-                      animal_name=animal_name,
-                      days=days,
-                      tetrodes=tetrodes,
-                      tetrodes_ca1=tetrodes_ca1,
-                      epoch_encode=epoch_encode,
-                      timescale=timescale,
-                      new_data=new_data)
-    return anim
+        animal_name = 'test'
+        days = [2]
+        tetrodes = [5, 11, 12, 14, 19]
 
-
-class TestSimDataBuffer(TestCase):
+        epoch_encode = [1]
+        new_data = True
+        self.anim = AnimalInfo(base_dir=anim_dir,
+                               name=animal_name,
+                               days=days,
+                               tetrodes=tetrodes,
+                               epochs=epoch_encode,
+                               timescale=timescale,
+                               new_data=new_data)
 
     def test_nspike_SimDataBuffer(self):
-        anim = FrankAnimalInfo('/opt/data36/jason/', 'kanye')
 
-        eeg = EEGDataStream(anim, 100)
-        spk = SpkDataStream(anim, 100)
-        pos = PosMatDataStream(anim, 1000)
+        eeg = EEGDataStream(self.anim, 100)
+        spk = SpkDataStream(self.anim, 100)
+        pos = PosMatDataStream(self.anim, 1000)
 
         databuffer = SimDataBuffer([eeg(), pos()])
 
@@ -46,7 +43,14 @@ class TestSimDataBuffer(TestCase):
             self.assertTrue(data.timestamp >= last_timestamp)
             last_timestamp = data.timestamp
 
-        self.assertTrue(datacount == 462559)
+            if isinstance(data, LFPPoint):
+                self.assertTrue(data.ntrode_id in self.anim.tetrodes,
+                                msg='ntrode {:} not in anim tetrode list.'.format(data.ntrode_id, self.anim.tetrodes))
+
+        self.assertTrue(datacount == 452007, msg='Datacount is actually {:}'.format(datacount))
+
+
+class TestTrodesSimDataBuffer(TestCase):
 
     def test_franklab_SimDataBuffer(self):
         anim = FrankAnimalInfo('/opt/data36/jason/', 'kanye')

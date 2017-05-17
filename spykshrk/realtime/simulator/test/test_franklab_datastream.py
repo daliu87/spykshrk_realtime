@@ -1,6 +1,7 @@
 from unittest import TestCase
 
-from trodes.FSData.franklab_datastream import LFPDataStream, SpikeDataStream, SpikeDataStreamSlow, RawPosDataStream
+from spykshrk.realtime.simulator.franklab_datastream import LFPDataStream, SpikeDataStream, \
+    SpikeDataStreamSlow, RawPosDataStream
 from franklab.franklab_data import SpikeAmpData, FrankAnimalInfo, LFPData, RawPosData
 
 

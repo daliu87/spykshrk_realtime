@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from collections import OrderedDict
 from franklab.franklab_data import SpikeBaseData, LFPData, RawPosData
-from trodes.FSData.datatypes import SpikePoint, LFPPoint, RawPosPoint
+from spykshrk.realtime.datatypes import SpikePoint, LFPPoint, RawPosPoint
 
 
 class RawPosDataStream:
