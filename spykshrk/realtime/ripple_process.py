@@ -344,16 +344,19 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
         self.data_interface.start_all_streams()
 
     def update_ripple_parameter(self, parameter: RippleParameterMessage):
+        self.class_log.debug("Ripple parameter updated.")
         self.param = parameter
         for rip_filter in self.ripple_filters.values():     # type: RippleFilter
             rip_filter.update_parameter(self.param)
 
     def set_custom_baseline_mean(self, custom_mean_dict):
+        self.class_log.debug("Custom baseline mean updated.")
         self.custom_baseline_mean_dict = custom_mean_dict
         for ntrode_index, rip_filt in self.ripple_filters.items():
             rip_filt.custom_baseline_mean = self.custom_baseline_mean_dict[ntrode_index]
 
     def set_custom_baseline_std(self, custom_std_dict):
+        self.class_log.debug("Custom baseline std updated.")
         self.custom_baseline_std_dict = custom_std_dict
         for ntrode_index, rip_filt in self.ripple_filters.items():
             rip_filt.custom_baseline_std = self.custom_baseline_std_dict[ntrode_index]

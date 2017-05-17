@@ -74,6 +74,23 @@ class MainProcess(realtime_process.RealtimeProcess):
         self.thread.start()
         mpi_status = MPI.Status()
 
+        # Send ripple config to ripple ranks
+        rip_param_message = ripple_process.RippleParameterMessage(**self.config['ripple']['RippleParameterMessage'])
+        rip_baseline_mean_message = ripple_process. \
+            CustomRippleBaselineMeanMessage(dict(map(lambda x: (int(x[0]), x[1]),
+                                                     self.config['ripple']['CustomRippleBaselineMeanMessage'].items())))
+        rip_baseline_std_message = ripple_process. \
+            CustomRippleBaselineStdMessage(dict(map(lambda x: (int(x[0]), x[1]),
+                                                    self.config['ripple']['CustomRippleBaselineStdMessage'].items())))
+
+        for rip_rank in self.config['rank']['ripples']:
+            self.comm.send(obj=rip_param_message, dest=rip_rank,
+                           tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+            self.comm.send(obj=rip_baseline_mean_message, dest=rip_rank,
+                           tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+            self.comm.send(obj=rip_baseline_std_message, dest=rip_rank,
+                           tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+
         while not self.terminate:
             message = self.comm.recv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
