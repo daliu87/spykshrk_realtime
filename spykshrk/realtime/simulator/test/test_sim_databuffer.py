@@ -44,6 +44,7 @@ class TestNSpikeSimDataBuffer(TestCase):
             last_timestamp = data.timestamp
 
             if isinstance(data, LFPPoint):
+                print(data)
                 self.assertTrue(data.ntrode_id in self.anim.tetrodes,
                                 msg='ntrode {:} not in anim tetrode list.'.format(data.ntrode_id, self.anim.tetrodes))
 

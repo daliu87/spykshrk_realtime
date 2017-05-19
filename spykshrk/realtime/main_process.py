@@ -4,6 +4,7 @@ import spykshrk.realtime.simulator.simulator_process as simulator_process
 import spykshrk.realtime.ripple_process as ripple_process
 
 from mpi4py import MPI
+from time import sleep
 
 import sys
 
@@ -98,7 +99,8 @@ class MainProcess(realtime_process.RealtimeProcess):
                 self.class_log.debug("Received ntrode list from simulator {:}.".format(message.trode_list))
                 for rip_rank in self.config['rank']['ripples']:
                     self.class_log.debug("Sending number of ntrodes to ripple rank {:}".format(rip_rank))
-                    self.comm.send(realtime_process.NumTrodesMessage(len(message.trode_list)), dest=rip_rank)
+                    self.comm.send(realtime_process.NumTrodesMessage(len(message.trode_list)), dest=rip_rank,
+                                   tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
                 # Round robin allocation of channels to ripple
                 enable_count = 0
@@ -109,11 +111,14 @@ class MainProcess(realtime_process.RealtimeProcess):
 
                 # Set channel assignments for all ripple ranks
                 for rank_ind, rank in enumerate(self.config['rank']['ripples']):
-                    self.comm.send(obj=ripple_process.ChannelSelection(all_ripple_process_enable[rank_ind]), dest=rank)
+                    self.comm.send(obj=ripple_process.ChannelSelection(all_ripple_process_enable[rank_ind]), dest=rank,
+                                   tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
+                sleep(0.5)
                 # Then turn on data streaming to ripple ranks
                 for rank_ind, rank in enumerate(self.config['rank']['ripples']):
-                    self.comm.send(obj=ripple_process.TurnOnDataStream(), dest=rank)
+                    self.comm.send(obj=ripple_process.TurnOnDataStream(), dest=rank,
+                                   tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
 
 class MainThread(realtime_process.RealtimeThread):

@@ -115,7 +115,8 @@ class SimulatorThread(realtime_process.RealtimeThread):
                                      exc_info=err)
             comm.send(realtime_process.TerminateErrorMessage("For SimulatorThread, nspike_animal_info config did"
                                                              "not match nspike_data.AnimalInfo arguments."),
-                      config['rank']['supervisor'])
+                      dest=config['rank']['supervisor'],
+                      tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
         self.comm.send(obj=SimTrodeListMessage(self.config['simulator']['nspike_animal_info']['tetrodes']),
                        dest=config['rank']['supervisor'],
@@ -159,7 +160,7 @@ class SimulatorThread(realtime_process.RealtimeThread):
                         self.comm.send(obj=data_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
                                        tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
                     except KeyError as err:
-                        self.class_log.exception(("KeyError: Tetrode index ({:}) not in lfp channel request dict {:}, "
+                        self.class_log.exception(("KeyError: Tetrode id ({:}) not in lfp channel request dict {:}, "
                                                   "was likely never requested by a receiving/computing ranks.").
                                                  format(data_to_send.ntrode_index, self.lfp_chan_req_dict), exc_info=err)
 
