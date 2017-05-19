@@ -62,7 +62,8 @@ class RippleThresholdState(realtime_process.RealtimeMessage):
 
 
 class RippleFilter(realtime_process.RealtimeClass):
-    def __init__(self, rec_base: realtime_process.BinaryRecordBase, param: RippleParameterMessage, ntrode_index):
+    def __init__(self, rec_base: realtime_process.BinaryRecordBase, param: RippleParameterMessage,
+                 ntrode_id):
         super().__init__()
         self.rec_base = rec_base
         self.NFILT = 19
@@ -107,7 +108,7 @@ class RippleFilter(realtime_process.RealtimeClass):
                             -9.165841559639211766e-01,
                             9.461443242601841330e-02]
 
-        self.ntrode_index = ntrode_index
+        self.ntrode_id = ntrode_id
         self.param = param
 
         self.stim_enabled = False
@@ -260,7 +261,7 @@ class RippleFilter(realtime_process.RealtimeClass):
 
         # rec_labels=['current_time', 'ntrode_index', 'thresh_crossed', 'lockout', 'rd','current_val'],
         # rec_format='Ii??dd',
-        self.rec_base.write_record(self.current_time, self.ntrode_index, self.thresh_crossed,
+        self.rec_base.write_record(self.current_time, self.ntrode_id, self.thresh_crossed,
                                    self.in_lockout, rd, self.current_val)
 
         return self.thresh_crossed
@@ -324,7 +325,6 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
         self.param = RippleParameterMessage()
         self.custom_baseline_mean_dict = {}
         self.custom_baseline_std_dict = {}
-        self.dataclient_info_list = {}
         self.data_packet_counter = 0
 
         #self.mpi_send.send_record_register_message(self.get_record_register_message())
@@ -338,6 +338,8 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
         for ntrode in ntrode_list:
             self.data_interface.register_datatype_channel(datatype=datatypes.Datatypes.CONTINUOUS,
                                                           channel=ntrode)
+
+            self.ripple_filters.setdefault(ntrode, RippleFilter(rec_base=self, param=self.param, ntrode_id=ntrode))
 
     def turn_on_datastreams(self):
         self.class_log.debug("Turn on datastreams.")
@@ -389,9 +391,17 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
     def process_next_data(self):
 
         datapoint = next(self.data_interface)
-        self.data_packet_counter += 1
-        if (self.data_packet_counter % 1000) == 0:
-            self.class_log.debug("Received {:} datapoints.".format(self.data_packet_counter))
+
+        if isinstance(datapoint, LFPPoint):
+            self.ripple_filters[datapoint.ntrode_id].process_data(data_point=datapoint)
+
+            self.data_packet_counter += 1
+            if (self.data_packet_counter % 1000) == 0:
+                self.class_log.debug('Received {:} datapoints.'.format(self.data_packet_counter))
+
+        else:
+            self.class_log.warn('RippleManager should only receive LFP Data, instead received {:}'.
+                                format(type(datapoint)))
 
 
 class RippleMPIRecvInterface(realtime_process.RealtimeClass):
