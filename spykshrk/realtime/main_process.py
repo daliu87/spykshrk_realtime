@@ -2,6 +2,7 @@
 import spykshrk.realtime.realtime_process as realtime_process
 import spykshrk.realtime.simulator.simulator_process as simulator_process
 import spykshrk.realtime.ripple_process as ripple_process
+import spykshrk.realtime.binary_record as binary_record
 
 from mpi4py import MPI
 from time import sleep
@@ -71,6 +72,11 @@ class MainProcess(realtime_process.RealtimeProcess):
 
         self.terminate = False
 
+        self.rec_manager = binary_record.BinaryRecordsManager(manager_label='realtime_replay',
+                                                              save_dir=self.config['files']['output_dir'],
+                                                              file_prefix=self.config['files']['rec_prefix'],
+                                                              file_postfix=self.config['files']['rec_postfix'])
+
     def main_loop(self):
         self.thread.start()
         mpi_status = MPI.Status()
@@ -114,11 +120,22 @@ class MainProcess(realtime_process.RealtimeProcess):
                     self.comm.send(obj=ripple_process.ChannelSelection(all_ripple_process_enable[rank_ind]), dest=rank,
                                    tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
+                # Update binary_record file writers before starting datastream
+                for rec_rank in self.config['rank_settings']['enable_rec']:
+                    self.comm.send(obj=self.rec_manager.new_writer_message(), dest=rec_rank,
+                                   tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+                    self.comm.send(obj=realtime_process.StartRecordMessage(), dest=rec_rank,
+                                   tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+
                 sleep(0.5)
                 # Then turn on data streaming to ripple ranks
                 for rank_ind, rank in enumerate(self.config['rank']['ripples']):
                     self.comm.send(obj=ripple_process.TurnOnDataStream(), dest=rank,
                                    tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+
+            elif isinstance(message, binary_record.BinaryRecordTypeMessage):
+                self.rec_manager.register_rec_type_message(message)
+
 
 
 class MainThread(realtime_process.RealtimeThread):

@@ -291,7 +291,8 @@ class RippleMPISendInterface(realtime_process.RealtimeClass):
         self.num_ntrodes = None
 
     def send_record_register_message(self, record_register_message):
-        self.comm.send(record_register_message, 0)
+        self.comm.send(obj=record_register_message, dest=self.main_rank,
+                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def send_ripple_status_message(self, status_dict_list):
         if len(status_dict_list) == 0:
@@ -327,7 +328,7 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
         self.custom_baseline_std_dict = {}
         self.data_packet_counter = 0
 
-        #self.mpi_send.send_record_register_message(self.get_record_register_message())
+        self.mpi_send.send_record_register_message(self.get_record_register_message())
 
     def set_num_trodes(self, message: realtime_process.NumTrodesMessage):
         self.num_ntrodes = message.num_ntrodes
@@ -400,8 +401,8 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
                 self.class_log.debug('Received {:} datapoints.'.format(self.data_packet_counter))
 
         else:
-            self.class_log.warn('RippleManager should only receive LFP Data, instead received {:}'.
-                                format(type(datapoint)))
+            self.class_log.warning('RippleManager should only receive LFP Data, instead received {:}'.
+                                   format(type(datapoint)))
 
 
 class RippleMPIRecvInterface(realtime_process.RealtimeClass):
@@ -416,7 +417,7 @@ class RippleMPIRecvInterface(realtime_process.RealtimeClass):
         self.num_ntrodes = None
 
     def process_next_message(self):
-        message = self.comm.recv()
+        message = self.comm.recv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
         if isinstance(message, realtime_process.TerminateMessage):
             raise StopIteration()
@@ -468,7 +469,7 @@ class RippleMPIRecvInterface(realtime_process.RealtimeClass):
 class RippleProcess(realtime_process.RealtimeProcess):
 
     def __init__(self, comm: MPI.Comm, rank, config):
-        self.local_rec_manager = binary_record.RemoteBinaryRecordsManager(manager_label='fsdata')
+        self.local_rec_manager = binary_record.RemoteBinaryRecordsManager(manager_label='realtime_replay')
 
         self.mpi_send = RippleMPISendInterface(comm, rank, config['rank']['supervisor'])
 

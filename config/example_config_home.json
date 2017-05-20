@@ -20,6 +20,16 @@
         "decoder": 8
     }, 
 
+    "rank_settings": {
+        "enable_rec": [4, 5]
+    },
+
+    "files": {
+        "output_dir": "/home/daliu/output/",
+        "rec_prefix": "test_animal",
+        "rec_postfix": "bin_rec"
+    },
+
     "ripple": {
         "RippleParameterMessage": {
             "rip_coeff1": 1.2,

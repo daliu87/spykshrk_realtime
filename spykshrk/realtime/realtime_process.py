@@ -71,6 +71,7 @@ class BinaryRecordBase(RealtimeClass):
         self.rec_writer = rec_writer
 
     def start_record_writing(self):
+        self.class_log.info('Starting record writer.')
         if self.rec_writer:
             if not self.rec_writer.closed:
                 self.rec_writer_enabled = True
