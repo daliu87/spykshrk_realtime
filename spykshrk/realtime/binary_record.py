@@ -231,12 +231,14 @@ class BinaryRecordsFileWriter:
 
 
 class BinaryRecordsFileReader:
-    def __init__(self, file_id, save_dir, file_prefix, file_postfix):
+    def __init__(self, file_id, save_dir, file_prefix, file_postfix, filemeta_as_col=True):
         self._file_id = file_id
         self._save_dir = save_dir
         self._file_prefix = file_prefix
+        self._file_postfix = file_postfix
         self._file_path = os.path.join(save_dir, '{}.{:02d}.{}'.format(file_prefix, file_id, file_postfix))
         self._file_handle = open(self._file_path, 'rb')
+        self._filemeta_as_col = filemeta_as_col
 
         self._header_bytes = None
         self._data_start_byte = None
@@ -321,11 +323,19 @@ class BinaryRecordsFileReader:
         rec_data = {key: [] for key in columns.keys()}
 
         rec_count = 0
-        for rec in self:
-            rec_data[rec[1]].append((rec[0],) + rec[2])
+        if self._filemeta_as_col:
+            for rec in self:
+                rec_data[rec[1]].append((rec[0],) + (self._file_id,) + (self._file_path,) + rec[2])
 
-        panda_frames = {key: pd.DataFrame(data=rec_data[key], columns=['rec_ind'] + columns[key])
-                        for key in columns.keys()}
+            panda_frames = {key: pd.DataFrame(data=rec_data[key],
+                                              columns=['rec_ind', 'file_id', 'file_path'] + columns[key])
+                            for key in columns.keys()}
+        else:
+            for rec in self:
+                rec_data[rec[1]].append((rec[0],) + rec[2])
+
+            panda_frames = {key: pd.DataFrame(data=rec_data[key], columns=['rec_ind'] + columns[key])
+                            for key in columns.keys()}
 
         return panda_frames
 

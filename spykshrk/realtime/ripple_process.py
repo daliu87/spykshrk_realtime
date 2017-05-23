@@ -259,10 +259,10 @@ class RippleFilter(realtime_process.RealtimeClass):
                 else:
                     self.thresh_crossed = False
 
-        # rec_labels=['current_time', 'ntrode_index', 'thresh_crossed', 'lockout', 'rd','current_val'],
+        # rec_labels=['current_time', 'ntrode_index', 'thresh_crossed', 'lockout', 'lfp_data', 'rd','current_val'],
         # rec_format='Ii??dd',
         self.rec_base.write_record(self.current_time, self.ntrode_id, self.thresh_crossed,
-                                   self.in_lockout, rd, self.current_val)
+                                   self.in_lockout, data_point.data, rd, self.current_val)
 
         return self.thresh_crossed
 
@@ -313,9 +313,10 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
                                      'ntrode_index',
                                      'thresh_crossed',
                                      'lockout',
+                                     'lfp_data',
                                      'rd',
                                      'current_val'],
-                         rec_format='Ii??dd')
+                         rec_format='Ii??ddd')
 
         self.mpi_send = send_interface
         self.data_interface = data_interface
@@ -397,7 +398,7 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
             self.ripple_filters[datapoint.ntrode_id].process_data(data_point=datapoint)
 
             self.data_packet_counter += 1
-            if (self.data_packet_counter % 1000) == 0:
+            if (self.data_packet_counter % 10000) == 0:
                 self.class_log.debug('Received {:} datapoints.'.format(self.data_packet_counter))
 
         else:
