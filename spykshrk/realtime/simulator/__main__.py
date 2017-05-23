@@ -7,6 +7,7 @@ import logging
 import logging.config
 import cProfile
 import sys
+import os.path
 import getopt
 from mpi4py import MPI
 import time
@@ -82,16 +83,40 @@ def main(argv):
 
     if rank == config['rank']['supervisor']:
         # Supervisor node
-        main_proc = main_process.MainProcess(comm=comm, rank=rank, config=config)
-        main_proc.main_loop()
+        if rank in config['rank_settings']['enable_profiler']:
+            main_proc = main_process.MainProcess(comm=comm, rank=rank, config=config)
+            cProfile.runctx('main_proc.main_loop()', globals=globals(), locals=locals(),
+                            filename=os.path.join(config['files']['output_dir'],
+                                                  config['files']['prefix'] +
+                                                  '.{:02d}.'.format(rank) +
+                                                  config['files']['profile_postfix']))
+        else:
+            main_proc = main_process.MainProcess(comm=comm, rank=rank, config=config)
+            main_proc.main_loop()
 
     if rank in config['rank']['ripples']:
-        ripple_proc = ripple_process.RippleProcess(comm, rank, config=config)
-        ripple_proc.main_loop()
+        if rank in config['rank_settings']['enable_profiler']:
+            ripple_proc = ripple_process.RippleProcess(comm, rank, config=config)
+            cProfile.runctx('ripple_proc.main_loop()', globals=globals(), locals=locals(),
+                            filename=os.path.join(config['files']['output_dir'],
+                                                  config['files']['prefix'] +
+                                                  '.{:02d}.'.format(rank) +
+                                                  config['files']['profile_postfix']))
+        else:
+            ripple_proc = ripple_process.RippleProcess(comm, rank, config=config)
+            ripple_proc.main_loop()
 
     if rank == config['rank']['simulator']:
-        simulator_proc = simulator_process.SimulatorProcess(comm, rank, config=config)
-        simulator_proc.main_loop()
+        if rank in config['rank_settings']['enable_profiler']:
+            simulator_proc = simulator_process.SimulatorProcess(comm, rank, config=config)
+            cProfile.runctx('simulator_proc.main_loop()', globals=globals(), locals=locals(),
+                            filename=os.path.join(config['files']['output_dir'],
+                                                  config['files']['prefix'] +
+                                                  '.{:02d}.'.format(rank) +
+                                                  config['files']['profile_postfix']))
+        else:
+            simulator_proc = simulator_process.SimulatorProcess(comm, rank, config=config)
+            simulator_proc.main_loop()
 
 #cProfile.runctx('main(sys.argv[1:])', globals(), locals(), 'fsdatapy_profile')
 main(sys.argv[1:])

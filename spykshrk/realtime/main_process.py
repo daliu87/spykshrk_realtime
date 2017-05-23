@@ -74,7 +74,7 @@ class MainProcess(realtime_process.RealtimeProcess):
 
         self.rec_manager = binary_record.BinaryRecordsManager(manager_label='realtime_replay',
                                                               save_dir=self.config['files']['output_dir'],
-                                                              file_prefix=self.config['files']['rec_prefix'],
+                                                              file_prefix=self.config['files']['prefix'],
                                                               file_postfix=self.config['files']['rec_postfix'])
 
     def main_loop(self):
