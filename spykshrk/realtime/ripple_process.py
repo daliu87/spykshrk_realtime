@@ -390,6 +390,9 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
                 status_list.append(rip_filter.get_status_dict())
         return status_list
 
+    def trigger_termination(self):
+        self.data_interface.stop_iterator()
+
     def process_next_data(self):
 
         datapoint = next(self.data_interface)
@@ -421,6 +424,7 @@ class RippleMPIRecvInterface(realtime_process.RealtimeClass):
         message = self.comm.recv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
         if isinstance(message, realtime_process.TerminateMessage):
+            self.class_log.debug("Received TerminateMessage")
             raise StopIteration()
 
         elif isinstance(message, realtime_process.NumTrodesMessage):
@@ -489,9 +493,12 @@ class RippleProcess(realtime_process.RealtimeProcess):
                 self.mpi_recv.process_next_message()
 
         except StopIteration as ex:
-            self.class_log.info('Terminating RippleProcess')
-            # Program should prepare to exit
-            self.thread.stop_thread_next()
+            self.class_log.info('Terminating RippleProcess (rank: {:})'.format(self.rank))
+
+        # Program should prepare to exit
+        self.thread.trigger_termination()
+
+        self.class_log.info("Ripple Process Main Process reached end, exiting.")
 
 
 class RippleDataThread(realtime_process.RealtimeThread):
@@ -513,12 +520,19 @@ class RippleDataThread(realtime_process.RealtimeThread):
 
         self.stop_next = False
 
-    def stop_thread_next(self):
-        self.stop_next = True
+    def trigger_termination(self):
+        self.rip_man.trigger_termination()
 
     def run(self):
 
-        while not self.stop_next:
-            self.rip_man.process_next_data()
+        try:
+            while True:
+                self.rip_man.process_next_data()
+
+        except StopIteration as ex:
+
+            self.class_log.info("Ripple Process Main Thread reached end, exiting.")
+
+
 
 

@@ -49,6 +49,7 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
         self.comm = comm
         self.rank = rank
         self.config = config
+        self.stop = False
 
     def register_datatype_channel(self, datatype, channel):
         self.comm.send(ReqDatatypeChannelDataMessage(datatype=datatype, channel=channel),
@@ -63,8 +64,18 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
         self.comm.send(StopAllStreamMessage(), dest=self.config['rank']['simulator'],
                        tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
+    def stop_iterator(self):
+        self.stop = True
+
     def __next__(self):
-        message = self.comm.recv(tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
+        mpi_request = self.comm.irecv(tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)  # type: MPI.Request
+        success = False
+        while not success and not self.stop:
+            success, message = mpi_request.test()
+
+        if self.stop:
+            raise StopIteration()
+
         return message
 
 
@@ -72,6 +83,9 @@ class SimulatorProcess(realtime_process.RealtimeProcess):
     def __init__(self, comm: MPI.Comm, rank, config):
         super().__init__(comm=comm, rank=rank, config=config, ThreadClass=SimulatorThread)
         self.terminate = False
+
+    def trigger_termination(self):
+        self.terminate = True
 
     def main_loop(self):
         self.thread.start()
@@ -92,6 +106,12 @@ class SimulatorProcess(realtime_process.RealtimeProcess):
 
             elif isinstance(message, PauseAllStreamMessages):
                 self.thread.pause_datastream()
+
+            elif isinstance(message, realtime_process.TerminateMessage):
+                self.thread.trigger_termination()
+                self.trigger_termination()
+
+        self.class_log.info("Simulator Process Main reached end, exiting.")
 
 
 class SimulatorThread(realtime_process.RealtimeThread):
@@ -124,7 +144,7 @@ class SimulatorThread(realtime_process.RealtimeThread):
 
         self.start_datastream_event = threading.Event()
 
-    def stop_thread_next(self):
+    def trigger_termination(self):
         self._stop_next = True
 
     def update_cont_chan_req(self, dest_rank, lfp_chan):
@@ -169,4 +189,6 @@ class SimulatorThread(realtime_process.RealtimeThread):
                 # Simulation is done, send terminate message
                 self.comm.send(obj=realtime_process.TerminateMessage(), dest=self.config['rank']['supervisor'],
                                tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+
+        self.class_log.info("Simulator Process Thread reached end, exiting.")
 

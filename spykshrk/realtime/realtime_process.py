@@ -41,6 +41,10 @@ class DataSourceReceiver(RealtimeClass, metaclass=ABCMeta):
         pass
 
     @abstractmethod
+    def stop_iterator(self):
+        pass
+
+    @abstractmethod
     def __next__(self):
         pass
 

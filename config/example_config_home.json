@@ -21,13 +21,15 @@
     }, 
 
     "rank_settings": {
-        "enable_rec": [4, 5]
+        "enable_rec": [4, 5],
+        "enable_profiler": [0, 1, 4, 5]
     },
 
     "files": {
         "output_dir": "/home/daliu/output/",
-        "rec_prefix": "test_animal",
-        "rec_postfix": "bin_rec"
+        "prefix": "test_animal",
+        "rec_postfix": "bin_rec",
+        "profile_postfix": "pstats"
     },
 
     "ripple": {

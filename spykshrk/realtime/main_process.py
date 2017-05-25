@@ -77,6 +77,9 @@ class MainProcess(realtime_process.RealtimeProcess):
                                                               file_prefix=self.config['files']['prefix'],
                                                               file_postfix=self.config['files']['rec_postfix'])
 
+    def trigger_termination(self):
+        self.terminate = True
+
     def main_loop(self):
         self.thread.start()
         mpi_status = MPI.Status()
@@ -98,8 +101,10 @@ class MainProcess(realtime_process.RealtimeProcess):
             self.comm.send(obj=rip_baseline_std_message, dest=rip_rank,
                            tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
+        mpi_status = MPI.Status()
+
         while not self.terminate:
-            message = self.comm.recv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+            message = self.comm.recv(status=mpi_status, tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
             if isinstance(message, simulator_process.SimTrodeListMessage):
                 self.class_log.debug("Received ntrode list from simulator {:}.".format(message.trode_list))
@@ -136,6 +141,20 @@ class MainProcess(realtime_process.RealtimeProcess):
             elif isinstance(message, binary_record.BinaryRecordTypeMessage):
                 self.rec_manager.register_rec_type_message(message)
 
+            elif isinstance(message, realtime_process.TerminateMessage):
+                self.class_log.info('Received TerminateMessage from rank {:}, now terminating all.'.
+                                    format(mpi_status.source))
+
+                terminate_ranks = list(range(self.comm.size))
+                terminate_ranks.remove(self.rank)
+                for rank in terminate_ranks:
+                    self.comm.send(obj=realtime_process.TerminateMessage(), dest=rank,
+                                   tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+
+                self.thread.trigger_termination()
+                self.trigger_termination()
+
+        self.class_log.info("Main Process Main reached end, exiting.")
 
 
 class MainThread(realtime_process.RealtimeThread):
@@ -146,11 +165,13 @@ class MainThread(realtime_process.RealtimeThread):
 
         self._stop_next = False
 
-    def stop_thread_next(self):
+    def trigger_termination(self):
         self._stop_next = True
 
     def run(self):
 
         while not self._stop_next:
             pass
+
+        self.class_log.info("Main Process Thread reached end, exiting.")
 
