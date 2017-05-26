@@ -306,8 +306,9 @@ class RippleMPISendInterface(realtime_process.RealtimeClass):
 
 
 class RippleManager(realtime_process.BinaryRecordBase, realtime_process.RealtimeClass):
-    def __init__(self, local_rec_manager, send_interface: RippleMPISendInterface, data_interface):
-        super().__init__(local_rec_manager=local_rec_manager,
+    def __init__(self, rank, local_rec_manager, send_interface: RippleMPISendInterface, data_interface):
+        super().__init__(rank=rank,
+                         local_rec_manager=local_rec_manager,
                          rec_id=1,
                          rec_labels=['current_time',
                                      'ntrode_index',
@@ -318,6 +319,7 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
                                      'current_val'],
                          rec_format='Ii??ddd')
 
+        self.rank = rank
         self.mpi_send = send_interface
         self.data_interface = data_interface
 
@@ -512,7 +514,8 @@ class RippleDataThread(realtime_process.RealtimeThread):
                                                                        rank=self.rank,
                                                                        config=self.config)
 
-            self.rip_man = RippleManager(local_rec_manager=self.local_rec_manager,
+            self.rip_man = RippleManager(rank=rank,
+                                         local_rec_manager=self.local_rec_manager,
                                          send_interface=self.parent.mpi_send,
                                          data_interface=data_interface)
         else:
@@ -532,7 +535,4 @@ class RippleDataThread(realtime_process.RealtimeThread):
         except StopIteration as ex:
 
             self.class_log.info("Ripple Process Main Thread reached end, exiting.")
-
-
-
 

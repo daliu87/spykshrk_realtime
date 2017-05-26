@@ -79,6 +79,9 @@ def main(argv):
         # MPI is not running or is running on a single node.  Single processor mode
         pass
 
+    # Make sure output directory exists
+    os.makedirs(os.path.join(config['files']['output_dir']), exist_ok=True)
+
     # MPI node management
 
     if rank == config['rank']['supervisor']:

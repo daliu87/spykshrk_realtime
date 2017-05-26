@@ -60,8 +60,8 @@ class RemoteBinaryRecordsManager:
                                            rec_labels=rec_labels,
                                            rec_struct_fmt=rec_struct_fmt)
 
-    def create_writer_from_message(self, create_message: BinaryRecordCreateMessage):
-        new_bin_writer = BinaryRecordsFileWriter(create_message=create_message)
+    def create_writer_from_message(self, create_message: BinaryRecordCreateMessage, mpi_rank=-1):
+        new_bin_writer = BinaryRecordsFileWriter(create_message=create_message, mpi_rank=mpi_rank)
 
         self._local_files[create_message.file_id] = new_bin_writer
 
@@ -162,6 +162,11 @@ class BinaryRecordsManager:
 class BinaryRecordsFileWriter:
     """File handler for a single Binary Records file.
 
+    Current can only be created through a BinaryRecordCreateMessage (primarily for remote file creation).
+    
+    The file name will be defined by the BinaryRecordCreateMessage's attributes and the mpi_rank parameter if specified:
+    <file_prefix>.<file_id|mpi_rank>.<file_postfix>
+    
     A Binary Records file consists of a JSON header prepended to the file that must define the following entries:
         file_prefix: The root file name that is shared if a data store spans multiple files
         file_id: A unique ID for the given file
@@ -177,15 +182,20 @@ class BinaryRecordsFileWriter:
     Each record type has a fixed size that is implicitly defined by its format string.
 
     """
-    def __init__(self, create_message: BinaryRecordCreateMessage, mpi_rank=0):
+    def __init__(self, create_message: BinaryRecordCreateMessage, mpi_rank=None):
         self.manager_label = create_message.manager_label
         self._file_id = create_message.file_id
         self._mpi_rank = mpi_rank
         self._save_dir = create_message.save_dir
         self._file_prefix = create_message.file_prefix
         self._file_postfix = create_message.file_postfix
-        self._file_path = os.path.join(self._save_dir, '{}.{:02d}.{}'.format(self._file_prefix, self._file_id,
-                                                                             self._file_postfix))
+
+        if self._mpi_rank is not None:
+            self._file_path = os.path.join(self._save_dir, '{}.{:02d}.{}'.format(self._file_prefix, self._mpi_rank,
+                                                                                 self._file_postfix))
+        else:
+            self._file_path = os.path.join(self._save_dir, '{}.{:02d}.{}'.format(self._file_prefix, self._file_id,
+                                                                                 self._file_postfix))
         self._file_handle = open(self._file_path, 'wb')
         self._rec_label_dict = create_message.rec_label_dict
         self._rec_format_dict = create_message.rec_format_dict

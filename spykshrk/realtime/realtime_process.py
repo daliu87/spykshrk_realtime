@@ -50,9 +50,10 @@ class DataSourceReceiver(RealtimeClass, metaclass=ABCMeta):
 
 
 class BinaryRecordBase(RealtimeClass):
-    def __init__(self, local_rec_manager: binary_record.RemoteBinaryRecordsManager, rec_id, rec_labels, rec_format,
-                 *args, **kwds):
+    def __init__(self, rank, local_rec_manager: binary_record.RemoteBinaryRecordsManager,
+                 rec_id, rec_labels, rec_format, *args, **kwds):
         super().__init__(*args, **kwds)
+        self.rank = rank
         self.local_rec_manager = local_rec_manager
         self.rec_id = rec_id
         self.rec_labels = rec_labels
@@ -66,7 +67,7 @@ class BinaryRecordBase(RealtimeClass):
 
     def set_record_writer_from_message(self, create_message):
         self.class_log.info('Creating record from message {}'.format(create_message))
-        self.set_record_writer(self.local_rec_manager.create_writer_from_message(create_message))
+        self.set_record_writer(self.local_rec_manager.create_writer_from_message(create_message, mpi_rank=self.rank))
 
     def set_record_writer(self, rec_writer):
         self.class_log.info('Setting record writer {}'.format(rec_writer))
