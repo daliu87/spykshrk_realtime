@@ -262,7 +262,7 @@ class RippleFilter(realtime_process.RealtimeClass):
         # rec_labels=['current_time', 'ntrode_index', 'thresh_crossed', 'lockout', 'lfp_data', 'rd','current_val'],
         # rec_format='Ii??dd',
         self.rec_base.write_record(self.current_time, self.ntrode_id, self.thresh_crossed,
-                                   self.in_lockout, data_point.data, rd, self.current_val)
+                                   self.in_lockout, int(data_point.data), rd, self.current_val)
 
         return self.thresh_crossed
 

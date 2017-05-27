@@ -123,7 +123,7 @@ class SimulatorThread(realtime_process.RealtimeThread):
 
         try:
             self.nspike_anim = nspike_data.AnimalInfo(**config['simulator']['nspike_animal_info'])
-            lfp_stream = nspike_data.EEGDataStream(self.nspike_anim, 100)
+            lfp_stream = nspike_data.EEGDataStream(self.nspike_anim)
             pos_stream = nspike_data.PosMatDataStream(self.nspike_anim, 1000)
             self.databuffer = sim_databuffer.SimDataBuffer([lfp_stream(), pos_stream()])
 

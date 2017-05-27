@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from spykshrk.realtime.simulator.nspike_data import AnimalInfo, EEGDataStream, SpkDataStream, PosMatDataStream
+from spykshrk.realtime.simulator.nspike_data import AnimalInfo, EEGDataTimeBlockStream, SpkDataStream, PosMatDataStream
 from spykshrk.realtime.simulator.sim_databuffer import SimDataBuffer
 
 from spykshrk.realtime.datatypes import LFPPoint
@@ -32,7 +32,7 @@ class TestNSpikeSimDataBuffer(TestCase):
 
     def test_nspike_SimDataBuffer(self):
 
-        eeg = EEGDataStream(self.anim, 100)
+        eeg = EEGDataTimeBlockStream(self.anim, 100)
         spk = SpkDataStream(self.anim, 100)
         pos = PosMatDataStream(self.anim, 1000)
 

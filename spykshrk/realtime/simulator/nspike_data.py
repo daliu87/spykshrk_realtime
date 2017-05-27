@@ -388,8 +388,209 @@ class SpkDataStream:
 TestBench EEG Data:
 '''
 
+class EEGDataStream:
+    """	eeg_data - Opens all files specified by animalinfo and creates a generator
+    that can be called/polled to return eeg data in bundles of the set timestep.
+    Each returned set is just the closest number of points within that time, the
+    actual size is not guarenteed and it is not aligned to anything in particular.
+        data		[day, tetrode, (time, *eeg)]
+        timestep	The time interval for the generator to return on each call
 
-class EEGData:
+    """
+    DAY_IND = 0
+    TET_IND = 1
+    TIME_IND = 2
+    DATA_IND = 2
+    EEG_REC_TIME_IND = 0
+    EEG_REC_NUMSAMP_IND = 1
+    EEG_REC_SAMPRATE_IND = 2
+    EEG_REC_DATA_IND = 3
+
+    def __init__(self, anim):
+
+        self.data = {}
+        self.anim = anim
+        path_list = anim.get_eeg_paths()
+        days = list(set(map(lambda x: x[self.DAY_IND], path_list)))
+        open_files = {day: [] for day in days}
+        # Dict of DataFrames for each day
+        self.data = {}
+        for path in path_list:
+            day = path[self.DAY_IND]
+            tet = path[self.TET_IND]
+            # record reader iterator
+            get_eeg_rec = self.read_eeg_rec(path[self.DATA_IND])
+
+            try:
+                rec = get_eeg_rec.__next__()
+                cur_epoch = self.anim.calc_epoch_state(path[0], rec[0])
+                # Assume first record's sample frequency is correct
+                # and all files have the same sample frequency
+                self.sampfreq = rec[2]
+
+                self.dt = 1/self.sampfreq*anim.timescale
+
+                # empty dataframe per day so each tetrode's dataframe
+                # can be joined
+                day_data = self.data.setdefault(day, pd.DataFrame())
+                print('preallocating')
+
+                tet_eeg_data_list = []
+                tet_eeg_time_list = []
+                tet_eeg_rowcount = 0
+                # keep reading records until iterator ends
+                while True:
+                    rec_start_time = rec[0]
+                    cur_epoch = self.anim.calc_epoch_state(path[0], rec_start_time)
+                    # if rec in valid epoch range
+                    if cur_epoch != -1:
+                        rec_num_samp = rec[1]
+                        rec_data = rec[3]
+                        # interpolate start time to the entire record
+                        rec_times = np.arange(0,rec_num_samp)*self.dt+rec_start_time
+                        tet_eeg_data_list.extend(rec_data)
+                        tet_eeg_time_list.extend(rec_times)
+
+                        tet_eeg_rowcount += rec_num_samp
+
+                    rec = get_eeg_rec.__next__()
+
+            except StopIteration as ex:
+                pass
+
+            # processing file done
+            day_data = day_data.merge(pd.DataFrame(index=tet_eeg_time_list,
+                                                   data=tet_eeg_data_list, columns=[tet]),
+                                      how='outer', left_index=True, right_index=True, copy=False)
+            # re add merged data to dict
+            self.data[day] = day_data
+
+    def __call__(self):
+        # extract number of days into a unique day list
+        day_list = self.data.keys()
+        days = list(set(day_list))
+        for day in days:
+
+            day_data = self.data[day]   # type: pd.DataFrame
+
+            for epoch in self.anim.epochs:
+
+                epoch_start_time = self.anim.times[day][epoch][0]
+                epoch_end_time = self.anim.times[day][epoch][1]
+                # Initialize starting row to the start of the epoch
+                row_cursor = np.abs(day_data.index - epoch_start_time).argmin()
+                while day_data.index[row_cursor] < epoch_end_time:
+                    timestamp = day_data.index[row_cursor]
+                    # Gets the voltages values of all tetrodes at specific timepoint (cursor)
+                    # bypassing pandas by using values to avoid creating Series
+                    raw_timepoint = day_data.values[row_cursor]
+
+                    for col_ind, tet_val in enumerate(raw_timepoint):
+                        if not np.isnan(tet_val):
+                            tet_id = day_data.columns[col_ind]
+                            yield LFPPoint(timestamp=int(timestamp * 3), ntrode_index=col_ind,
+                                           ntrode_id=tet_id, data=tet_val)
+
+                    # Increment to next row
+                    row_cursor += 1
+
+    def stream_eeg_rec(self, rec):
+        """ A generator function that takes a single record and returns
+        each data point in the record with an interpolated timestamp
+        based on the sample frequency.  The record must conform with *.eeg
+        format (timestamp, numsamples, sample rate, [data array])
+        @param		rec				eeg record (timestamp, numsamples, sample rate, [data array])
+        @return		interp_time		interpolated timestamp of data point being returned
+        @return		eeg_pt			eeg sample data
+        """
+        rec_data = rec[self.EEG_REC_DATA_IND]
+        rec_timestamp = rec[self.EEG_REC_TIME_IND]
+        rec_numsamp = rec[self.EEG_REC_NUMSAMP_IND]
+        rec_sampfreq = rec[self.EEG_REC_SAMPRATE_IND]
+
+        samp_count = 0
+
+        for point in rec_data:
+            point_timestamp = rec_timestamp + 1 / float(rec_sampfreq) * samp_count * 10000
+            yield point_timestamp, point
+            samp_count += 1
+            if samp_count > rec_numsamp:
+                raise DataReadError('Record being streamed has more samples than \
+                        set in the number of samples field.')
+        if samp_count < rec_numsamp:
+            raise DataReadError('Record being streamed has fewer samples than \
+                    set in the number of samples field.')
+
+    @staticmethod
+    def read_eeg_header(path):
+        f = open(path, 'r')
+        header_text = []
+        try:
+            # reading header, limit to looking at top few lines
+            # before throwing exception
+            for linenum in range(0, 10):
+                line = f.readline()
+
+                header_text.append(line)
+                if line == '%%ENDHEADER\n':
+                    break
+
+        except EOFError as e:
+            print('EOFError reading EEG file (%s) - (%s, %s)' % (f.name, repr(e), e.args))
+            f.close()
+            return
+
+        return header_text
+
+    @staticmethod
+    def read_eeg_rec(path):
+        """ A generator function that for the file string specified in path,
+        will return single eeg record (*.eeg format) in sequential order. The
+        generator returns (StopIterator) at the EOF.
+        @param		path		eeg file path string
+        @return		timestamp	timestamp for begining of record
+        @return		numsamples	number of samples in record
+        @return		sampfreq	frequency of sample
+        @return		data		raw data (short) of eeg record
+        """
+        with open(path, 'rb') as f:
+            error_code = 0
+            try:
+                # Skip header
+                while f.readline() != b'%%ENDHEADER\n':
+                    pass
+
+                while True:
+                    timestamp_bytes = f.read(4)
+                    if not timestamp_bytes:
+                        f.close()
+                        return
+                    timestamp = unpack('I', timestamp_bytes)[0]
+                    error_code = 1
+                    numsamples_bytes = f.read(4)
+                    if not numsamples_bytes:
+                        f.close()
+                        return
+                    numsamples = unpack('i', numsamples_bytes)[0]
+                    error_code = 2
+                    sampfreq_bytes = f.read(8)
+                    if not sampfreq_bytes:
+                        f.close()
+                        return
+                    sampfreq = unpack('d', sampfreq_bytes)[0]
+
+                    error_code = 3
+                    data = array('h')
+                    data.fromfile(f, numsamples)
+
+                    yield (timestamp, numsamples, sampfreq, data)
+
+            except EOFError as e:
+                print('EOFError reading EEG file (%s) - (%s, %s): code %d' % (f.name, repr(e), e.args, error_code))
+                f.close()
+                return
+
+class EEGDataTimeBlock:
     """	eeg_data - Opens all files specified by animalinfo and creates a generator
     that can be called/polled to return eeg data in bundles of the set timestep.
     Each returned set is just the closest number of points within that time, the
@@ -620,10 +821,10 @@ class EEGData:
                 return
 
 
-class EEGDataStream:
+class EEGDataTimeBlockStream:
     def __init__(self, anim, timestep):
         self.anim = anim
-        self.block_data = EEGData(anim, timestep)
+        self.block_data = EEGDataTimeBlock(anim, timestep)
         self.timestep = timestep
 
     def __iter__(self):

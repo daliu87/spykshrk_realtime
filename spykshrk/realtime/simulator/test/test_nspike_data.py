@@ -26,7 +26,7 @@ class TestDataStreamTestAnimal(TestCase):
 
     def test_EEGDataStream(self):
 
-        eeg = EEGDataStream(self.anim, 1000)
+        eeg = EEGDataStream(self.anim)
 
         eeg_itr = eeg()
         buffer_count = 0
@@ -37,7 +37,7 @@ class TestDataStreamTestAnimal(TestCase):
             self.assertTrue(buffer.ntrode_id in self.anim.tetrodes,
                             msg='ntrode {:} not in anim tetrode list.'.format(buffer.ntrode_id, self.anim.tetrodes))
             last_timestamp = buffer.timestamp
-        self.assertTrue(buffer_count == 449914)
+        self.assertTrue(buffer_count == 449914, 'buffer count was {:}, should have been 449914'.format(buffer_count))
 
     def test_SpkDataStream(self):
 
