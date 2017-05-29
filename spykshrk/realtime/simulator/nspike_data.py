@@ -479,20 +479,24 @@ class EEGDataStream:
                 epoch_end_time = self.anim.times[day][epoch][1]
                 # Initialize starting row to the start of the epoch
                 row_cursor = np.abs(day_data.index - epoch_start_time).argmin()
-                while day_data.index[row_cursor] < epoch_end_time:
-                    timestamp = day_data.index[row_cursor]
+
+                timestamp = day_data.index[row_cursor]
+                while timestamp < epoch_end_time:
                     # Gets the voltages values of all tetrodes at specific timepoint (cursor)
                     # bypassing pandas by using values to avoid creating Series
                     raw_timepoint = day_data.values[row_cursor]
 
                     for col_ind, tet_val in enumerate(raw_timepoint):
-                        if not np.isnan(tet_val):
+                        # test to make sure value is not NaN, this is a computationally efficient shortcut way.
+                        if tet_val == tet_val:
                             tet_id = day_data.columns[col_ind]
                             yield LFPPoint(timestamp=int(timestamp * 3), ntrode_index=col_ind,
-                                           ntrode_id=tet_id, data=tet_val)
+                                                         ntrode_id=tet_id, data=tet_val)
 
                     # Increment to next row
                     row_cursor += 1
+                    # retrieve new row's timestamp
+                    timestamp = day_data.index[row_cursor]
 
     def stream_eeg_rec(self, rec):
         """ A generator function that takes a single record and returns
