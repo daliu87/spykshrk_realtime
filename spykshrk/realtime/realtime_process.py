@@ -108,13 +108,13 @@ class RealtimeMessage:
 
 class ExceptionLoggerWrapperMeta(type):
     """
-        A metaclass that wraps the run() method so exceptions are printed to sys.stdout instead of sys.stderr.
+        A metaclass that wraps the run() or main_loop() method so exceptions are logged.
 
-        This metaclass is built to solve a very specific bug in MPI + threads: threads' output to stderr seem to be
-        lost, which causes unhandled exceptions to not be displayed.
+        This metaclass is built to solve a very specific bug in MPI + threads: a race condition that sometimes
+        prevents a thread's uncaught exception from being displayed to stderr.
 
-        Once MPI + threads logging is setup, exceptions logging should be handled by the logging system, making
-        this class obsolete
+        This class also avoids the known issue with logging exception in threads using sys.excepthook, the hook
+        needs to be set by the thread after it is started.
     """
     @staticmethod
     def wrap(func):
