@@ -3,6 +3,8 @@ from mpi4py import MPI
 import logging
 from abc import ABCMeta, abstractmethod
 from enum import Enum
+import cProfile
+import os
 
 import spykshrk.realtime.binary_record as binary_record
 
@@ -139,7 +141,30 @@ class ExceptionLoggerWrapperMeta(type):
         super(ExceptionLoggerWrapperMeta, cls).__init__(name, bases, attrs)
 
 
-class RealtimeProcess(RealtimeClass, metaclass=ExceptionLoggerWrapperMeta):
+class ProfilerWrapperMeta(type):
+    @staticmethod
+    def wrap(func):
+        def outer(self):
+            if self.enable_profiler:
+                prof = cProfile.Profile()
+                prof.runcall(func, self)
+                prof.dump_stats(file=self.profiler_out_path)
+
+        return outer
+
+    def __new__(mcs, name, bases, attrs):
+        if 'run' in attrs:
+            attrs['run'] = mcs.wrap(attrs['run'])
+        if 'main_loop' in attrs:
+            attrs['main_loop'] = mcs.wrap(attrs['main_loop'])
+
+        return super(ProfilerWrapperMeta, mcs).__new__(mcs, name, bases, attrs)
+
+    def __init__(cls, name, bases, attrs):
+        super(ProfilerWrapperMeta, cls).__init__(name, bases, attrs)
+
+
+class RealtimeProcess(RealtimeClass, metaclass=ProfilerWrapperMeta):
 
     def __init__(self, comm: MPI.Comm, rank, config, ThreadClass, **kwds):
 
@@ -149,13 +174,20 @@ class RealtimeProcess(RealtimeClass, metaclass=ExceptionLoggerWrapperMeta):
         self.rank = rank
         self.config = config
 
+        self.enable_profiler = rank in self.config['rank_settings']['enable_profiler']
+        self.profiler_out_path = os.path.join(config['files']['output_dir'], '{}.{}.{:02d}.{}'.
+                                              format(config['files']['prefix'],
+                                                     'main',
+                                                     rank,
+                                                     config['files']['profile_postfix']))
+
         self.thread = ThreadClass(comm=comm, rank=rank, config=config, parent=self, **kwds)
 
     def main_loop(self):
         self.thread.start()
 
 
-class RealtimeThread(RealtimeClass, threading.Thread, metaclass=ExceptionLoggerWrapperMeta):
+class RealtimeThread(RealtimeClass, threading.Thread, metaclass=ProfilerWrapperMeta):
 
     def __init__(self, comm: MPI.Comm, rank, config, parent):
         super().__init__(name=self.__class__.__name__)
@@ -164,6 +196,13 @@ class RealtimeThread(RealtimeClass, threading.Thread, metaclass=ExceptionLoggerW
         self.comm = comm
         self.rank = rank
         self.config = config
+
+        self.enable_profiler = rank in self.config['rank_settings']['enable_profiler']
+        self.profiler_out_path = os.path.join(config['files']['output_dir'], '{}.{}.{:02d}.{}'.
+                                              format(config['files']['prefix'],
+                                                     'thread',
+                                                     rank,
+                                                     config['files']['profile_postfix']))
 
 
 class DataStreamIterator(RealtimeClass, metaclass=ABCMeta):

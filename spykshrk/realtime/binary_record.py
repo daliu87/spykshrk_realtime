@@ -182,6 +182,18 @@ class BinaryRecordsFileWriter:
     Each record type has a fixed size that is implicitly defined by its format string.
 
     """
+
+    @staticmethod
+    def format_full_path(save_dir, file_prefix, mpi_rank, file_id, file_postfix):
+        if mpi_rank is not None:
+            file_path = os.path.join(save_dir, '{}.{:02d}.{}'.format(file_prefix, mpi_rank,
+                                                                     file_postfix))
+        else:
+            file_path = os.path.join(save_dir, '{}.{:02d}.{}'.format(file_prefix, file_id,
+                                                                     file_postfix))
+
+        return file_path
+
     def __init__(self, create_message: BinaryRecordCreateMessage, mpi_rank=None):
         self.manager_label = create_message.manager_label
         self._file_id = create_message.file_id
@@ -190,12 +202,12 @@ class BinaryRecordsFileWriter:
         self._file_prefix = create_message.file_prefix
         self._file_postfix = create_message.file_postfix
 
-        if self._mpi_rank is not None:
-            self._file_path = os.path.join(self._save_dir, '{}.{:02d}.{}'.format(self._file_prefix, self._mpi_rank,
-                                                                                 self._file_postfix))
-        else:
-            self._file_path = os.path.join(self._save_dir, '{}.{:02d}.{}'.format(self._file_prefix, self._file_id,
-                                                                                 self._file_postfix))
+        self._file_path = self.format_full_path(save_dir=self._save_dir,
+                                                file_prefix=self._file_prefix,
+                                                mpi_rank=self._mpi_rank,
+                                                file_id=self._file_id,
+                                                file_postfix=self._file_postfix)
+
         self._file_handle = open(self._file_path, 'wb')
         self._rec_label_dict = create_message.rec_label_dict
         self._rec_format_dict = create_message.rec_format_dict

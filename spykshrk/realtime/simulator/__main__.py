@@ -10,7 +10,6 @@ import sys
 import os.path
 import getopt
 from mpi4py import MPI
-import yappi
 
 import time
 import json
@@ -86,11 +85,6 @@ def main(argv):
 
     # MPI node management
 
-    # Using yappi profiler for multithreading
-    if rank in config['rank_settings']['enable_profiler']:
-        yappi.set_clock_type('wall')
-        yappi.start()
-
     if rank == config['rank']['supervisor']:
         # Supervisor node
         main_proc = main_process.MainProcess(comm=comm, rank=rank, config=config)
@@ -103,14 +97,5 @@ def main(argv):
     if rank == config['rank']['simulator']:
         simulator_proc = simulator_process.SimulatorProcess(comm, rank, config=config)
         simulator_proc.main_loop()
-
-
-    if rank in config['rank_settings']['enable_profiler']:
-        yappi.stop()
-        yappi.get_thread_stats().print_all()
-        yappi.get_func_stats().save(os.path.join(config['files']['output_dir'],
-                                                 config['files']['prefix'] +
-                                                 '.{:02d}.'.format(rank) +
-                                                 config['files']['profile_postfix']), type='pstat')
 
 main(sys.argv[1:])
