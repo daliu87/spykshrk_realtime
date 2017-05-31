@@ -1,5 +1,6 @@
 
 from enum import Enum
+import struct
 
 
 class Datatypes(Enum):
@@ -16,11 +17,22 @@ class SpikePoint:
 
 
 class LFPPoint:
+    _byte_format = 'Iiii'
+
     def __init__(self, timestamp, ntrode_index, ntrode_id, data):
         self.timestamp = timestamp
         self.ntrode_index = ntrode_index
         self.ntrode_id = ntrode_id
         self.data = data
+
+    def pack(self):
+        return struct.pack(self._byte_format, self.timestamp, self.ntrode_index, self.ntrode_id, self.data)
+
+    @classmethod
+    def unpack(cls, message_bytes):
+        timestamp, ntrode_index, ntrode_id, data = struct.unpack(cls._byte_format, message_bytes)
+        message = cls(timestamp=timestamp, ntrode_index=ntrode_index, ntrode_id=ntrode_id, data=data)
+        return message
 
     def __str__(self):
         return '{:}({:})'.format(self.__class__.__name__, self.__dict__)

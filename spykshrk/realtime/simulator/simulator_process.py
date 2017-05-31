@@ -2,6 +2,9 @@ import sys
 
 from mpi4py import MPI
 import threading
+import struct
+import time
+import numpy as np
 
 import spykshrk.realtime.realtime_process as realtime_process
 import spykshrk.realtime.datatypes as datatypes
@@ -68,11 +71,15 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
         self.stop = True
 
     def __next__(self):
-        mpi_request = self.comm.irecv(tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)  # type: MPI.Request
-        success = False
-        while not success and not self.stop:
-            success, message = mpi_request.test()
 
+        data = bytearray(16)
+        self.comm.Recv(buf=data, tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
+        message = datatypes.LFPPoint.unpack(data)
+        #mpi_request = self.comm.irecv(tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)  # type: MPI.Request
+        #message = mpi_request.wait()
+        # success = False
+        # while not success and not self.stop:
+        #     success, message = mpi_request.test()
         if self.stop:
             raise StopIteration()
 
@@ -177,9 +184,13 @@ class SimulatorThread(realtime_process.RealtimeThread):
                 data_to_send = data_itr.__next__()
                 if isinstance(data_to_send, datatypes.LFPPoint):
                     try:
-                        self.comm.send(obj=data_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
+                        bytes_to_send = data_to_send.pack()
+
+                        self.comm.Send(buf=bytes_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
                                        tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
 
+                        #self.comm.send(obj=data_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
+                        #               tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
 
                     except KeyError as err:
                         self.class_log.exception(("KeyError: Tetrode id ({:}) not in lfp channel request dict {:}, "

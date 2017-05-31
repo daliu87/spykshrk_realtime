@@ -490,8 +490,8 @@ class EEGDataStream:
                         # test to make sure value is not NaN, this is a computationally efficient shortcut way.
                         if tet_val == tet_val:
                             tet_id = day_data.columns[col_ind]
-                            yield LFPPoint(timestamp=int(timestamp * 3), ntrode_index=col_ind,
-                                                         ntrode_id=tet_id, data=tet_val)
+                            yield LFPPoint(timestamp=int(timestamp * 3), ntrode_index=int(col_ind),
+                                           ntrode_id=int(tet_id), data=int(tet_val))
 
                     # Increment to next row
                     row_cursor += 1
