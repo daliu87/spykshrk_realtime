@@ -164,7 +164,20 @@ class ProfilerWrapperMeta(type):
         super(ProfilerWrapperMeta, cls).__init__(name, bases, attrs)
 
 
-class RealtimeProcess(RealtimeClass, metaclass=ProfilerWrapperMeta):
+class RealtimeMeta(ExceptionLoggerWrapperMeta, ProfilerWrapperMeta):
+    """ A metaclass that combines all coorperative metaclass features needed (wrapping the run/main_loop functions
+    with cProfilers and catching unhandled exceptions.
+    
+    The order of the multi-inheritence is very important, wrapping unhandled exceptions must be before profiling.
+    This should put profiling as the outermost function that is called."""
+    def __new__(mcs, name, bases, attrs):
+        return super(RealtimeMeta, mcs).__new__(mcs, name, bases, attrs)
+
+    def __init__(cls, name, bases, attrs):
+        super(RealtimeMeta, cls).__init__(name, bases, attrs)
+
+
+class RealtimeProcess(RealtimeClass, metaclass=RealtimeMeta):
 
     def __init__(self, comm: MPI.Comm, rank, config, ThreadClass, **kwds):
 
@@ -187,7 +200,7 @@ class RealtimeProcess(RealtimeClass, metaclass=ProfilerWrapperMeta):
         self.thread.start()
 
 
-class RealtimeThread(RealtimeClass, threading.Thread, metaclass=ProfilerWrapperMeta):
+class RealtimeThread(RealtimeClass, threading.Thread, metaclass=RealtimeMeta):
 
     def __init__(self, comm: MPI.Comm, rank, config, parent):
         super().__init__(name=self.__class__.__name__)
