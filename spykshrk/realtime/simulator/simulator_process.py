@@ -180,6 +180,7 @@ class SimulatorThread(realtime_process.RealtimeThread):
                         self.comm.send(obj=data_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
                                        tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
 
+
                     except KeyError as err:
                         self.class_log.exception(("KeyError: Tetrode id ({:}) not in lfp channel request dict {:}, "
                                                   "was likely never requested by a receiving/computing ranks.").

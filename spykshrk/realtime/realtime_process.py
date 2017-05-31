@@ -4,6 +4,7 @@ import logging
 from abc import ABCMeta, abstractmethod
 from enum import Enum
 import cProfile
+import time
 import os
 
 import spykshrk.realtime.binary_record as binary_record
@@ -119,7 +120,7 @@ class ExceptionLoggerWrapperMeta(type):
         needs to be set by the thread after it is started.
     """
     @staticmethod
-    def wrap(func):
+    def exception_wrap(func):
         def outer(self):
             try:
                 func(self)
@@ -131,9 +132,9 @@ class ExceptionLoggerWrapperMeta(type):
 
     def __new__(mcs, name, bases, attrs):
         if 'run' in attrs:
-            attrs['run'] = mcs.wrap(attrs['run'])
+            attrs['run'] = mcs.exception_wrap(attrs['run'])
         if 'main_loop' in attrs:
-            attrs['main_loop'] = mcs.wrap(attrs['main_loop'])
+            attrs['main_loop'] = mcs.exception_wrap(attrs['main_loop'])
 
         return super(ExceptionLoggerWrapperMeta, mcs).__new__(mcs, name, bases, attrs)
 
@@ -143,10 +144,10 @@ class ExceptionLoggerWrapperMeta(type):
 
 class ProfilerWrapperMeta(type):
     @staticmethod
-    def wrap(func):
+    def profile_wrap(func):
         def outer(self):
             if self.enable_profiler:
-                prof = cProfile.Profile()
+                prof = cProfile.Profile(timer=time.perf_counter)
                 prof.runcall(func, self)
                 prof.dump_stats(file=self.profiler_out_path)
 
@@ -154,9 +155,9 @@ class ProfilerWrapperMeta(type):
 
     def __new__(mcs, name, bases, attrs):
         if 'run' in attrs:
-            attrs['run'] = mcs.wrap(attrs['run'])
+            attrs['run'] = mcs.profile_wrap(attrs['run'])
         if 'main_loop' in attrs:
-            attrs['main_loop'] = mcs.wrap(attrs['main_loop'])
+            attrs['main_loop'] = mcs.profile_wrap(attrs['main_loop'])
 
         return super(ProfilerWrapperMeta, mcs).__new__(mcs, name, bases, attrs)
 
@@ -168,8 +169,12 @@ class RealtimeMeta(ExceptionLoggerWrapperMeta, ProfilerWrapperMeta):
     """ A metaclass that combines all coorperative metaclass features needed (wrapping the run/main_loop functions
     with cProfilers and catching unhandled exceptions.
     
-    The order of the multi-inheritence is very important, wrapping unhandled exceptions must be before profiling.
-    This should put profiling as the outermost function that is called."""
+    Care needs to be taken that if the meta classes are modifying attributes, each of those modifications is unique.
+    This is an issue when chaining the wrapping of functions, the name for the wrapping function needs to be unique,
+    e.g. ProfileWrapperMeta and ExceptionLoggerWrapperMeta cannot both use a wrapping function with the same name
+    (wrap), they must be unique (exception_wrap and profile_wrap).
+    
+    """
     def __new__(mcs, name, bases, attrs):
         return super(RealtimeMeta, mcs).__new__(mcs, name, bases, attrs)
 
