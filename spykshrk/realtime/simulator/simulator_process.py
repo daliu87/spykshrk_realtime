@@ -73,15 +73,17 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
     def __next__(self):
 
         data = bytearray(16)
-        self.comm.Recv(buf=data, tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
-        message = datatypes.LFPPoint.unpack(data)
-        #mpi_request = self.comm.irecv(tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)  # type: MPI.Request
-        #message = mpi_request.wait()
-        # success = False
-        # while not success and not self.stop:
-        #     success, message = mpi_request.test()
+        #self.comm.Recv(buf=data, tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
+        mpi_req = self.comm.Irecv(buf=data, tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
+        while not mpi_req.Test() and not self.stop:
+            # Loop waiting for next message
+            # time.sleep(0.000001)
+            pass
+
         if self.stop:
             raise StopIteration()
+
+        message = datatypes.LFPPoint.unpack(data)
 
         return message
 

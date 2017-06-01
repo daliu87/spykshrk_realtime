@@ -26,7 +26,7 @@
     },
 
     "files": {
-        "output_dir": "/opt/data36/daliu/realtime/spykshrk/",
+        "output_dir": "/opt/data36/daliu/realtime/spykshrk/irecv",
         "prefix": "test_animal",
         "rec_postfix": "bin_rec",
         "profile_postfix": "pstats"
