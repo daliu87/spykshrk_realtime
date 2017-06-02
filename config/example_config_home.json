@@ -13,16 +13,16 @@
     "rank": {
         "supervisor": 0,
         "simulator": 1,
-        "latency": 2,
-        "position": 3,
-        "ripples": [4,5],
-        "encoders": [6,7],
-        "decoder": 8
+        "ripples": [2,3],
+        "encoders": [4,5],
+        "decoder": 6,
+        "latency": 7,
+        "position": 8
     }, 
 
     "rank_settings": {
-        "enable_rec": [4, 5],
-        "enable_profiler": [0, 1, 4, 5]
+        "enable_rec": [2, 3],
+        "enable_profiler": [0, 1, 2, 3]
     },
 
     "files": {
