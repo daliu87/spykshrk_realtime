@@ -70,6 +70,9 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
     def stop_iterator(self):
         self.stop = True
 
+    def __iter__(self):
+        return self
+
     def __next__(self):
 
         data = bytearray(16)

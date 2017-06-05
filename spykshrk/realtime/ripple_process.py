@@ -1,3 +1,4 @@
+import struct
 from collections import deque
 from collections import OrderedDict
 
@@ -55,10 +56,24 @@ class RippleStatusDictListMessage(realtime_process.RealtimeMessage):
 
 
 class RippleThresholdState(realtime_process.RealtimeMessage):
+    """"Message containing whether or not at a given timestamp a ntrode's ripple filter threshold is crossed.
+
+    This message has helper serializer/deserializer functions to be used to speed transmission.
+    """
+    _byte_format = 'Iii'
+
     def __init__(self, timestamp, ntrode_id, threshold_state):
         self.timestamp = timestamp
         self.ntrode_id = ntrode_id
         self.threshold_state = threshold_state
+
+    def pack(self):
+        return struct.pack(self._byte_format, self.timestamp, self.ntrode_id, self.threshold_state)
+
+    @classmethod
+    def unpack(cls, message_bytes):
+        timestamp, ntrode_id, threshold_state = struct.unpack(cls._byte_format, message_bytes)
+        return cls(timestamp=timestamp, ntrode_id=ntrode_id, threshold_state=threshold_state)
 
 
 class RippleFilter(realtime_process.RealtimeClass):
@@ -304,9 +319,11 @@ class RippleMPISendInterface(realtime_process.RealtimeClass):
                        tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def send_ripple_thresh_state(self, timestamp, ntrode_id, thresh_state):
-        self.comm.send(RippleThresholdState(timestamp, ntrode_id, thresh_state),
+        message = RippleThresholdState(timestamp, ntrode_id, thresh_state)
+
+        self.comm.Send(buf=message.pack(),
                        dest=self.config['rank']['supervisor'],
-                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+                       tag=realtime_process.MPIMessageTag.FEEDBACK_DATA.value)
 
 
 class RippleManager(realtime_process.BinaryRecordBase, realtime_process.RealtimeClass):
