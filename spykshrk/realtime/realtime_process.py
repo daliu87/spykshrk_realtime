@@ -193,10 +193,10 @@ class RealtimeProcess(RealtimeClass, metaclass=RealtimeMeta):
         self.config = config
 
         self.enable_profiler = rank in self.config['rank_settings']['enable_profiler']
-        self.profiler_out_path = os.path.join(config['files']['output_dir'], '{}.{}.{:02d}.{}'.
+        self.profiler_out_path = os.path.join(config['files']['output_dir'], '{}.{:02d}.{}.{}'.
                                               format(config['files']['prefix'],
-                                                     'main',
                                                      rank,
+                                                     'main',
                                                      config['files']['profile_postfix']))
 
         self.thread = ThreadClass(comm=comm, rank=rank, config=config, parent=self, **kwds)
@@ -216,10 +216,10 @@ class RealtimeThread(RealtimeClass, threading.Thread, metaclass=RealtimeMeta):
         self.config = config
 
         self.enable_profiler = rank in self.config['rank_settings']['enable_profiler']
-        self.profiler_out_path = os.path.join(config['files']['output_dir'], '{}.{}.{:02d}.{}'.
+        self.profiler_out_path = os.path.join(config['files']['output_dir'], '{}.{:02d}.{}.{}'.
                                               format(config['files']['prefix'],
-                                                     'thread',
                                                      rank,
+                                                     'thread',
                                                      config['files']['profile_postfix']))
 
 

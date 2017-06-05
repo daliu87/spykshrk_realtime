@@ -483,7 +483,7 @@ class RippleMPIRecvInterface(realtime_process.RealtimeClass):
 class RippleProcess(realtime_process.RealtimeProcess):
 
     def __init__(self, comm: MPI.Comm, rank, config):
-        self.local_rec_manager = binary_record.RemoteBinaryRecordsManager(manager_label='realtime_replay')
+        self.local_rec_manager = binary_record.RemoteBinaryRecordsManager(manager_label='state')
 
         self.mpi_send = RippleMPISendInterface(comm, rank, config)
 

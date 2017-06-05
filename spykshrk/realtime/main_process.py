@@ -165,7 +165,7 @@ class MainSimulatorManager(realtime_process.RealtimeClass):
         self.parent = parent
         self.send_interface = send_interface
 
-        self.rec_manager = binary_record.BinaryRecordsManager(manager_label='realtime_replay',
+        self.rec_manager = binary_record.BinaryRecordsManager(manager_label='state',
                                                               save_dir=self.config['files']['output_dir'],
                                                               file_prefix=self.config['files']['prefix'],
                                                               file_postfix=self.config['files']['rec_postfix'])

@@ -184,13 +184,9 @@ class BinaryRecordsFileWriter:
     """
 
     @staticmethod
-    def format_full_path(save_dir, file_prefix, mpi_rank, file_id, file_postfix):
-        if mpi_rank is not None:
-            file_path = os.path.join(save_dir, '{}.{:02d}.{}'.format(file_prefix, mpi_rank,
-                                                                     file_postfix))
-        else:
-            file_path = os.path.join(save_dir, '{}.{:02d}.{}'.format(file_prefix, file_id,
-                                                                     file_postfix))
+    def format_full_path(save_dir, file_prefix, mpi_rank, manager_label, file_postfix):
+        file_path = os.path.join(save_dir, '{}.{:02d}.{}.{}'.format(file_prefix, mpi_rank,
+                                                                    manager_label, file_postfix))
 
         return file_path
 
@@ -205,7 +201,7 @@ class BinaryRecordsFileWriter:
         self._file_path = self.format_full_path(save_dir=self._save_dir,
                                                 file_prefix=self._file_prefix,
                                                 mpi_rank=self._mpi_rank,
-                                                file_id=self._file_id,
+                                                manager_label=self.manager_label,
                                                 file_postfix=self._file_postfix)
 
         self._file_handle = open(self._file_path, 'wb')
@@ -253,12 +249,17 @@ class BinaryRecordsFileWriter:
 
 
 class BinaryRecordsFileReader:
-    def __init__(self, file_id, save_dir, file_prefix, file_postfix, filemeta_as_col=True):
-        self._file_id = file_id
+    def __init__(self, save_dir, file_prefix, mpi_rank, manager_label, file_postfix, filemeta_as_col=True):
         self._save_dir = save_dir
         self._file_prefix = file_prefix
+        self._mpi_rank = mpi_rank
+        self._manager_label = manager_label
         self._file_postfix = file_postfix
-        self._file_path = os.path.join(save_dir, '{}.{:02d}.{}'.format(file_prefix, file_id, file_postfix))
+        self._file_path = BinaryRecordsFileWriter.format_full_path(save_dir=self._save_dir,
+                                                                   file_prefix=self._file_prefix,
+                                                                   mpi_rank=self._mpi_rank,
+                                                                   manager_label=self._manager_label,
+                                                                   file_postfix=self._file_postfix)
         self._file_handle = open(self._file_path, 'rb')
         self._filemeta_as_col = filemeta_as_col
 
