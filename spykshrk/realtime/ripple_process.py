@@ -327,7 +327,8 @@ class RippleMPISendInterface(realtime_process.RealtimeClass):
 
 
 class RippleManager(realtime_process.BinaryRecordBase, realtime_process.RealtimeClass):
-    def __init__(self, rank, local_rec_manager, send_interface: RippleMPISendInterface, data_interface):
+    def __init__(self, rank, local_rec_manager, send_interface: RippleMPISendInterface,
+                 data_interface: simulator_process.SimulatorRemoteReceiver):
         super().__init__(rank=rank,
                          local_rec_manager=local_rec_manager,
                          rec_id=1,

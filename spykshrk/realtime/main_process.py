@@ -30,17 +30,19 @@ class MainProcess(realtime_process.RealtimeProcess):
         self.rank = rank
         self.config = config
 
+        super().__init__(comm=comm, rank=rank, config=config, ThreadClass=MainThread)
+
         self.send_interface = MainMPISendInterface(comm=comm, rank=rank, config=config)
-        self.manager = MainSimulatorManager(rank=rank, config=config, parent=self, send_interface=self.send_interface)
+        self.manager = MainSimulatorManager(rank=rank, config=config, parent=self, send_interface=self.send_interface,
+                                            stim_decider=self.thread.stim_decider)
         self.recv_interface = MainSimulatorMPIRecvInterface(comm=comm, rank=rank,
                                                             config=config, main_manager=self.manager)
-
-        super().__init__(comm=comm, rank=rank, config=config, ThreadClass=MainThread)
 
         # TODO temporary measure to enable type hinting (typing.Generics is broken for PyCharm 2016.2.3)
         self.thread = self.thread   # type: MainThread
 
         self.terminate = False
+
 
     def trigger_termination(self):
         self.terminate = True
@@ -60,8 +62,10 @@ class MainThread(realtime_process.RealtimeThread):
         super().__init__(comm=comm, rank=rank, config=config, parent=parent)
         ripple_ranks = self.config['rank']['ripples']
 
-        self.stim = StimDecider(send_manager=None)
-        self.data_recv = MainDataMPIRecvInterface(comm=comm, rank=rank, config=config, stim_decider=self.stim)
+        self.stim_decider = StimDecider(rank=rank, send_interface=StimDeciderMPISendInterface(comm=comm, rank=rank,
+                                                                                              config=config))
+        self.data_recv = StimDeciderMPIRecvInterface(comm=comm, rank=rank, config=config,
+                                                     stim_decider=self.stim_decider)
 
         self._stop_next = False
 
@@ -69,6 +73,10 @@ class MainThread(realtime_process.RealtimeThread):
         self.data_recv.stop_iterator()
 
     def run(self):
+
+        # Send registration of bin_rec record format for this logger.  Must be done after construction
+        # but before the file writer is started.
+        self.stim_decider.send_record_register_message()
 
         try:
             while True:
@@ -79,13 +87,33 @@ class MainThread(realtime_process.RealtimeThread):
         self.class_log.info("Main Process Thread reached end, exiting.")
 
 
-class StimDecider(realtime_process.RealtimeClass):
-    def __init__(self, send_manager, ripple_n_above_thresh=sys.maxsize):
-        super().__init__()
-        self._send_manager = send_manager
+class StimDeciderMPISendInterface(realtime_process.RealtimeClass):
+    def __init__(self, comm: MPI.Comm, rank, config):
+        self.comm = comm
+        self.rank = rank
+        self.config = config
+
+    def send_record_register_message(self, record_register_message):
+        self.comm.send(obj=record_register_message, dest=self.config['rank']['supervisor'],
+                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+
+
+class StimDecider(realtime_process.BinaryRecordBase, realtime_process.RealtimeClass):
+    def __init__(self, rank, send_interface: StimDeciderMPISendInterface, ripple_n_above_thresh=sys.maxsize):
+
+        super().__init__(rank=rank, local_rec_manager=binary_record.RemoteBinaryRecordsManager(manager_label='state'),
+                         rec_id=10, rec_labels=['timestamp', 'ntrode_id', 'threshold_state'], rec_format='Iii')
+        self.rank = rank
+        self.send_interface = send_interface
         self._ripple_n_above_thresh = ripple_n_above_thresh
         self._ripple_thresh_states = {}
         self._enabled = False
+
+        # Setup bin rec file
+        # main_manager.rec_manager.register_rec_type_message(rec_type_message=self.get_record_register_message())
+
+    def send_record_register_message(self):
+        self.send_interface.send_record_register_message(self.get_record_register_message())
 
     def reset(self):
         self._ripple_thresh_states = {}
@@ -104,6 +132,7 @@ class StimDecider(realtime_process.RealtimeClass):
         self._ripple_n_above_thresh = ripple_n_above_thresh
 
     def update_ripple_threshold_state(self, timestamp, ntrode_id, threshold_state):
+        self.write_record(timestamp, ntrode_id, threshold_state)
         if self._enabled:
             self._ripple_thresh_states[ntrode_id] = threshold_state
             num_above = 0
@@ -112,6 +141,42 @@ class StimDecider(realtime_process.RealtimeClass):
 
             if num_above >= self._ripple_n_above_thresh:
                 self._send_manager.start_stimulation()
+
+
+class StimDeciderMPIRecvInterface(realtime_process.RealtimeClass):
+    def __init__(self, comm: MPI.Comm, rank, config, stim_decider: StimDecider):
+        self.comm = comm
+        self.rank = rank
+        self.config = config
+        self.stim = stim_decider
+
+        self.mpi_status = MPI.Status()
+
+        self.stop = False
+
+        super().__init__()
+
+    def stop_iterator(self):
+        self.stop = True
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        message_bytes = bytearray(12)
+        req = self.comm.Irecv(buf=message_bytes,                                            # type: MPI.Request
+                              tag=realtime_process.MPIMessageTag.FEEDBACK_DATA.value)
+
+        while not req.Test(status=self.mpi_status) and not self.stop:
+            pass
+
+        if self.stop:
+            raise StopIteration()
+
+        if self.mpi_status.source in self.config['rank']['ripples']:
+            message = ripple_process.RippleThresholdState.unpack(message_bytes=message_bytes)
+            self.stim.update_ripple_threshold_state(timestamp=message.timestamp, ntrode_id=message.ntrode_id,
+                                                    threshold_state=message.threshold_state)
 
 
 class MainMPISendInterface(realtime_process.RealtimeClass):
@@ -164,12 +229,14 @@ class MainMPISendInterface(realtime_process.RealtimeClass):
 
 class MainSimulatorManager(realtime_process.RealtimeClass):
 
-    def __init__(self, rank, config, parent: MainProcess, send_interface: MainMPISendInterface):
+    def __init__(self, rank, config, parent: MainProcess, send_interface: MainMPISendInterface,
+                 stim_decider: StimDecider):
 
         self.rank = rank
         self.config = config
         self.parent = parent
         self.send_interface = send_interface
+        self.stim_decider = stim_decider
 
         self.rec_manager = binary_record.BinaryRecordsManager(manager_label='state',
                                                               save_dir=self.config['files']['output_dir'],
@@ -217,6 +284,11 @@ class MainSimulatorManager(realtime_process.RealtimeClass):
 
             self.send_interface.send_start_rec_message(rank=rec_rank)
 
+        # Update and start bin rec for StimDecider.  Registration is done through MPI but setting and starting
+        # the writer must be done locally because StimDecider does not have a MPI command message receiver
+        self.stim_decider.set_record_writer_from_message(self.rec_manager.new_writer_message())
+        self.stim_decider.start_record_writing()
+
         sleep(0.5)
         # Then turn on data streaming to ripple ranks
         for rank in self.config['rank']['ripples']:
@@ -260,37 +332,3 @@ class MainSimulatorMPIRecvInterface(realtime_process.RealtimeClass):
             self.main_manager.trigger_termination()
 
 
-class MainDataMPIRecvInterface(realtime_process.RealtimeClass):
-    def __init__(self, comm: MPI.Comm, rank, config, stim_decider: StimDecider):
-        self.comm = comm
-        self.rank = rank
-        self.config = config
-        self.stim = stim_decider
-
-        self.mpi_status = MPI.Status()
-
-        self.stop = False
-
-        super().__init__()
-
-    def stop_iterator(self):
-        self.stop = True
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        message_bytes = bytearray(12)
-        req = self.comm.Irecv(buf=message_bytes,                                            # type: MPI.Request
-                              tag=realtime_process.MPIMessageTag.FEEDBACK_DATA.value)
-
-        while not req.Test(status=self.mpi_status) and not self.stop:
-            pass
-
-        if self.stop:
-            raise StopIteration()
-
-        if self.mpi_status.source in self.config['rank']['ripples']:
-            message = ripple_process.RippleThresholdState.unpack(message_bytes=message_bytes)
-            self.stim.update_ripple_threshold_state(timestamp=message.timestamp, ntrode_id=message.ntrode_id,
-                                                    threshold_state=message.threshold_state)
