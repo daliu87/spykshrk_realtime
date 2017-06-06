@@ -136,8 +136,8 @@ class SimulatorThread(realtime_process.RealtimeThread):
         try:
             self.nspike_anim = nspike_data.AnimalInfo(**config['simulator']['nspike_animal_info'])
             lfp_stream = nspike_data.EEGDataStream(self.nspike_anim)
-            pos_stream = nspike_data.PosMatDataStream(self.nspike_anim, 1000)
-            self.databuffer = sim_databuffer.SimDataBuffer([lfp_stream(), pos_stream()])
+            #pos_stream = nspike_data.PosMatDataStream(self.nspike_anim, 1000)
+            self.databuffer = sim_databuffer.SimDataBuffer([lfp_stream()])
 
             self.lfp_chan_req_dict = {}
             self.pos_chan_req = []
@@ -193,9 +193,6 @@ class SimulatorThread(realtime_process.RealtimeThread):
 
                         self.comm.Send(buf=bytes_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
                                        tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
-
-                        #self.comm.send(obj=data_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
-                        #               tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
 
                     except KeyError as err:
                         self.class_log.exception(("KeyError: Tetrode id ({:}) not in lfp channel request dict {:}, "

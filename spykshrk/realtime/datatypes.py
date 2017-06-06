@@ -1,6 +1,7 @@
 
 from enum import Enum
 import struct
+from mpi4py import MPI
 
 
 class Datatypes(Enum):
