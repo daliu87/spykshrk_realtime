@@ -1,3 +1,7 @@
+"""
+Defines classes necessary to access and stream NSpike animal's data.
+
+"""
 import numpy as np
 import pandas as pd
 
@@ -47,17 +51,19 @@ class ConfigurationError(Exception):
 class AnimalInfo:
     """ animalinfo - stores details of the single animal to process and generates
     file lists that points to the data to process.
+    
     """
 
     def __init__(self, base_dir, name, days, epochs, tetrodes, timescale=10000,
                  new_data=True):
         """ init function
-        Data:
-            dir_base - root directory of animal data
-            animal_name - name of animal
-            days - array of which days of data to process
-            tetrodes - array of which tetrodes to process
-            epochs - list of epochs for encoding
+        Args:
+            base_dir: root directory of animal data
+            name: name of animal
+            days: array of which days of data to process
+            tetrodes: array of which tetrodes to process
+            epochs: list of epochs for encoding
+        
         """
         self.base_dir = base_dir
         self.name = name
@@ -73,6 +79,7 @@ class AnimalInfo:
         each day is synchronized.  Should only be called from __init__
 
         Stores only the times for each epoch, 0 indexed.
+        
         """
         times = {}
         for day in self.days:
@@ -89,6 +96,7 @@ class AnimalInfo:
 
         This function uses the matlab data structure because the reference dataset
         being used is Frank, whose raw data was lost.
+        
         """
         path_list = []
         for day in self.days:
@@ -122,10 +130,10 @@ class AnimalInfo:
         return path_list
 
     def get_eeg_paths(self):
-        """ get_eeg_paths - returns a list of paths that points to the eeg
-        data ([tetrode]-###.eeg) of each tetrode and day.
+        """ returns a list of paths that points to the eeg data ([tetrode]-###.eeg) of each tetrode and day.
 
-        This function uses the older *.eeg because the reference dataset is frank.
+        This function uses the older \*.eeg because the reference dataset is frank.
+        
         """
         path_list = []
 
@@ -153,6 +161,7 @@ class AnimalInfo:
 
         This function uses the already processed matclust data to extract position
         because the raw data of the reference dataset used (frank) was lost.
+        
         """
         path_list = []
         for day in self.days:
@@ -183,6 +192,7 @@ class AnimalInfo:
 
         This function uses the already processed video position data to extract position
         because the raw data of the reference dataset used (frank) was lost.
+        
         """
         path_list = []
         for day in self.days:
@@ -212,6 +222,7 @@ class AnimalInfo:
     def calc_epoch_state(self, day, cur_time):
         """ Returns the encoded epoch that the time belongs to.  If the time
         is not in an epoch or if the epoch is not being encoded, return -1
+        
         """
         time = self.times[day]
         for ii in self.epochs:
@@ -228,65 +239,13 @@ class AnimalInfo:
         return time[epoch][0], time[epoch][1]
 
 
-class EEGTimepoint:
-    """ eeg_timepoint - structure to bundle up synchronized eeg data to send to simulator.
-    The bundled data should fall within the given time interval
-    Data:
-        data	[day, tetrode, timestamp, eeg]
-    """
-
-    def __init__(self, day=0, epoch=-1, time_interval=None, data=None):
-        if time_interval is None:
-            time_interval = [-1, 0]
-        if data is None:
-            data = []
-        self.day = day
-        self.epoch = epoch
-        self.time_interval = time_interval
-        self.data = data
-
-
-class SpikeTimepoint:
-    """ spike_timepoint - structure to bundle up synchronized spike data to send to simulator.
-    The bundled data should fall within the given time interval.
-    Data:
-        data	[day, tetrode, timestamp, wave]
-    """
-
-    def __init__(self, day=0, epoch=-1, time_interval=None, data=None):
-        if time_interval is None:
-            time_interval = [-1, 0]
-        if data is None:
-            data = []
-        self.day = day
-        self.epoch = epoch
-        self.time_interval = time_interval
-        self.data = data
-
-
-class PosTimepoint:
-    """ pos_timepoint - structure to bundle up synchronized pos data to send to simulator.
-    The bundled data should fall within the given time interval.
-    Data:
-        data		[timestamp, (pos_x, pos_y)]
-    """
-
-    def __init__(self, day=0, epoch=-1, time_interval=None, data=None):
-        if time_interval is None:
-            time_interval = [-1, 0]
-        if data is None:
-            data = []
-        self.day = day
-        self.epoch = epoch
-        self.time_interval = time_interval
-        self.data = data
-
-
 class SpikeData:
     """	spike_data - Opens all files specified by animalinfo and creates a generator
     that can be called/polled to return spike data in bundles of the set timestep
-        data		[ day, tetrode, timestamp_list, wave_list ]
-        timestep	The time interval for the generator to return on each call
+    
+    Args:
+        anim (AnimalInfo): Defines the animal data and locations
+        timestep: The time interval for the generator to return on each call
     """
 
     DAY_IND = 0
@@ -384,18 +343,15 @@ class SpkDataStream:
                 yield spk_packet
 
 
-'''
-TestBench EEG Data:
-'''
-
 class EEGDataStream:
-    """	eeg_data - Opens all files specified by animalinfo and creates a generator
-    that can be called/polled to return eeg data in bundles of the set timestep.
-    Each returned set is just the closest number of points within that time, the
-    actual size is not guarenteed and it is not aligned to anything in particular.
-        data		[day, tetrode, (time, *eeg)]
-        timestep	The time interval for the generator to return on each call
-
+    """	Streams NSpike EEG Data specified by AnimalInfo.
+    
+    Opens all files specified by anim (AnimalInfo) and creates a generator
+    that can be called/polled to return eeg data points.  EEG points are returned
+    one at a time for each tetrode and in chronological order.
+    
+    Args:
+        anim (AnimalInfo): Defines the animal data and locations
     """
     DAY_IND = 0
     TET_IND = 1
@@ -501,11 +457,14 @@ class EEGDataStream:
     def stream_eeg_rec(self, rec):
         """ A generator function that takes a single record and returns
         each data point in the record with an interpolated timestamp
-        based on the sample frequency.  The record must conform with *.eeg
+        based on the sample frequency.  The record must conform with \*.eeg
         format (timestamp, numsamples, sample rate, [data array])
-        @param		rec				eeg record (timestamp, numsamples, sample rate, [data array])
-        @return		interp_time		interpolated timestamp of data point being returned
-        @return		eeg_pt			eeg sample data
+        Args:
+            rec: eeg record (timestamp, numsamples, sample rate, [data array])
+        
+        Returns:
+            interp_time: interpolated timestamp of data point being returned
+            eeg_pt: eeg sample data
         """
         rec_data = rec[self.EEG_REC_DATA_IND]
         rec_timestamp = rec[self.EEG_REC_TIME_IND]
@@ -549,13 +508,17 @@ class EEGDataStream:
     @staticmethod
     def read_eeg_rec(path):
         """ A generator function that for the file string specified in path,
-        will return single eeg record (*.eeg format) in sequential order. The
+        will return single eeg record (\*.eeg format) in sequential order. The
         generator returns (StopIterator) at the EOF.
-        @param		path		eeg file path string
-        @return		timestamp	timestamp for begining of record
-        @return		numsamples	number of samples in record
-        @return		sampfreq	frequency of sample
-        @return		data		raw data (short) of eeg record
+        
+        Args:
+            path: eeg file path string
+        
+        Returns:
+            timestamp: timestamp for begining of record
+            numsamples: number of samples in record
+            sampfreq: frequency of sample
+            data: raw data (short) of eeg record
         """
         with open(path, 'rb') as f:
             error_code = 0
@@ -595,12 +558,16 @@ class EEGDataStream:
                 return
 
 class EEGDataTimeBlock:
-    """	eeg_data - Opens all files specified by animalinfo and creates a generator
+    """ Returns blocks of EEG Data specified by AnimalInfo.
+    
+    Opens all files specified by animalinfo and creates a generator
     that can be called/polled to return eeg data in bundles of the set timestep.
     Each returned set is just the closest number of points within that time, the
     actual size is not guarenteed and it is not aligned to anything in particular.
-        data		[day, tetrode, (time, *eeg)]
-        timestep	The time interval for the generator to return on each call
+    
+    Args:
+        anim (AnimalInfo): Defines animal data and location
+        timestep: The time interval for the generator to return on each call
 
     """
     DAY_IND = 0
@@ -731,11 +698,15 @@ class EEGDataTimeBlock:
     def stream_eeg_rec(self, rec):
         """ A generator function that takes a single record and returns
         each data point in the record with an interpolated timestamp
-        based on the sample frequency.  The record must conform with *.eeg
+        based on the sample frequency.  The record must conform with \*.eeg
         format (timestamp, numsamples, sample rate, [data array])
-        @param		rec				eeg record (timestamp, numsamples, sample rate, [data array])
-        @return		interp_time		interpolated timestamp of data point being returned
-        @return		eeg_pt			eeg sample data
+        
+        Args:
+        rec: eeg record (timestamp, numsamples, sample rate, [data array])
+        
+        Returns:
+        interp_time: interpolated timestamp of data point being returned
+        eeg_pt: eeg sample data
         """
         rec_data = rec[self.EEG_REC_DATA_IND]
         rec_timestamp = rec[self.EEG_REC_TIME_IND]
@@ -779,13 +750,15 @@ class EEGDataTimeBlock:
     @staticmethod
     def read_eeg_rec(path):
         """ A generator function that for the file string specified in path,
-        will return single eeg record (*.eeg format) in sequential order. The
+        will return single eeg record (\*.eeg format) in sequential order. The
         generator returns (StopIterator) at the EOF.
-        @param		path		eeg file path string
-        @return		timestamp	timestamp for begining of record
-        @return		numsamples	number of samples in record
-        @return		sampfreq	frequency of sample
-        @return		data		raw data (short) of eeg record
+        Args:
+            path: eeg file path string
+        Returns:
+            timestamp: timestamp for begining of record
+            numsamples: number of samples in record
+            sampfreq: frequency of sample
+            data: raw data (short) of eeg record
         """
         with open(path, 'rb') as f:
             error_code = 0
@@ -990,9 +963,13 @@ class PosMatDataStream:
 
 
 class PosData:
-    """	spike_data - Opens all files specified by animalinfo and creates a generator
+    """	Returns blocks of 2D raw pos data specified by AnimalInfo
+    
+    Opens all files specified by animalinfo and creates a generator
     that can be called/polled to return pos data in bundles of the set timestep
-        data		[ day, timestamp_list, (x_pos, y_pos) ]
+    
+    Args:
+        anim (AnimalInfo): Defines the animal data and locations
         timestep	time interval for generator to return on each call
     """
     DAY_IND = 0
