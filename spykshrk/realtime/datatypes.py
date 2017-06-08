@@ -18,7 +18,7 @@ class SpikePoint:
 
 
 class LFPPoint:
-    _byte_format = 'Iiii'
+    _byte_format = 'liii'
 
     def __init__(self, timestamp, ntrode_index, ntrode_id, data):
         self.timestamp = timestamp

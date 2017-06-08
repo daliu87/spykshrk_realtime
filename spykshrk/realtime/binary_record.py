@@ -165,7 +165,7 @@ class BinaryRecordsFileWriter:
     Current can only be created through a BinaryRecordCreateMessage (primarily for remote file creation).
     
     The file name will be defined by the BinaryRecordCreateMessage's attributes and the mpi_rank parameter if specified:
-    <file_prefix>.<file_id|mpi_rank>.<file_postfix>
+    <file_prefix>.<manager_label>.<mpi_rank>.<file_postfix>
     
     A Binary Records file consists of a JSON header prepended to the file that must define the following entries:
         file_prefix: The root file name that is shared if a data store spans multiple files
