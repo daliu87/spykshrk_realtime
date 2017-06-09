@@ -99,9 +99,10 @@
 <span class="sd">    </span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_dir</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">days</span><span class="p">,</span> <span class="n">epochs</span><span class="p">,</span> <span class="n">tetrodes</span><span class="p">,</span> <span class="n">timescale</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span>
+<div class="viewcode-block" id="AnimalInfo.__init__"><a class="viewcode-back" href="../../../../simulator/nspike_data.html#spykshrk.realtime.simulator.nspike_data.AnimalInfo.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_dir</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">days</span><span class="p">,</span> <span class="n">epochs</span><span class="p">,</span> <span class="n">tetrodes</span><span class="p">,</span> <span class="n">timescale</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span>
                  <span class="n">new_data</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; init function</span>
+<span class="sd">        </span>
 <span class="sd">        Args:</span>
 <span class="sd">            base_dir: root directory of animal data</span>
 <span class="sd">            name: name of animal</span>
@@ -117,7 +118,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">tetrodes</span> <span class="o">=</span> <span class="n">tetrodes</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">timescale</span> <span class="o">=</span> <span class="n">timescale</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">times</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_times</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">new_data</span> <span class="o">=</span> <span class="n">new_data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">new_data</span> <span class="o">=</span> <span class="n">new_data</span></div>
 
 <div class="viewcode-block" id="AnimalInfo.parse_times"><a class="viewcode-back" href="../../../../simulator/nspike_data.html#spykshrk.realtime.simulator.nspike_data.AnimalInfo.parse_times">[docs]</a>    <span class="k">def</span> <span class="nf">parse_times</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; parse_time - stores time data (times.mat) for each day to make sure</span>
@@ -268,6 +269,10 @@
         <span class="sd">&quot;&quot;&quot; Returns the encoded epoch that the time belongs to.  If the time</span>
 <span class="sd">        is not in an epoch or if the epoch is not being encoded, return -1</span>
 <span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            day: The day to lookup</span>
+<span class="sd">            cur_time: The current time to lookup</span>
+<span class="sd">        </span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">time</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">times</span><span class="p">[</span><span class="n">day</span><span class="p">]</span>
         <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">epochs</span><span class="p">:</span>
@@ -388,7 +393,7 @@
                 <span class="k">yield</span> <span class="n">spk_packet</span>
 
 
-<span class="k">class</span> <span class="nc">EEGDataStream</span><span class="p">:</span>
+<div class="viewcode-block" id="EEGDataStream"><a class="viewcode-back" href="../../../../simulator/nspike_data.html#spykshrk.realtime.simulator.nspike_data.EEGDataStream">[docs]</a><span class="k">class</span> <span class="nc">EEGDataStream</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;	Streams NSpike EEG Data specified by AnimalInfo.</span>
 <span class="sd">    </span>
 <span class="sd">    Opens all files specified by anim (AnimalInfo) and creates a generator</span>
@@ -407,7 +412,13 @@
     <span class="n">EEG_REC_SAMPRATE_IND</span> <span class="o">=</span> <span class="mi">2</span>
     <span class="n">EEG_REC_DATA_IND</span> <span class="o">=</span> <span class="mi">3</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">anim</span><span class="p">):</span>
+<div class="viewcode-block" id="EEGDataStream.__init__"><a class="viewcode-back" href="../../../../simulator/nspike_data.html#spykshrk.realtime.simulator.nspike_data.EEGDataStream.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">anim</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Init function.</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            anim (AnimalInfo): The AnimalInfo that defines the data to stream eeg data from.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">anim</span> <span class="o">=</span> <span class="n">anim</span>
@@ -464,7 +475,7 @@
                                                    <span class="n">data</span><span class="o">=</span><span class="n">tet_eeg_data_list</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="n">tet</span><span class="p">]),</span>
                                       <span class="n">how</span><span class="o">=</span><span class="s1">&#39;outer&#39;</span><span class="p">,</span> <span class="n">left_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
             <span class="c1"># re add merged data to dict</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">day</span><span class="p">]</span> <span class="o">=</span> <span class="n">day_data</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">day</span><span class="p">]</span> <span class="o">=</span> <span class="n">day_data</span></div>
 
     <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># extract number of days into a unique day list</span>
@@ -499,7 +510,7 @@
                     <span class="c1"># retrieve new row&#39;s timestamp</span>
                     <span class="n">timestamp</span> <span class="o">=</span> <span class="n">day_data</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="n">row_cursor</span><span class="p">]</span>
 
-    <span class="k">def</span> <span class="nf">stream_eeg_rec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rec</span><span class="p">):</span>
+<div class="viewcode-block" id="EEGDataStream.stream_eeg_rec"><a class="viewcode-back" href="../../../../simulator/nspike_data.html#spykshrk.realtime.simulator.nspike_data.EEGDataStream.stream_eeg_rec">[docs]</a>    <span class="k">def</span> <span class="nf">stream_eeg_rec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rec</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; A generator function that takes a single record and returns</span>
 <span class="sd">        each data point in the record with an interpolated timestamp</span>
 <span class="sd">        based on the sample frequency.  The record must conform with \*.eeg</span>
@@ -527,7 +538,7 @@
 <span class="s1">                        set in the number of samples field.&#39;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">samp_count</span> <span class="o">&lt;</span> <span class="n">rec_numsamp</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">DataReadError</span><span class="p">(</span><span class="s1">&#39;Record being streamed has fewer samples than </span><span class="se">\</span>
-<span class="s1">                    set in the number of samples field.&#39;</span><span class="p">)</span>
+<span class="s1">                    set in the number of samples field.&#39;</span><span class="p">)</span></div>
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">read_eeg_header</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
@@ -551,7 +562,7 @@
         <span class="k">return</span> <span class="n">header_text</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">read_eeg_rec</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+<div class="viewcode-block" id="EEGDataStream.read_eeg_rec"><a class="viewcode-back" href="../../../../simulator/nspike_data.html#spykshrk.realtime.simulator.nspike_data.EEGDataStream.read_eeg_rec">[docs]</a>    <span class="k">def</span> <span class="nf">read_eeg_rec</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; A generator function that for the file string specified in path,</span>
 <span class="sd">        will return single eeg record (\*.eeg format) in sequential order. The</span>
 <span class="sd">        generator returns (StopIterator) at the EOF.</span>
@@ -600,7 +611,7 @@
             <span class="k">except</span> <span class="ne">EOFError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;EOFError reading EEG file (</span><span class="si">%s</span><span class="s1">) - (</span><span class="si">%s</span><span class="s1">, </span><span class="si">%s</span><span class="s1">): code </span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">e</span><span class="p">),</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">error_code</span><span class="p">))</span>
                 <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-                <span class="k">return</span>
+                <span class="k">return</span></div></div>
 
 <span class="k">class</span> <span class="nc">EEGDataTimeBlock</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot; Returns blocks of EEG Data specified by AnimalInfo.</span>

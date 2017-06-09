@@ -57,6 +57,7 @@ class AnimalInfo:
     def __init__(self, base_dir, name, days, epochs, tetrodes, timescale=10000,
                  new_data=True):
         """ init function
+        
         Args:
             base_dir: root directory of animal data
             name: name of animal
@@ -223,6 +224,10 @@ class AnimalInfo:
         """ Returns the encoded epoch that the time belongs to.  If the time
         is not in an epoch or if the epoch is not being encoded, return -1
         
+        Args:
+            day: The day to lookup
+            cur_time: The current time to lookup
+        
         """
         time = self.times[day]
         for ii in self.epochs:
@@ -363,6 +368,12 @@ class EEGDataStream:
     EEG_REC_DATA_IND = 3
 
     def __init__(self, anim):
+        """
+        Init function.
+        
+        Args:
+            anim (AnimalInfo): The AnimalInfo that defines the data to stream eeg data from.
+        """
 
         self.data = {}
         self.anim = anim

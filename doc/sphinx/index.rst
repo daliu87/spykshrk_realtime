@@ -2,6 +2,7 @@
    sphinx-quickstart on Tue Jun  6 12:16:19 2017.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
+
 =================
 spykshrk_realtime
 =================
@@ -14,7 +15,7 @@ spykshrk_realtime
    simulator/nspike_data.rst
 
 .. contents:: Table of Contents
-    :depth: 3
+   :depth: 3
 
 Simulator Tools
 ---------------

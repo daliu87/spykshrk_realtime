@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>&lt;no title&gt; &#8212; spykshrk_realtime 0.1 documentation</title>
+    <title>API: spykshrk.realtime.simulator.nspike_data &#8212; spykshrk_realtime 0.1 documentation</title>
     
     <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
@@ -43,24 +43,81 @@
         <div class="bodywrapper">
           <div class="body" role="main">
             
-  <div class="toctree-wrapper compound">
+  <div class="section" id="api-spykshrk-realtime-simulator-nspike-data">
+<h1><a class="toc-backref" href="#id1">API: spykshrk.realtime.simulator.nspike_data</a><a class="headerlink" href="#api-spykshrk-realtime-simulator-nspike-data" title="Permalink to this headline">¶</a></h1>
+<div class="toctree-wrapper compound">
 </div>
+<div class="contents topic" id="contents">
+<p class="topic-title first">Contents</p>
+<ul class="simple">
+<li><a class="reference internal" href="#api-spykshrk-realtime-simulator-nspike-data" id="id1">API: spykshrk.realtime.simulator.nspike_data</a><ul>
+<li><a class="reference internal" href="#animalinfo" id="id2">AnimalInfo</a></li>
+<li><a class="reference internal" href="#eegdatastream" id="id3">EEGDataStream</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="section" id="animalinfo">
+<h2><a class="toc-backref" href="#id2">AnimalInfo</a><a class="headerlink" href="#animalinfo" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="spykshrk.realtime.simulator.nspike_data.AnimalInfo">
-<em class="property">class </em><code class="descclassname">spykshrk.realtime.simulator.nspike_data.</code><code class="descname">AnimalInfo</code><span class="sig-paren">(</span><em>base_dir</em>, <em>name</em>, <em>days</em>, <em>epochs</em>, <em>tetrodes</em>, <em>timescale=10000</em>, <em>new_data=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/spykshrk/realtime/simulator/nspike_data.html#AnimalInfo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#spykshrk.realtime.simulator.nspike_data.AnimalInfo" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descname">AnimalInfo</code><span class="sig-paren">(</span><em>base_dir</em>, <em>name</em>, <em>days</em>, <em>epochs</em>, <em>tetrodes</em>, <em>timescale=10000</em>, <em>new_data=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/spykshrk/realtime/simulator/nspike_data.html#AnimalInfo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#spykshrk.realtime.simulator.nspike_data.AnimalInfo" title="Permalink to this definition">¶</a></dt>
 <dd><p>animalinfo - stores details of the single animal to process and generates
 file lists that points to the data to process.</p>
-<p>init function
-:param base_dir: root directory of animal data
-:param name: name of animal
-:param days: array of which days of data to process
-:param tetrodes: array of which tetrodes to process
-:param epochs: list of epochs for encoding</p>
+<p>init function</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>base_dir</strong> &#8211; root directory of animal data</li>
+<li><strong>name</strong> &#8211; name of animal</li>
+<li><strong>days</strong> &#8211; array of which days of data to process</li>
+<li><strong>tetrodes</strong> &#8211; array of which tetrodes to process</li>
+<li><strong>epochs</strong> &#8211; list of epochs for encoding</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="spykshrk.realtime.simulator.nspike_data.AnimalInfo.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>base_dir</em>, <em>name</em>, <em>days</em>, <em>epochs</em>, <em>tetrodes</em>, <em>timescale=10000</em>, <em>new_data=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/spykshrk/realtime/simulator/nspike_data.html#AnimalInfo.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#spykshrk.realtime.simulator.nspike_data.AnimalInfo.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>init function</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>base_dir</strong> &#8211; root directory of animal data</li>
+<li><strong>name</strong> &#8211; name of animal</li>
+<li><strong>days</strong> &#8211; array of which days of data to process</li>
+<li><strong>tetrodes</strong> &#8211; array of which tetrodes to process</li>
+<li><strong>epochs</strong> &#8211; list of epochs for encoding</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 <dl class="method">
 <dt id="spykshrk.realtime.simulator.nspike_data.AnimalInfo.calc_epoch_state">
 <code class="descname">calc_epoch_state</code><span class="sig-paren">(</span><em>day</em>, <em>cur_time</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/spykshrk/realtime/simulator/nspike_data.html#AnimalInfo.calc_epoch_state"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#spykshrk.realtime.simulator.nspike_data.AnimalInfo.calc_epoch_state" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns the encoded epoch that the time belongs to.  If the time
 is not in an epoch or if the epoch is not being encoded, return -1</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>day</strong> &#8211; The day to lookup</li>
+<li><strong>cur_time</strong> &#8211; The current time to lookup</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
@@ -107,13 +164,111 @@ each day is synchronized.  Should only be called from __init__</p>
 
 </dd></dl>
 
+</div>
+<div class="section" id="eegdatastream">
+<h2><a class="toc-backref" href="#id3">EEGDataStream</a><a class="headerlink" href="#eegdatastream" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="spykshrk.realtime.simulator.nspike_data.EEGDataStream">
+<em class="property">class </em><code class="descname">EEGDataStream</code><span class="sig-paren">(</span><em>anim</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/spykshrk/realtime/simulator/nspike_data.html#EEGDataStream"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#spykshrk.realtime.simulator.nspike_data.EEGDataStream" title="Permalink to this definition">¶</a></dt>
+<dd><p>Streams NSpike EEG Data specified by AnimalInfo.</p>
+<p>Opens all files specified by anim (AnimalInfo) and creates a generator
+that can be called/polled to return eeg data points.  EEG points are returned
+one at a time for each tetrode and in chronological order.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>anim</strong> (<a class="reference internal" href="#spykshrk.realtime.simulator.nspike_data.AnimalInfo" title="spykshrk.realtime.simulator.nspike_data.AnimalInfo"><em>AnimalInfo</em></a>) &#8211; Defines the animal data and locations</td>
+</tr>
+</tbody>
+</table>
+<p>Init function.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>anim</strong> (<a class="reference internal" href="#spykshrk.realtime.simulator.nspike_data.AnimalInfo" title="spykshrk.realtime.simulator.nspike_data.AnimalInfo"><em>AnimalInfo</em></a>) &#8211; The AnimalInfo that defines the data to stream eeg data from.</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="spykshrk.realtime.simulator.nspike_data.EEGDataStream.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>anim</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/spykshrk/realtime/simulator/nspike_data.html#EEGDataStream.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#spykshrk.realtime.simulator.nspike_data.EEGDataStream.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Init function.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>anim</strong> (<a class="reference internal" href="#spykshrk.realtime.simulator.nspike_data.AnimalInfo" title="spykshrk.realtime.simulator.nspike_data.AnimalInfo"><em>AnimalInfo</em></a>) &#8211; The AnimalInfo that defines the data to stream eeg data from.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="spykshrk.realtime.simulator.nspike_data.EEGDataStream.read_eeg_rec">
+<em class="property">static </em><code class="descname">read_eeg_rec</code><span class="sig-paren">(</span><em>path</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/spykshrk/realtime/simulator/nspike_data.html#EEGDataStream.read_eeg_rec"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#spykshrk.realtime.simulator.nspike_data.EEGDataStream.read_eeg_rec" title="Permalink to this definition">¶</a></dt>
+<dd><p>A generator function that for the file string specified in path,
+will return single eeg record (*.eeg format) in sequential order. The
+generator returns (StopIterator) at the EOF.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>path</strong> &#8211; eeg file path string</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">timestamp for begining of record
+numsamples: number of samples in record
+sampfreq: frequency of sample
+data: raw data (short) of eeg record</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">timestamp</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="spykshrk.realtime.simulator.nspike_data.EEGDataStream.stream_eeg_rec">
+<code class="descname">stream_eeg_rec</code><span class="sig-paren">(</span><em>rec</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/spykshrk/realtime/simulator/nspike_data.html#EEGDataStream.stream_eeg_rec"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#spykshrk.realtime.simulator.nspike_data.EEGDataStream.stream_eeg_rec" title="Permalink to this definition">¶</a></dt>
+<dd><p>A generator function that takes a single record and returns
+each data point in the record with an interpolated timestamp
+based on the sample frequency.  The record must conform with *.eeg
+format (timestamp, numsamples, sample rate, [data array])
+:param rec: eeg record (timestamp, numsamples, sample rate, [data array])</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">interpolated timestamp of data point being returned
+eeg_pt: eeg sample data</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">interp_time</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+</div>
 
 
           </div>
         </div>
       </div>
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
-        <div class="sphinxsidebarwrapper"><div class="relations">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">API: spykshrk.realtime.simulator.nspike_data</a><ul>
+<li><a class="reference internal" href="#animalinfo">AnimalInfo</a></li>
+<li><a class="reference internal" href="#eegdatastream">EEGDataStream</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="../index.html">Documentation overview</a><ul>

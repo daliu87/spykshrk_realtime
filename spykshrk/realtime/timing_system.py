@@ -156,3 +156,5 @@ class TimingFileWriter:
         self._file_handle.close()
 
 
+class TimingFileReader:
+    def __init__(self):
