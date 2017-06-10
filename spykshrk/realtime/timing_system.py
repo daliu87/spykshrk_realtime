@@ -7,7 +7,12 @@ from mpi4py import MPI
 
 
 class TimingSystemError(Exception):
-    pass
+    def __init__(self, value, **kwargs):
+        self.value = value
+        self.data = kwargs
+
+    def __str__(self):
+        return repr(self.value) + '\n' + repr(self.data)
 
 
 class TimingMessage(realtime_process.RealtimeMessage):
@@ -106,7 +111,7 @@ class TimingMessage(realtime_process.RealtimeMessage):
 
 class TimingFileWriter:
 
-    header_format = '=Q'
+    header_format = '=Qi'
 
     @staticmethod
     def format_full_path(save_dir, file_prefix, mpi_rank, file_postfix):
@@ -139,8 +144,8 @@ class TimingFileWriter:
         self._rec_counter = 0
 
     def write_timing_message(self, timing_msg: TimingMessage):
-        header_bytes = struct.pack(self.header_format, self._rec_counter)
         msg_bytes = timing_msg.pack()
+        header_bytes = struct.pack(self.header_format, self._rec_counter, len(msg_bytes))
         self._file_handle.write(header_bytes + msg_bytes)
 
         self._rec_counter += 1
@@ -157,4 +162,70 @@ class TimingFileWriter:
 
 
 class TimingFileReader:
-    def __init__(self):
+    def __init__(self, save_dir, file_prefix, mpi_rank, file_postfix):
+        self._save_dir = save_dir
+        self._file_prefix = file_prefix
+        self._mpi_rank = mpi_rank
+        self._file_postfix = file_postfix
+
+        self._file_path = TimingFileWriter.format_full_path(save_dir=self._save_dir, file_prefix=self._file_prefix,
+                                                            mpi_rank=self._mpi_rank, file_postfix=self._file_postfix)
+
+        self._file_handle = open(self._file_path, 'rb')
+
+        self._header_bytes = None
+        self._data_start_byte = None
+        self._extract_json_header()
+        self._header = json.loads(self._header_bytes.decode('utf-8'))
+
+    def _extract_json_header(self):
+        self._file_handle.seek(0)
+        self._header_bytes = bytearray()
+
+        read_byte = self._file_handle.read(1)
+        if read_byte != b'{':
+            raise TimingSystemError('Not a Binary Records file, JSON header not found at first byte.',
+                                    file_path=self._file_path)
+
+        level = 0
+        while read_byte:
+            self._header_bytes.append(ord(read_byte))
+            if read_byte == b'{':
+                level += 1
+            elif read_byte == b'}':
+                level -= 1
+
+            if level == 0:
+                break
+            elif len(self._header_bytes) >= 1000:
+                raise TimingSystemError('Could not find end of JSON header before 1000 byte header limit.',
+                                        file_path=self._file_path)
+
+            # read next byte
+            read_byte = self._file_handle.read(1)
+
+        if level != 0:
+            raise TimingSystemError('Could not find end of JSON header before end of file.',
+                                    file_path=self._file_path)
+
+        self._data_start_byte = self._file_handle.tell()
+
+    def __iter_
+
+    def _read_record(self):
+
+        header_bytes = self._file_handle.read(struct.calcsize(self._header['header_fmt']))
+
+        try:
+            rec_id, msg_len = struct.unpack(self._header['header_fmt'], header_bytes)
+
+            msg_bytes = self._file_handle.read(msg_len)
+            msg = TimingMessage.unpack(msg_bytes)
+
+        except struct.error as ex:
+            raise BinaryRecordsError('File might be corrupted, record does not match format or unexpected EOF.',
+                                     file_path=self._file_path)
+
+        return rec_id, msg
+
+
