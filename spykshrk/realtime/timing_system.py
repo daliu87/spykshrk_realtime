@@ -1,5 +1,6 @@
 import struct
 import json
+import os
 from collections import OrderedDict
 from spykshrk.realtime import realtime_process
 
@@ -108,6 +109,11 @@ class TimingMessage(realtime_process.RealtimeMessage):
     def timing_data(self, timing_data):
         raise TimingSystemError('Cannot modify TimingMessage timing_data.')
 
+    def __eq__(self, other):
+        return ((self.label == other.label) and
+                (self.timestamp == other.timestamp) and
+                (self.timing_data == other.timing_data))
+
 
 class TimingFileWriter:
 
@@ -210,22 +216,35 @@ class TimingFileReader:
 
         self._data_start_byte = self._file_handle.tell()
 
-    def __iter_
+        self.rec_id = -1
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return_rec = self._read_record()
+        if return_rec is None:
+            raise StopIteration()
+        else:
+            return return_rec
 
     def _read_record(self):
 
         header_bytes = self._file_handle.read(struct.calcsize(self._header['header_fmt']))
 
+        if not header_bytes:
+            return None
+
         try:
-            rec_id, msg_len = struct.unpack(self._header['header_fmt'], header_bytes)
+            self.rec_id, msg_len = struct.unpack(self._header['header_fmt'], header_bytes)
 
             msg_bytes = self._file_handle.read(msg_len)
             msg = TimingMessage.unpack(msg_bytes)
 
         except struct.error as ex:
-            raise BinaryRecordsError('File might be corrupted, record does not match format or unexpected EOF.',
-                                     file_path=self._file_path)
+            raise TimingSystemError('File might be corrupted, record does not match format or unexpected EOF.',
+                                    file_path=self._file_path, last_rec_id=self.rec_id)
 
-        return rec_id, msg
+        return self.rec_id, msg
 
 

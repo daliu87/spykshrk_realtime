@@ -89,6 +89,7 @@ class MainThread(realtime_process.RealtimeThread):
 
 class StimDeciderMPISendInterface(realtime_process.RealtimeClass):
     def __init__(self, comm: MPI.Comm, rank, config):
+        super(StimDeciderMPISendInterface, self).__init__()
         self.comm = comm
         self.rank = rank
         self.config = config
