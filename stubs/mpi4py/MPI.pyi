@@ -757,7 +757,7 @@ class Comm(object):
         pass
 
     @classmethod
-    def Compare(cls, type_cls, Comm_comm1, Comm_comm2): # real signature unknown; restored from __doc__
+    def Compare(cls, comm1, comm2): # real signature unknown; restored from __doc__
         """
         Comm.Compare(type cls, Comm comm1, Comm comm2)
         
@@ -765,7 +765,7 @@ class Comm(object):
         """
         pass
 
-    def Create(self, Group_group): # real signature unknown; restored from __doc__
+    def Create(self, group): # real signature unknown; restored from __doc__
         """
         Comm.Create(self, Group group)
         
@@ -773,7 +773,7 @@ class Comm(object):
         """
         pass
 
-    def Create_group(self, Group_group, tag=0): # real signature unknown; restored from __doc__
+    def Create_group(self, group, tag=0): # real signature unknown; restored from __doc__
         """
         Comm.Create_group(self, Group group, int tag=0)
         
@@ -782,7 +782,7 @@ class Comm(object):
         pass
 
     @classmethod
-    def Create_keyval(cls, type_cls, copy_fn=None, delete_fn=None): # real signature unknown; restored from __doc__
+    def Create_keyval(cls, copy_fn=None, delete_fn=None): # real signature unknown; restored from __doc__
         """
         Comm.Create_keyval(type cls, copy_fn=None, delete_fn=None)
         
@@ -814,7 +814,7 @@ class Comm(object):
         """
         pass
 
-    def Dup_with_info(self, Info_info): # real signature unknown; restored from __doc__
+    def Dup_with_info(self, info): # real signature unknown; restored from __doc__
         """
         Comm.Dup_with_info(self, Info info)
         
@@ -823,7 +823,7 @@ class Comm(object):
         pass
 
     @classmethod
-    def f2py(cls, type_cls, arg): # real signature unknown; restored from __doc__
+    def f2py(cls, arg): # real signature unknown; restored from __doc__
         """ Comm.f2py(type cls, arg) """
         pass
 
@@ -836,7 +836,7 @@ class Comm(object):
         pass
 
     @classmethod
-    def Free_keyval(cls, type_cls, keyval): # real signature unknown; restored from __doc__
+    def Free_keyval(cls, keyval): # real signature unknown; restored from __doc__
         """
         Comm.Free_keyval(type cls, int keyval)
         
@@ -911,7 +911,7 @@ class Comm(object):
         pass
 
     @classmethod
-    def Get_parent(cls, type_cls): # real signature unknown; restored from __doc__
+    def Get_parent(cls): # real signature unknown; restored from __doc__
         """
         Comm.Get_parent(type cls)
         
@@ -1187,7 +1187,7 @@ class Comm(object):
         pass
 
     @classmethod
-    def Join(cls, type_cls, fd): # real signature unknown; restored from __doc__
+    def Join(cls, fd): # real signature unknown; restored from __doc__
         """
         Comm.Join(type cls, int fd)
         
@@ -1922,7 +1922,7 @@ class Datatype(object):
         pass
 
     @classmethod
-    def Create_f90_complex(cls, type_cls, p, r): # real signature unknown; restored from __doc__
+    def Create_f90_complex(cls, p, r): # real signature unknown; restored from __doc__
         """
         Datatype.Create_f90_complex(type cls, int p, int r)
         
@@ -1931,7 +1931,7 @@ class Datatype(object):
         pass
 
     @classmethod
-    def Create_f90_integer(cls, type_cls, r): # real signature unknown; restored from __doc__
+    def Create_f90_integer(cls, r): # real signature unknown; restored from __doc__
         """
         Datatype.Create_f90_integer(type cls, int r)
         
@@ -1940,7 +1940,7 @@ class Datatype(object):
         pass
 
     @classmethod
-    def Create_f90_real(cls, type_cls, p, r): # real signature unknown; restored from __doc__
+    def Create_f90_real(cls, p, r): # real signature unknown; restored from __doc__
         """
         Datatype.Create_f90_real(type cls, int p, int r)
         
@@ -1993,7 +1993,7 @@ class Datatype(object):
         pass
 
     @classmethod
-    def Create_keyval(cls, type_cls, copy_fn=None, delete_fn=None): # real signature unknown; restored from __doc__
+    def Create_keyval(cls, copy_fn=None, delete_fn=None): # real signature unknown; restored from __doc__
         """
         Datatype.Create_keyval(type cls, copy_fn=None, delete_fn=None)
         
@@ -2010,7 +2010,7 @@ class Datatype(object):
         pass
 
     @classmethod
-    def Create_struct(cls, type_cls, blocklengths, displacements, datatypes): # real signature unknown; restored from __doc__
+    def Create_struct(cls, blocklengths, displacements, datatypes): # real signature unknown; restored from __doc__
         """
         Datatype.Create_struct(type cls, blocklengths, displacements, datatypes)
         
@@ -2061,7 +2061,7 @@ class Datatype(object):
         pass
 
     @classmethod
-    def f2py(cls, type_cls, arg): # real signature unknown; restored from __doc__
+    def f2py(cls, arg): # real signature unknown; restored from __doc__
         """ Datatype.f2py(type cls, arg) """
         pass
 
@@ -2074,7 +2074,7 @@ class Datatype(object):
         pass
 
     @classmethod
-    def Free_keyval(cls, type_cls, keyval): # real signature unknown; restored from __doc__
+    def Free_keyval(cls, keyval): # real signature unknown; restored from __doc__
         """
         Datatype.Free_keyval(type cls, int keyval)
         
@@ -2142,7 +2142,7 @@ class Datatype(object):
         pass
 
     @classmethod
-    def Match_size(cls, type_cls, typeclass, size): # real signature unknown; restored from __doc__
+    def Match_size(cls, typeclass, size): # real signature unknown; restored from __doc__
         """
         Datatype.Match_size(type cls, int typeclass, int size)
         
@@ -2150,7 +2150,7 @@ class Datatype(object):
         """
         pass
 
-    def Pack(self, inbuf, outbuf, position, Comm_comm): # real signature unknown; restored from __doc__
+    def Pack(self, inbuf, outbuf, position, comm): # real signature unknown; restored from __doc__
         """
         Datatype.Pack(self, inbuf, outbuf, int position, Comm comm)
         
@@ -2177,7 +2177,7 @@ class Datatype(object):
         """
         pass
 
-    def Pack_size(self, count, Comm_comm): # real signature unknown; restored from __doc__
+    def Pack_size(self, count, comm): # real signature unknown; restored from __doc__
         """
         Datatype.Pack_size(self, int count, Comm comm)
         
@@ -2214,7 +2214,7 @@ class Datatype(object):
         """
         pass
 
-    def Unpack(self, inbuf, position, outbuf, Comm_comm): # real signature unknown; restored from __doc__
+    def Unpack(self, inbuf, position, outbuf, comm): # real signature unknown; restored from __doc__
         """
         Datatype.Unpack(self, inbuf, int position, outbuf, Comm comm)
         
@@ -2340,7 +2340,7 @@ class Distgraphcomm(Topocomm):
 class Errhandler(object):
     """ Error Handler """
     @classmethod
-    def f2py(cls, type_cls, arg): # real signature unknown; restored from __doc__
+    def f2py(cls, arg): # real signature unknown; restored from __doc__
         """ Errhandler.f2py(type cls, arg) """
         pass
 
@@ -2506,7 +2506,7 @@ class File(object):
         pass
 
     @classmethod
-    def Delete(cls, type_cls, filename, Info_info=None): # real signature unknown; restored from __doc__
+    def Delete(cls, filename, Info_info=None): # real signature unknown; restored from __doc__
         """
         File.Delete(type cls, filename, Info info=INFO_NULL)
         
@@ -2515,7 +2515,7 @@ class File(object):
         pass
 
     @classmethod
-    def f2py(cls, type_cls, arg): # real signature unknown; restored from __doc__
+    def f2py(cls, arg): # real signature unknown; restored from __doc__
         """ File.f2py(type cls, arg) """
         pass
 
@@ -2693,7 +2693,7 @@ class File(object):
         pass
 
     @classmethod
-    def Open(cls, type_cls, Intracomm_comm, filename, amode=None, Info_info=None): # real signature unknown; restored from __doc__
+    def Open(cls, Intracomm_comm, filename, amode=None, Info_info=None): # real signature unknown; restored from __doc__
         """
         File.Open(type cls, Intracomm comm, filename, int amode=MODE_RDONLY, Info info=INFO_NULL)
         
@@ -3113,7 +3113,7 @@ class Request(object):
         pass
 
     @classmethod
-    def f2py(cls, type_cls, arg): # real signature unknown; restored from __doc__
+    def f2py(cls, arg): # real signature unknown; restored from __doc__
         """ Request.f2py(type cls, arg) """
         pass
 
@@ -3154,7 +3154,7 @@ class Request(object):
         pass
 
     @classmethod
-    def Testall(cls, type_cls, requests, statuses=None): # real signature unknown; restored from __doc__
+    def Testall(cls, requests, statuses=None): # real signature unknown; restored from __doc__
         """
         Request.Testall(type cls, requests, statuses=None)
         
@@ -3163,7 +3163,7 @@ class Request(object):
         pass
 
     @classmethod
-    def testall(cls, type_cls, requests, statuses=None): # real signature unknown; restored from __doc__
+    def testall(cls, requests, statuses=None): # real signature unknown; restored from __doc__
         """
         Request.testall(type cls, requests, statuses=None)
         
@@ -3172,7 +3172,7 @@ class Request(object):
         pass
 
     @classmethod
-    def Testany(cls, type_cls, requests, status=None): # real signature unknown; restored from __doc__
+    def Testany(cls, requests, status=None): # real signature unknown; restored from __doc__
         """
         Request.Testany(type cls, requests, Status status=None)
         
@@ -3181,7 +3181,7 @@ class Request(object):
         pass
 
     @classmethod
-    def testany(cls, type_cls, requests, status=None): # real signature unknown; restored from __doc__
+    def testany(cls, requests, status=None): # real signature unknown; restored from __doc__
         """
         Request.testany(type cls, requests, Status status=None)
         
@@ -3190,7 +3190,7 @@ class Request(object):
         pass
 
     @classmethod
-    def Testsome(cls, type_cls, requests, statuses=None): # real signature unknown; restored from __doc__
+    def Testsome(cls, requests, statuses=None): # real signature unknown; restored from __doc__
         """
         Request.Testsome(type cls, requests, statuses=None)
         
@@ -3215,7 +3215,7 @@ class Request(object):
         pass
 
     @classmethod
-    def Waitall(cls, type_cls, requests, statuses=None): # real signature unknown; restored from __doc__
+    def Waitall(cls, requests, statuses=None): # real signature unknown; restored from __doc__
         """
         Request.Waitall(type cls, requests, statuses=None)
         
@@ -3224,7 +3224,7 @@ class Request(object):
         pass
 
     @classmethod
-    def waitall(cls, type_cls, requests, statuses=None): # real signature unknown; restored from __doc__
+    def waitall(cls, requests, statuses=None): # real signature unknown; restored from __doc__
         """
         Request.waitall(type cls, requests, statuses=None)
         
@@ -3233,7 +3233,7 @@ class Request(object):
         pass
 
     @classmethod
-    def waitany(cls, type_cls, requests, status=None): # real signature unknown; restored from __doc__
+    def waitany(cls, requests, status=None): # real signature unknown; restored from __doc__
         """
         Request.waitany(type cls, requests, Status status=None)
         
@@ -3242,7 +3242,7 @@ class Request(object):
         pass
 
     @classmethod
-    def Waitany(cls, type_cls, requests, status=None): # real signature unknown; restored from __doc__
+    def Waitany(cls, requests, status=None): # real signature unknown; restored from __doc__
         """
         Request.Waitany(type cls, requests, Status status=None)
         
@@ -3251,7 +3251,7 @@ class Request(object):
         pass
 
     @classmethod
-    def Waitsome(cls, type_cls, requests, statuses=None): # real signature unknown; restored from __doc__
+    def Waitsome(cls, requests, statuses=None): # real signature unknown; restored from __doc__
         """
         Request.Waitsome(type cls, requests, statuses=None)
         
@@ -3309,7 +3309,7 @@ class Grequest(Request):
         pass
 
     @classmethod
-    def Start(cls, type_cls, query_fn, free_fn, cancel_fn, args=None, kargs=None): # real signature unknown; restored from __doc__
+    def Start(cls, query_fn, free_fn, cancel_fn, args=None, kargs=None): # real signature unknown; restored from __doc__
         """
         Grequest.Start(type cls, query_fn, free_fn, cancel_fn, args=None, kargs=None)
         
@@ -3329,7 +3329,7 @@ class Grequest(Request):
 class Group(object):
     """ Group """
     @classmethod
-    def Compare(cls, type_cls, Group_group1, Group_group2): # real signature unknown; restored from __doc__
+    def Compare(cls, group1, group2): # real signature unknown; restored from __doc__
         """
         Group.Compare(type cls, Group group1, Group group2)
         
@@ -3338,7 +3338,7 @@ class Group(object):
         pass
 
     @classmethod
-    def Difference(cls, type_cls, Group_group1, Group_group2): # real signature unknown; restored from __doc__
+    def Difference(cls, group1, group2): # real signature unknown; restored from __doc__
         """
         Group.Difference(type cls, Group group1, Group group2)
         
@@ -3365,7 +3365,7 @@ class Group(object):
         pass
 
     @classmethod
-    def f2py(cls, type_cls, arg): # real signature unknown; restored from __doc__
+    def f2py(cls, arg): # real signature unknown; restored from __doc__
         """ Group.f2py(type cls, arg) """
         pass
 
@@ -3412,7 +3412,7 @@ class Group(object):
         pass
 
     @classmethod
-    def Intersection(cls, type_cls, Group_group1, Group_group2): # real signature unknown; restored from __doc__
+    def Intersection(cls, group1, group2): # real signature unknown; restored from __doc__
         """
         Group.Intersection(type cls, Group group1, Group group2)
         
@@ -3444,7 +3444,7 @@ class Group(object):
         pass
 
     @classmethod
-    def Translate_ranks(cls, type_cls, Group_group1, ranks1, Group_group2=None): # real signature unknown; restored from __doc__
+    def Translate_ranks(cls, group1, ranks1, group2=None): # real signature unknown; restored from __doc__
         """
         Group.Translate_ranks(type cls, Group group1, ranks1, Group group2=None)
         
@@ -3454,7 +3454,7 @@ class Group(object):
         pass
 
     @classmethod
-    def Union(cls, type_cls, Group_group1, Group_group2): # real signature unknown; restored from __doc__
+    def Union(cls, group1, group2): # real signature unknown; restored from __doc__
         """
         Group.Union(type cls, Group group1, Group group2)
         
@@ -3519,7 +3519,7 @@ class Info(object):
         pass
 
     @classmethod
-    def Create(cls, type_cls): # real signature unknown; restored from __doc__
+    def Create(cls): # real signature unknown; restored from __doc__
         """
         Info.Create(type cls)
         
@@ -3545,7 +3545,7 @@ class Info(object):
         pass
 
     @classmethod
-    def f2py(cls, type_cls, arg): # real signature unknown; restored from __doc__
+    def f2py(cls, arg): # real signature unknown; restored from __doc__
         """ Info.f2py(type cls, arg) """
         pass
 
@@ -3740,12 +3740,12 @@ class Intercomm(Comm):
 class Message(object):
     """ Message """
     @classmethod
-    def f2py(cls, type_cls, arg): # real signature unknown; restored from __doc__
+    def f2py(cls, arg): # real signature unknown; restored from __doc__
         """ Message.f2py(type cls, arg) """
         pass
 
     @classmethod
-    def Iprobe(cls, type_cls, Comm_comm, source=None, tag=None, status=None): # real signature unknown; restored from __doc__
+    def Iprobe(cls, comm, source=None, tag=None, status=None): # real signature unknown; restored from __doc__
         """
         Message.Iprobe(type cls, Comm comm, int source=ANY_SOURCE, int tag=ANY_TAG, Status status=None)
         
@@ -3754,7 +3754,7 @@ class Message(object):
         pass
 
     @classmethod
-    def iprobe(cls, type_cls, Comm_comm, source=None, tag=None, status=None): # real signature unknown; restored from __doc__
+    def iprobe(cls, comm, source=None, tag=None, status=None): # real signature unknown; restored from __doc__
         """
         Message.iprobe(type cls, Comm comm, int source=ANY_SOURCE, int tag=ANY_TAG, Status status=None)
         Nonblocking test for a matched message
@@ -3777,7 +3777,7 @@ class Message(object):
         pass
 
     @classmethod
-    def probe(cls, type_cls, Comm_comm, source=None, tag=None, status=None): # real signature unknown; restored from __doc__
+    def probe(cls, comm, source=None, tag=None, status=None): # real signature unknown; restored from __doc__
         """
         Message.probe(type cls, Comm comm, int source=ANY_SOURCE, int tag=ANY_TAG, Status status=None)
         Blocking test for a matched message
@@ -3785,7 +3785,7 @@ class Message(object):
         pass
 
     @classmethod
-    def Probe(cls, type_cls, Comm_comm, source=None, tag=None, status=None): # real signature unknown; restored from __doc__
+    def Probe(cls, comm, source=None, tag=None, status=None): # real signature unknown; restored from __doc__
         """
         Message.Probe(type cls, Comm comm, int source=ANY_SOURCE, int tag=ANY_TAG, Status status=None)
         
@@ -3854,7 +3854,7 @@ class Message(object):
 class Op(object):
     """ Op """
     @classmethod
-    def Create(cls, type_cls, function, bool_commute=False): # real signature unknown; restored from __doc__
+    def Create(cls, function, bool_commute=False): # real signature unknown; restored from __doc__
         """
         Op.Create(type cls, function, bool commute=False)
         
@@ -3863,7 +3863,7 @@ class Op(object):
         pass
 
     @classmethod
-    def f2py(cls, type_cls, arg): # real signature unknown; restored from __doc__
+    def f2py(cls, arg): # real signature unknown; restored from __doc__
         """ Op.f2py(type cls, arg) """
         pass
 
@@ -3956,7 +3956,7 @@ class Prequest(Request):
         pass
 
     @classmethod
-    def Startall(cls, type_cls, requests): # real signature unknown; restored from __doc__
+    def Startall(cls, requests): # real signature unknown; restored from __doc__
         """
         Prequest.Startall(type cls, requests)
         
@@ -3976,7 +3976,7 @@ class Prequest(Request):
 class Status(object):
     """ Status """
     @classmethod
-    def f2py(cls, type_cls, arg): # real signature unknown; restored from __doc__
+    def f2py(cls, arg): # real signature unknown; restored from __doc__
         """ Status.f2py(type cls, arg) """
         pass
 
@@ -4142,7 +4142,7 @@ class Win(object):
         pass
 
     @classmethod
-    def Allocate(cls, type_cls, size, disp_unit=1, Info_info=None, Intracomm_comm=None): # real signature unknown; restored from __doc__
+    def Allocate(cls, size, disp_unit=1, Info_info=None, Intracomm_comm=None): # real signature unknown; restored from __doc__
         """
         Win.Allocate(type cls, Aint size, int disp_unit=1, Info info=INFO_NULL, Intracomm comm=COMM_SELF)
         
@@ -4151,7 +4151,7 @@ class Win(object):
         pass
 
     @classmethod
-    def Allocate_shared(cls, type_cls, size, disp_unit=1, Info_info=None, Intracomm_comm=None): # real signature unknown; restored from __doc__
+    def Allocate_shared(cls, size, disp_unit=1, Info_info=None, Intracomm_comm=None): # real signature unknown; restored from __doc__
         """
         Win.Allocate_shared(type cls, Aint size, int disp_unit=1, Info info=INFO_NULL, Intracomm comm=COMM_SELF)
         
@@ -4184,7 +4184,7 @@ class Win(object):
         pass
 
     @classmethod
-    def Create(cls, type_cls, memory, disp_unit=1, Info_info=None, Intracomm_comm=None): # real signature unknown; restored from __doc__
+    def Create(cls, memory, disp_unit=1, Info_info=None, Intracomm_comm=None): # real signature unknown; restored from __doc__
         """
         Win.Create(type cls, memory, int disp_unit=1, Info info=INFO_NULL, Intracomm comm=COMM_SELF)
         
@@ -4193,7 +4193,7 @@ class Win(object):
         pass
 
     @classmethod
-    def Create_dynamic(cls, type_cls, Info_info=None, Intracomm_comm=None): # real signature unknown; restored from __doc__
+    def Create_dynamic(cls, Info_info=None, Intracomm_comm=None): # real signature unknown; restored from __doc__
         """
         Win.Create_dynamic(type cls, Info info=INFO_NULL, Intracomm comm=COMM_SELF)
         
@@ -4202,7 +4202,7 @@ class Win(object):
         pass
 
     @classmethod
-    def Create_keyval(cls, type_cls, copy_fn=None, delete_fn=None): # real signature unknown; restored from __doc__
+    def Create_keyval(cls, copy_fn=None, delete_fn=None): # real signature unknown; restored from __doc__
         """
         Win.Create_keyval(type cls, copy_fn=None, delete_fn=None)
         
@@ -4227,7 +4227,7 @@ class Win(object):
         pass
 
     @classmethod
-    def f2py(cls, type_cls, arg): # real signature unknown; restored from __doc__
+    def f2py(cls, arg): # real signature unknown; restored from __doc__
         """ Win.f2py(type cls, arg) """
         pass
 
@@ -4280,7 +4280,7 @@ class Win(object):
         pass
 
     @classmethod
-    def Free_keyval(cls, type_cls, keyval): # real signature unknown; restored from __doc__
+    def Free_keyval(cls, keyval): # real signature unknown; restored from __doc__
         """
         Win.Free_keyval(type cls, int keyval)
         
@@ -4362,7 +4362,7 @@ class Win(object):
         """
         pass
 
-    def Post(self, Group_group, assertion=0): # real signature unknown; restored from __doc__
+    def Post(self, group, assertion=0): # real signature unknown; restored from __doc__
         """
         Win.Post(self, Group group, int assertion=0)
         
@@ -4458,7 +4458,7 @@ class Win(object):
         """
         pass
 
-    def Start(self, Group_group, assertion=0): # real signature unknown; restored from __doc__
+    def Start(self, group, assertion=0): # real signature unknown; restored from __doc__
         """
         Win.Start(self, Group group, int assertion=0)
         

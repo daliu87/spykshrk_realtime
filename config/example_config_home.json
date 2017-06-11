@@ -32,6 +32,10 @@
         "profile_postfix": "pstats"
     },
 
+    "timing": {
+        "enable_lfp": true
+    },
+
     "ripple": {
         "RippleParameterMessage": {
             "rip_coeff1": 1.2,

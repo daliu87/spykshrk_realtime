@@ -10,6 +10,7 @@ import spykshrk.realtime.realtime_process as realtime_process
 import spykshrk.realtime.datatypes as datatypes
 import spykshrk.realtime.simulator.nspike_data as nspike_data
 import spykshrk.realtime.simulator.sim_databuffer as sim_databuffer
+import spykshrk.realtime.timing_system as timing_system
 
 
 class SimulatorError(RuntimeError):
@@ -75,10 +76,15 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
 
     def __next__(self):
 
-        data = bytearray(16)
-        #self.comm.Recv(buf=data, tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
-        mpi_req = self.comm.Irecv(buf=data, tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
-        while not mpi_req.Test() and not self.stop:
+        data = bytearray(20)
+        time = bytearray(100)
+        mpi_reqs = []
+        if self.config['timing']['enable_lfp']:
+            mpi_reqs.append(self.comm.Irecv(buf=time, tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value))
+
+        mpi_reqs.append(self.comm.Irecv(buf=data, tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value))
+
+        while not MPI.Request.Testall(requests=mpi_reqs) and not self.stop:
             # Loop waiting for next message
             # time.sleep(0.000001)
             pass
@@ -86,9 +92,12 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
         if self.stop:
             raise StopIteration()
 
-        message = datatypes.LFPPoint.unpack(data)
+        if self.config['timing']['enable_lfp']:
+            timing_message = timing_system.TimingMessage.unpack(time)
 
-        return message
+        data_message = datatypes.LFPPoint.unpack(data)
+
+        return data_message
 
 
 class SimulatorProcess(realtime_process.RealtimeProcess):
@@ -190,6 +199,13 @@ class SimulatorThread(realtime_process.RealtimeThread):
                 if isinstance(data_to_send, datatypes.LFPPoint):
                     try:
                         bytes_to_send = data_to_send.pack()
+
+                        if self.config['timing']['enable_lfp']:
+                            timing_msg = timing_system.TimingMessage(label='lfp',
+                                                                     timestamp=data_to_send.timestamp,
+                                                                     start_rank=self.rank)
+                            self.comm.Send(buf=timing_msg.pack(), dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
+                                           tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value)
 
                         self.comm.Send(buf=bytes_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
                                        tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)

@@ -14,6 +14,7 @@ class MPIMessageTag(Enum):
     COMMAND_MESSAGE = 1
     SIMULATOR_DATA = 2
     FEEDBACK_DATA = 3
+    TIMING_MESSAGE = 4
 
 
 class RealtimeClass(object):

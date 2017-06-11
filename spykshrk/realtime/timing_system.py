@@ -49,36 +49,30 @@ class TimingMessage(realtime_process.RealtimeMessage):
         self._timing_data.append((rank, MPI.Wtime()))
 
     @classmethod
-    def unpack(cls, message_bytes, message_len=None):
+    def unpack(cls, message_bytes):
         """
         
         Args:
             message_bytes: 
-            message_len: 
 
         Returns:
             TimingMessage: The de-serialized TimingMessage object.
         """
 
-        if message_len is None:
-            _, _, num_time_pt = struct.unpack(cls.msgheader_format,
-                                              message_bytes[0:cls.msgheader_format_size])
-        else:
-            # shortcut to avoid extra struct.unpack command
-            num_time_pt = ((message_len - cls.msgheader_format_size) /
-                           float(cls.timept_format_size))
-            if not num_time_pt.is_integer():
-                raise TimingSystemError('Unpacking timing message length {}: '
-                                        'number of bytes invalid.'.format(message_len))
+        label, timestamp, num_time_pt = struct.unpack(cls.msgheader_format,
+                                                      message_bytes[0:cls.msgheader_format_size])
 
         num_time_pt = int(num_time_pt)
-        unpacked = struct.unpack(cls.msgheader_format + cls.timept_format[1:] * num_time_pt, message_bytes)
+        unpacked = struct.unpack(cls.timept_format[0] + cls.timept_format[1:] *
+                                 num_time_pt, message_bytes[cls.msgheader_format_size:
+                                                            cls.msgheader_format_size +
+                                                            cls.timept_format_size*num_time_pt])
 
         timing_data = []
         for pt_ii in range(num_time_pt):
-            timing_data.append((unpacked[3+pt_ii*2], unpacked[3+pt_ii*2+1]))
+            timing_data.append((unpacked[pt_ii*2], unpacked[pt_ii*2+1]))
 
-        return cls(label=unpacked[0], timestamp=unpacked[1], timing_data=timing_data)
+        return cls(label=label, timestamp=timestamp, timing_data=timing_data)
 
     def pack(self):
         return struct.pack(self.msgheader_format + self.timept_format[1:] * len(self._timing_data),
