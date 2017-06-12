@@ -33,7 +33,7 @@
     },
 
     "timing": {
-        "enable_lfp": false
+        "enable_lfp": true
     },
 
     "ripple": {

@@ -18,7 +18,7 @@ from spykshrk.realtime.datatypes import LFPPoint, LinPosPoint, SpikePoint
 
 try:
     from IPython.terminal.debugger import TerminalPdb
-    bp = TerminalPdb(color_scheme='linux').set_trace
+    bp = TerminalPdb().set_trace
 except AttributeError as err:
     print('Warning: Attribute Error ({}), disabling IPython TerminalPdb.'.format(err))
     bp = lambda: None
@@ -439,6 +439,8 @@ class EEGDataStream:
         for day in days:
 
             day_data = self.data[day]   # type: pd.DataFrame
+            # place holder to avoid pandas overhead on each call to attribute values
+            day_data_values = day_data.values
 
             for epoch in self.anim.epochs:
 
@@ -451,8 +453,7 @@ class EEGDataStream:
                 while timestamp < epoch_end_time:
                     # Gets the voltages values of all tetrodes at specific timepoint (cursor)
                     # bypassing pandas by using values to avoid creating Series
-                    raw_timepoint = day_data.values[row_cursor]
-
+                    raw_timepoint = day_data_values[row_cursor]
                     for col_ind, tet_val in enumerate(raw_timepoint):
                         # test to make sure value is not NaN, this is a computationally efficient shortcut way.
                         if tet_val == tet_val:

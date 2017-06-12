@@ -3,6 +3,7 @@ import spykshrk.realtime.realtime_process as realtime_process
 import spykshrk.realtime.simulator.simulator_process as simulator_process
 import spykshrk.realtime.ripple_process as ripple_process
 import spykshrk.realtime.binary_record as binary_record
+import spykshrk.realtime.timing_system as timing_system
 
 from mpi4py import MPI
 from time import sleep
@@ -56,8 +57,8 @@ class MainProcess(realtime_process.RealtimeProcess):
 
         while not self.terminate:
 
-            next(self.recv_interface)
-            next(self.data_recv)
+            self.recv_interface.__next__()
+            self.data_recv.__next__()
 
         self.class_log.info("Main Process Main reached end, exiting.")
 
@@ -118,6 +119,9 @@ class StimDecider(realtime_process.BinaryRecordBase, realtime_process.RealtimeCl
             if num_above >= self._ripple_n_above_thresh:
                 self._send_manager.start_stimulation()
 
+    def log_timing_message(self, timing_msg):
+        pass
+
 
 class StimDeciderMPIRecvInterface(realtime_process.RealtimeClass):
     def __init__(self, comm: MPI.Comm, rank, config, stim_decider: StimDecider):
@@ -129,27 +133,43 @@ class StimDeciderMPIRecvInterface(realtime_process.RealtimeClass):
         self.mpi_status = MPI.Status()
 
         super().__init__()
-        self.message_bytes = bytearray(12)
+        self.feedback_bytes = bytearray(12)
+        self.timing_bytes = bytearray(100)
 
-        req_feedback = self.comm.Irecv(buf=self.message_bytes,
+        self.mpi_reqs = []
+        self.mpi_statuses = []
+
+        req_feedback = self.comm.Irecv(buf=self.feedback_bytes,
                                        tag=realtime_process.MPIMessageTag.FEEDBACK_DATA.value)
-        self.mpi_reqs = [req_feedback]
-        self.mpi_status = MPI.Status()
+        self.mpi_statuses.append(MPI.Status())
+        self.mpi_reqs.append(req_feedback)
+        if config['timing']['enable_lfp']:
+            pass
+            req_timing = self.comm.Irecv(buf=self.timing_bytes,
+                                         tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value)
+            self.mpi_reqs.append(req_timing)
+            self.mpi_statuses.append(MPI.Status())
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        (ind, rdy) = MPI.Request.Testany(requests=self.mpi_reqs, status=self.mpi_status)
+        rdy = MPI.Request.Testall(requests=self.mpi_reqs, statuses=self.mpi_statuses)
 
-        if ind == 0:
-            if self.mpi_status.source in self.config['rank']['ripples']:
-                message = ripple_process.RippleThresholdState.unpack(message_bytes=self.message_bytes)
+        if rdy:
+            if self.mpi_statuses[0].source in self.config['rank']['ripples']:
+                message = ripple_process.RippleThresholdState.unpack(message_bytes=self.feedback_bytes)
                 self.stim.update_ripple_threshold_state(timestamp=message.timestamp, ntrode_id=message.ntrode_id,
                                                         threshold_state=message.threshold_state)
 
-                self.mpi_reqs[0] = self.comm.Irecv(buf=self.message_bytes,
+                self.mpi_reqs[0] = self.comm.Irecv(buf=self.feedback_bytes,
                                                    tag=realtime_process.MPIMessageTag.FEEDBACK_DATA.value)
+
+            if self.config['timing']['enable_lfp']:
+                timing_msg = timing_system.TimingMessage.unpack(message_bytes=self.timing_bytes)
+                self.stim.log_timing_message(timing_msg=timing_msg)
+                self.mpi_reqs[1] = self.comm.Irecv(buf=self.timing_bytes,
+                                                   tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value)
 
 
 class MainMPISendInterface(realtime_process.RealtimeClass):

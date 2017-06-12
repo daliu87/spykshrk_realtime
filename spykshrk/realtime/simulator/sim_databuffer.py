@@ -27,7 +27,7 @@ class SimDataBuffer:
 
         for ind, iter_item in enumerate(cur_iter_list):
             try:
-                data_point_list[ind] = next(iter_item)
+                data_point_list[ind] = iter_item.__next__()
                 timestamp_list[ind] = data_point_list[ind].timestamp
             except StopIteration:
                 print('Iterator #{} finished.'.format(ind))
@@ -40,7 +40,7 @@ class SimDataBuffer:
                 min_ind = timestamp_list.index(min(timestamp_list))
                 yield data_point_list[min_ind]
 
-                data_point_list[min_ind] = next(cur_iter_list[min_ind])
+                data_point_list[min_ind] = cur_iter_list[min_ind].__next__()
                 timestamp_list[min_ind] = data_point_list[min_ind].timestamp
 
             except StopIteration:

@@ -425,26 +425,32 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
 
     def process_next_data(self):
 
-        datapoint = next(self.data_interface)
-        if datapoint is None:
+        msgs = self.data_interface.__next__()
+        if msgs is None:
             # no data available but datastream has not closed, continue polling
             pass
-
-        elif isinstance(datapoint, LFPPoint):
-            filter_state = self.ripple_filters[datapoint.ntrode_id].process_data(data_point=datapoint)
-            self.mpi_send.send_ripple_thresh_state(timestamp=datapoint.timestamp,
-                                                   ntrode_id=datapoint.ntrode_id,
-                                                   thresh_state=filter_state)
-
-            self.data_packet_counter += 1
-            if (self.data_packet_counter % 10000) == 0:
-                self.class_log.debug('Received {:} datapoints.'.format(self.data_packet_counter))
-
-        elif isinstance(datapoint, timing_system.TimingMessage):
-            pass
         else:
-            self.class_log.warning('RippleManager should only receive LFP Data, instead received {:}'.
-                                   format(type(datapoint)))
+            datapoint = msgs[0]
+            timing_msg = msgs[1]
+
+            if isinstance(datapoint, LFPPoint):
+                filter_state = self.ripple_filters[datapoint.ntrode_id].process_data(data_point=datapoint)
+                self.mpi_send.send_ripple_thresh_state(timestamp=datapoint.timestamp,
+                                                       ntrode_id=datapoint.ntrode_id,
+                                                       thresh_state=filter_state)
+
+                self.data_packet_counter += 1
+                if (self.data_packet_counter % 10000) == 0:
+                    self.class_log.debug('Received {:} datapoints.'.format(self.data_packet_counter))
+
+            else:
+                self.class_log.warning('RippleManager should only receive LFP Data, instead received {:}'.
+                                       format(type(datapoint)))
+
+            if timing_msg is not None:
+                timing_msg.record_time(rank=self.rank)
+                self.mpi_send.forward_timing_message(timing_msg)
+
 
 
 class RippleMPIRecvInterface(realtime_process.RealtimeClass):

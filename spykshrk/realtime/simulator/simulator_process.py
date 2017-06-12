@@ -59,13 +59,16 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
         self.data_bytes = bytearray(20)
         self.time_bytes = bytearray(100)
         self.mpi_reqs = []
+        self.mpi_statuses = []
 
         self.mpi_reqs.append(self.comm.Irecv(buf=self.data_bytes,
                                              tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value))
+        self.mpi_statuses.append(MPI.Status)
 
         if self.config['timing']['enable_lfp']:
             self.mpi_reqs.append(self.comm.Irecv(buf=self.time_bytes,
                                                  tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value))
+            self.mpi_statuses.append(MPI.Status)
 
     def register_datatype_channel(self, datatype, channel):
         self.comm.send(ReqDatatypeChannelDataMessage(datatype=datatype, channel=channel),
@@ -95,18 +98,19 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
         if not self.start:
             return None
 
-        (ind, rdy) = MPI.Request.Testany(requests=self.mpi_reqs)
+        rdy = MPI.Request.Testall(requests=self.mpi_reqs)
 
-        if ind == 0:
+        if rdy:
             data_message = datatypes.LFPPoint.unpack(self.data_bytes)
             self.mpi_reqs[0] = self.comm.Irecv(buf=self.data_bytes,
                                                tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
-            return data_message
-        elif ind == 1:
-            timing_message = timing_system.TimingMessage.unpack(self.time_bytes)
-            self.mpi_reqs[1] = self.comm.Irecv(buf=self.time_bytes,
-                                               tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value)
-            return timing_message
+
+            timing_message = None
+            if self.config['timing']['enable_lfp']:
+                timing_message = timing_system.TimingMessage.unpack(self.time_bytes)
+                self.mpi_reqs[1] = self.comm.Irecv(buf=self.time_bytes,
+                                                   tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value)
+            return data_message, timing_message
 
         else:
             return None
