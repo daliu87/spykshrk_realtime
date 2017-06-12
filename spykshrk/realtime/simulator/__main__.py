@@ -55,13 +55,12 @@ def main(argv):
                 'formatter': 'simple',
             },
             'debug_file_handler': {
-                'class': 'logging.handlers.RotatingFileHandler',
+                'class': 'spykshrk.realtime.logging.MakeFileHandler',
                 'level': 'DEBUG',
                 'formatter': 'simple',
-                'filename': '{}_MPI-{:02d}_debug.log'.format(datetime.datetime.now().
-                                                             strftime('%Y-%m-%dT%H%M'), rank),
-                'maxBytes': 10485760,
-                'backupCount': 20,
+                'filename': ('log/{date_str}_debug.log/{date_str}_MPI-{rank:02d}_debug.log'.
+                             format(date_str=datetime.datetime.now().strftime('%Y-%m-%dT%H%M'),
+                                    rank=rank)),
                 'encoding': 'utf8',
             }
         },
