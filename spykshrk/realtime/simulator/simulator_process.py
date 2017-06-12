@@ -53,7 +53,21 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
         self.comm = comm
         self.rank = rank
         self.config = config
+        self.start = False
         self.stop = False
+
+        self.data_bytes = bytearray(20)
+        self.time_bytes = bytearray(100)
+        self.mpi_reqs = []
+
+        self.mpi_reqs.append(self.comm.Irecv(buf=self.data_bytes,
+                                             tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value))
+
+        if self.config['timing']['enable_lfp']:
+            self.mpi_reqs.append(self.comm.Irecv(buf=self.time_bytes,
+                                                 tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value))
+
+
 
     def register_datatype_channel(self, datatype, channel):
         self.comm.send(ReqDatatypeChannelDataMessage(datatype=datatype, channel=channel),
@@ -63,10 +77,12 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
     def start_all_streams(self):
         self.comm.send(StartAllStreamMessage(), dest=self.config['rank']['simulator'],
                        tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+        self.start = True
 
     def stop_all_streams(self):
         self.comm.send(StopAllStreamMessage(), dest=self.config['rank']['simulator'],
                        tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+        self.start = False
 
     def stop_iterator(self):
         self.stop = True
@@ -75,47 +91,50 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
         return self
 
     def __next__(self):
-
-        data = bytearray(20)
-        time = bytearray(100)
-        mpi_reqs = []
-        if self.config['timing']['enable_lfp']:
-            mpi_reqs.append(self.comm.Irecv(buf=time, tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value))
-
-        mpi_reqs.append(self.comm.Irecv(buf=data, tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value))
-
-        while not MPI.Request.Testall(requests=mpi_reqs) and not self.stop:
-            # Loop waiting for next message
-            # time.sleep(0.000001)
-            pass
-
         if self.stop:
             raise StopIteration()
 
-        if self.config['timing']['enable_lfp']:
-            timing_message = timing_system.TimingMessage.unpack(time)
+        if not self.start:
+            return None
 
-        data_message = datatypes.LFPPoint.unpack(data)
+        (ind, rdy) = MPI.Request.Testany(requests=self.mpi_reqs)
 
-        return data_message
+        if ind == 0:
+            data_message = datatypes.LFPPoint.unpack(self.data_bytes)
+            self.mpi_reqs[0] = self.comm.Irecv(buf=self.data_bytes,
+                                               tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
+            return data_message
+        elif ind == 1:
+            timing_message = timing_system.TimingMessage.unpack(self.time_bytes)
+            self.mpi_reqs[1] = self.comm.Irecv(buf=self.time_bytes,
+                                               tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value)
+
+        else:
+            return None
 
 
 class SimulatorProcess(realtime_process.RealtimeProcess):
     def __init__(self, comm: MPI.Comm, rank, config):
-        super().__init__(comm=comm, rank=rank, config=config, ThreadClass=SimulatorThread)
+        super().__init__(comm=comm, rank=rank, config=config)
         self.terminate = False
 
-        self.sim = self.thread.sim
+        self.sim = Simulator(comm=comm, rank=rank, config=config)
 
     def trigger_termination(self):
         self.terminate = True
 
     def main_loop(self):
-        self.thread.start()
+        #self.thread.start()
 
         mpi_status = MPI.Status()
         while not self.terminate:
-            message = self.comm.recv(status=mpi_status, tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+            req = self.comm.irecv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+
+            msg_avail = False
+            while not msg_avail:
+                self.sim.send_next_data()
+                (msg_avail, message) = req.test(status=mpi_status)
+
             if isinstance(message, ReqDatatypeChannelDataMessage):
                 if message.datatype is datatypes.Datatypes.CONTINUOUS:
                     self.sim.update_cont_chan_req(mpi_status.source, message.channel)
@@ -131,7 +150,8 @@ class SimulatorProcess(realtime_process.RealtimeProcess):
                 self.sim.pause_datastream()
 
             elif isinstance(message, realtime_process.TerminateMessage):
-                self.thread.trigger_termination()
+                if self.ThreadClass is not None:
+                    self.thread.trigger_termination()
                 self.trigger_termination()
 
         self.class_log.info("Simulator Process Main reached end, exiting.")
@@ -223,21 +243,3 @@ class Simulator(realtime_process.RealtimeClass):
                            tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
 
-
-class SimulatorThread(realtime_process.RealtimeThread):
-
-    def __init__(self, comm: MPI.Comm, rank, config, parent):
-        super().__init__(comm=comm, rank=rank, config=config, parent=parent)
-
-        self.sim = Simulator(comm=comm, rank=rank, config=config)
-
-        self._stop_next = False
-
-    def trigger_termination(self):
-        self._stop_next = True
-
-    def run(self):
-        while not self._stop_next:
-            self.sim.send_next_data()
-
-        self.class_log.info("Simulator Process Thread reached end, exiting.")

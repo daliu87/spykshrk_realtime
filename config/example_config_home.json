@@ -6,7 +6,7 @@
             "name": "test",
             "days": [2],
             "epochs": [1], 
-            "tetrodes": [5,  11, 12, 14, 19]
+            "tetrodes": [5, 11, 12, 14, 19  ]
         }
     }, 
 
@@ -33,7 +33,7 @@
     },
 
     "timing": {
-        "enable_lfp": true
+        "enable_lfp": false
     },
 
     "ripple": {

@@ -420,8 +420,11 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
     def process_next_data(self):
 
         datapoint = next(self.data_interface)
+        if datapoint is None:
+            # no data avaliable yet
+            pass
 
-        if isinstance(datapoint, LFPPoint):
+        elif isinstance(datapoint, LFPPoint):
             filter_state = self.ripple_filters[datapoint.ntrode_id].process_data(data_point=datapoint)
             self.mpi_send.send_ripple_thresh_state(timestamp=datapoint.timestamp,
                                                    ntrode_id=datapoint.ntrode_id,
@@ -448,7 +451,15 @@ class RippleMPIRecvInterface(realtime_process.RealtimeClass):
         self.num_ntrodes = None
 
     def process_next_message(self):
-        message = self.comm.recv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+
+        req = self.comm.irecv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+
+        msg_avail = False
+        message = None
+        while not msg_avail:
+            self.rip_man.process_next_data()
+
+            (msg_avail, message) = req.test()
 
         if isinstance(message, realtime_process.TerminateMessage):
             self.class_log.debug("Received TerminateMessage")
@@ -505,34 +516,8 @@ class RippleProcess(realtime_process.RealtimeProcess):
 
         self.mpi_send = RippleMPISendInterface(comm, rank, config)
 
-        super().__init__(comm, rank, config, ThreadClass=RippleDataThread, local_rec_manager=self.local_rec_manager)
+        super().__init__(comm, rank, config)
 
-        self.mpi_recv = RippleMPIRecvInterface(self.comm, self.rank, self.thread.rip_man, self.config['rank']['supervisor'])
-
-        # TODO temporary measure to enable type hinting (typing.Generics is broken for PyCharm 2016.2.3)
-        self.thread = self.thread   # type: RippleDataThread
-
-    def main_loop(self):
-        self.thread.start()
-
-        try:
-            while True:
-                self.mpi_recv.process_next_message()
-
-        except StopIteration as ex:
-            self.class_log.info('Terminating RippleProcess (rank: {:})'.format(self.rank))
-
-        # Program should prepare to exit
-        self.thread.trigger_termination()
-
-        self.class_log.info("Ripple Process Main Process reached end, exiting.")
-
-
-class RippleDataThread(realtime_process.RealtimeThread):
-
-    def __init__(self, comm, rank, config, parent: RippleProcess, local_rec_manager):
-        super().__init__(comm, rank, config, parent=parent)
-        self.local_rec_manager = local_rec_manager
 
         if self.config['datasource'] == 'simulator':
             data_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
@@ -541,23 +526,24 @@ class RippleDataThread(realtime_process.RealtimeThread):
 
             self.rip_man = RippleManager(rank=rank,
                                          local_rec_manager=self.local_rec_manager,
-                                         send_interface=self.parent.mpi_send,
+                                         send_interface=self.mpi_send,
                                          data_interface=data_interface)
+
+            self.mpi_recv = RippleMPIRecvInterface(self.comm, self.rank, self.rip_man,
+                                                   self.config['rank']['supervisor'])
         else:
             raise realtime_process.DataSourceError("No valid data source selected")
 
-        self.stop_next = False
-
-    def trigger_termination(self):
-        self.rip_man.trigger_termination()
-
-    def run(self):
+    def main_loop(self):
+        #self.thread.start()
 
         try:
             while True:
-                self.rip_man.process_next_data()
+                self.mpi_recv.process_next_message()
 
         except StopIteration as ex:
+            self.class_log.info('Terminating RippleProcess (rank: {:})'.format(self.rank))
 
-            self.class_log.info("Ripple Process Main Thread reached end, exiting.")
+        self.class_log.info("Ripple Process Main Process reached end, exiting.")
+
 

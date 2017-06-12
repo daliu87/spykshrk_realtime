@@ -30,61 +30,49 @@ class MainProcess(realtime_process.RealtimeProcess):
         self.rank = rank
         self.config = config
 
-        super().__init__(comm=comm, rank=rank, config=config, ThreadClass=MainThread)
-
-        self.send_interface = MainMPISendInterface(comm=comm, rank=rank, config=config)
-        self.manager = MainSimulatorManager(rank=rank, config=config, parent=self, send_interface=self.send_interface,
-                                            stim_decider=self.thread.stim_decider)
-        self.recv_interface = MainSimulatorMPIRecvInterface(comm=comm, rank=rank,
-                                                            config=config, main_manager=self.manager)
-
-        # TODO temporary measure to enable type hinting (typing.Generics is broken for PyCharm 2016.2.3)
-        self.thread = self.thread   # type: MainThread
-
-        self.terminate = False
-
-
-    def trigger_termination(self):
-        self.terminate = True
-
-    def main_loop(self):
-        self.thread.start()
-
-        while not self.terminate:
-            self.recv_interface.process_next_message()
-
-        self.class_log.info("Main Process Main reached end, exiting.")
-
-
-class MainThread(realtime_process.RealtimeThread):
-
-    def __init__(self, comm: MPI.Comm, rank, config, parent):
-        super().__init__(comm=comm, rank=rank, config=config, parent=parent)
-        ripple_ranks = self.config['rank']['ripples']
+        super().__init__(comm=comm, rank=rank, config=config)
 
         self.stim_decider = StimDecider(rank=rank, send_interface=StimDeciderMPISendInterface(comm=comm, rank=rank,
                                                                                               config=config))
         self.data_recv = StimDeciderMPIRecvInterface(comm=comm, rank=rank, config=config,
                                                      stim_decider=self.stim_decider)
 
-        self._stop_next = False
+        self.send_interface = MainMPISendInterface(comm=comm, rank=rank, config=config)
+
+        self.manager = MainSimulatorManager(rank=rank, config=config, parent=self, send_interface=self.send_interface,
+                                            stim_decider=self.stim_decider)
+        self.recv_interface = MainSimulatorMPIRecvInterface(comm=comm, rank=rank,
+                                                            config=config, main_manager=self.manager)
+
+        self.terminate = False
+
+        self.mpi_status = MPI.Status()
 
     def trigger_termination(self):
-        self.data_recv.stop_iterator()
+        self.terminate = True
 
-    def run(self):
+    def main_loop(self):
+        # self.thread.start()
 
-        # Send registration of bin_rec record format for this logger.  Must be done after construction
-        # but before the file writer is started.
-        self.stim_decider.send_record_register_message()
 
-        try:
-            while True:
-                next(self.data_recv)
-        except StopIteration as ex:
-            pass
+        while not self.terminate:
+            req_cmd = self.recv_interface.get_next_request()
+            req_data = self.data_recv.get_next_request()
 
-        self.class_log.info("Main Process Thread reached end, exiting.")
+            reqs = [req_cmd, req_data]
+            while not self.terminate:
+                (ind, rdy, msg) = MPI.Request.testany(reqs, status=self.mpi_status)
+
+                if ind == 0:
+                    # Command message
+                    self.recv_interface.process_request_message(msg)
+                    reqs[0] = self.recv_interface.get_next_request()
+                elif ind == 1:
+                    # data message
+                    self.data_recv.process_request_message(mpi_status=self.mpi_status)
+                    reqs[1] = self.data_recv.get_next_request()
+
+        self.class_log.info("Main Process Main reached end, exiting.")
 
 
 class StimDeciderMPISendInterface(realtime_process.RealtimeClass):
@@ -153,29 +141,18 @@ class StimDeciderMPIRecvInterface(realtime_process.RealtimeClass):
 
         self.mpi_status = MPI.Status()
 
-        self.stop = False
-
         super().__init__()
+        self.message_bytes = bytearray(12)
 
-    def stop_iterator(self):
-        self.stop = True
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        message_bytes = bytearray(12)
-        req = self.comm.Irecv(buf=message_bytes,                                            # type: MPI.Request
+    def get_next_request(self):
+        req = self.comm.Irecv(buf=self.message_bytes,                                            # type: MPI.Request
                               tag=realtime_process.MPIMessageTag.FEEDBACK_DATA.value)
 
-        while not req.Test(status=self.mpi_status) and not self.stop:
-            pass
+        return req
 
-        if self.stop:
-            raise StopIteration()
-
-        if self.mpi_status.source in self.config['rank']['ripples']:
-            message = ripple_process.RippleThresholdState.unpack(message_bytes=message_bytes)
+    def process_request_message(self, mpi_status):
+        if mpi_status.source in self.config['rank']['ripples']:
+            message = ripple_process.RippleThresholdState.unpack(message_bytes=self.message_bytes)
             self.stim.update_ripple_threshold_state(timestamp=message.timestamp, ntrode_id=message.ntrode_id,
                                                     threshold_state=message.threshold_state)
 
@@ -244,6 +221,9 @@ class MainSimulatorManager(realtime_process.RealtimeClass):
                                                               file_prefix=self.config['files']['prefix'],
                                                               file_postfix=self.config['files']['rec_postfix'])
 
+        # bypass the normal record registration message sending
+        self.rec_manager.register_rec_type_message(stim_decider.get_record_register_message())
+
         super().__init__()
 
         for rip_rank in self.config['rank']['ripples']:
@@ -301,7 +281,6 @@ class MainSimulatorManager(realtime_process.RealtimeClass):
     def trigger_termination(self):
         self.send_interface.terminate_all()
 
-        self.parent.thread.trigger_termination()
         self.parent.trigger_termination()
 
 
@@ -317,8 +296,12 @@ class MainSimulatorMPIRecvInterface(realtime_process.RealtimeClass):
 
         super().__init__()
 
-    def process_next_message(self):
-        message = self.comm.recv(status=self.mpi_status, tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+    def get_next_request(self):
+
+        req = self.comm.irecv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+        return req
+
+    def process_request_message(self, message):
 
         if isinstance(message, simulator_process.SimTrodeListMessage):
             self.main_manager.handle_ntrode_list(message.trode_list)

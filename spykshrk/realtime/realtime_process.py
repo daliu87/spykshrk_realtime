@@ -116,7 +116,7 @@ class ExceptionLoggerWrapperMeta(type):
         A metaclass that wraps the run() or main_loop() method so exceptions are logged.
 
         This metaclass is built to solve a very specific bug in MPI + threads: a race condition that sometimes
-        prevents a thread's uncaught exception from being displayed to stderr.
+        prevents a thread's uncaught exception from being displayed to stderr before program stalls.
 
         This class also avoids the known issue with logging exception in threads using sys.excepthook, the hook
         needs to be set by the thread after it is started.
@@ -186,13 +186,14 @@ class RealtimeMeta(ExceptionLoggerWrapperMeta, ProfilerWrapperMeta):
 
 class RealtimeProcess(RealtimeClass, metaclass=RealtimeMeta):
 
-    def __init__(self, comm: MPI.Comm, rank, config, ThreadClass, **kwds):
+    def __init__(self, comm: MPI.Comm, rank, config, ThreadClass=None, **kwds):
 
         super().__init__()
 
         self.comm = comm
         self.rank = rank
         self.config = config
+        self.ThreadClass = ThreadClass
 
         self.enable_profiler = rank in self.config['rank_settings']['enable_profiler']
         self.profiler_out_path = os.path.join(config['files']['output_dir'], '{}.{:02d}.{}.{}'.
@@ -201,10 +202,12 @@ class RealtimeProcess(RealtimeClass, metaclass=RealtimeMeta):
                                                      'main',
                                                      config['files']['profile_postfix']))
 
-        self.thread = ThreadClass(comm=comm, rank=rank, config=config, parent=self, **kwds)
+        if ThreadClass is not None:
+            self.thread = ThreadClass(comm=comm, rank=rank, config=config, parent=self, **kwds)
 
     def main_loop(self):
-        self.thread.start()
+        if self.ThreadClass is not None:
+            self.thread.start()
 
 
 class RealtimeThread(RealtimeClass, threading.Thread, metaclass=RealtimeMeta):
