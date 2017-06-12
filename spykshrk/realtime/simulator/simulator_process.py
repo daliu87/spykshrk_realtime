@@ -68,7 +68,6 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
                                                  tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value))
 
 
-
     def register_datatype_channel(self, datatype, channel):
         self.comm.send(ReqDatatypeChannelDataMessage(datatype=datatype, channel=channel),
                        dest=self.config['rank']['simulator'],

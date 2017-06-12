@@ -421,7 +421,7 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
 
         datapoint = next(self.data_interface)
         if datapoint is None:
-            # no data avaliable yet
+            # no data available but datastream has not closed, continue polling
             pass
 
         elif isinstance(datapoint, LFPPoint):
@@ -450,16 +450,11 @@ class RippleMPIRecvInterface(realtime_process.RealtimeClass):
         self.main_rank = main_rank
         self.num_ntrodes = None
 
-    def process_next_message(self):
-
+    def get_next_request(self):
         req = self.comm.irecv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+        return req
 
-        msg_avail = False
-        message = None
-        while not msg_avail:
-            self.rip_man.process_next_data()
-
-            (msg_avail, message) = req.test()
+    def process_request_message(self, message):
 
         if isinstance(message, realtime_process.TerminateMessage):
             self.class_log.debug("Received TerminateMessage")
@@ -518,7 +513,6 @@ class RippleProcess(realtime_process.RealtimeProcess):
 
         super().__init__(comm, rank, config)
 
-
         if self.config['datasource'] == 'simulator':
             data_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
                                                                        rank=self.rank,
@@ -534,12 +528,25 @@ class RippleProcess(realtime_process.RealtimeProcess):
         else:
             raise realtime_process.DataSourceError("No valid data source selected")
 
+        self.terminate = False
+
+    def trigger_termination(self):
+        self.terminate = True
+
     def main_loop(self):
-        #self.thread.start()
 
         try:
-            while True:
-                self.mpi_recv.process_next_message()
+            while not self.terminate:
+                req_cmd = self.mpi_recv.get_next_request()
+                self.rip_man.process_next_data()
+
+                req_rdy = False
+                msg = None
+                while not req_rdy:
+                    self.rip_man.process_next_data()
+                    req_rdy, msg = req_cmd.test()
+
+                self.mpi_recv.process_request_message(msg)
 
         except StopIteration as ex:
             self.class_log.info('Terminating RippleProcess (rank: {:})'.format(self.rank))
