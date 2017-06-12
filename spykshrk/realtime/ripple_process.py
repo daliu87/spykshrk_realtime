@@ -4,6 +4,7 @@ from collections import OrderedDict
 
 import spykshrk.realtime.realtime_process as realtime_process
 import spykshrk.realtime.simulator.simulator_process as simulator_process
+import spykshrk.realtime.timing_system as timing_system
 from spykshrk.realtime.datatypes import LFPPoint
 from mpi4py import MPI
 import spykshrk.realtime.binary_record as binary_record
@@ -325,6 +326,11 @@ class RippleMPISendInterface(realtime_process.RealtimeClass):
                        dest=self.config['rank']['supervisor'],
                        tag=realtime_process.MPIMessageTag.FEEDBACK_DATA.value)
 
+    def forward_timing_message(self, timing_msg: timing_system.TimingMessage):
+        self.comm.Send(buf=timing_msg.pack(),
+                       dest=self.config['rank']['supervisor'],
+                       tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value)
+
 
 class RippleManager(realtime_process.BinaryRecordBase, realtime_process.RealtimeClass):
     def __init__(self, rank, local_rec_manager, send_interface: RippleMPISendInterface,
@@ -434,6 +440,8 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
             if (self.data_packet_counter % 10000) == 0:
                 self.class_log.debug('Received {:} datapoints.'.format(self.data_packet_counter))
 
+        elif isinstance(datapoint, timing_system.TimingMessage):
+            pass
         else:
             self.class_log.warning('RippleManager should only receive LFP Data, instead received {:}'.
                                    format(type(datapoint)))

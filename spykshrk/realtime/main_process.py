@@ -54,23 +54,10 @@ class MainProcess(realtime_process.RealtimeProcess):
     def main_loop(self):
         # self.thread.start()
 
-
         while not self.terminate:
-            req_cmd = self.recv_interface.get_next_request()
-            req_data = self.data_recv.get_next_request()
 
-            reqs = [req_cmd, req_data]
-            while not self.terminate:
-                (ind, rdy, msg) = MPI.Request.testany(reqs, status=self.mpi_status)
-
-                if ind == 0:
-                    # Command message
-                    self.recv_interface.process_request_message(msg)
-                    reqs[0] = self.recv_interface.get_next_request()
-                elif ind == 1:
-                    # data message
-                    self.data_recv.process_request_message(mpi_status=self.mpi_status)
-                    reqs[1] = self.data_recv.get_next_request()
+            next(self.recv_interface)
+            next(self.data_recv)
 
         self.class_log.info("Main Process Main reached end, exiting.")
 
@@ -144,17 +131,25 @@ class StimDeciderMPIRecvInterface(realtime_process.RealtimeClass):
         super().__init__()
         self.message_bytes = bytearray(12)
 
-    def get_next_request(self):
-        req = self.comm.Irecv(buf=self.message_bytes,                                            # type: MPI.Request
-                              tag=realtime_process.MPIMessageTag.FEEDBACK_DATA.value)
+        req_feedback = self.comm.Irecv(buf=self.message_bytes,
+                                       tag=realtime_process.MPIMessageTag.FEEDBACK_DATA.value)
+        self.mpi_reqs = [req_feedback]
+        self.mpi_status = MPI.Status()
 
-        return req
+    def __iter__(self):
+        return self
 
-    def process_request_message(self, mpi_status):
-        if mpi_status.source in self.config['rank']['ripples']:
-            message = ripple_process.RippleThresholdState.unpack(message_bytes=self.message_bytes)
-            self.stim.update_ripple_threshold_state(timestamp=message.timestamp, ntrode_id=message.ntrode_id,
-                                                    threshold_state=message.threshold_state)
+    def __next__(self):
+        (ind, rdy) = MPI.Request.Testany(requests=self.mpi_reqs, status=self.mpi_status)
+
+        if ind == 0:
+            if self.mpi_status.source in self.config['rank']['ripples']:
+                message = ripple_process.RippleThresholdState.unpack(message_bytes=self.message_bytes)
+                self.stim.update_ripple_threshold_state(timestamp=message.timestamp, ntrode_id=message.ntrode_id,
+                                                        threshold_state=message.threshold_state)
+
+                self.mpi_reqs[0] = self.comm.Irecv(buf=self.message_bytes,
+                                                   tag=realtime_process.MPIMessageTag.FEEDBACK_DATA.value)
 
 
 class MainMPISendInterface(realtime_process.RealtimeClass):
@@ -296,10 +291,19 @@ class MainSimulatorMPIRecvInterface(realtime_process.RealtimeClass):
 
         super().__init__()
 
-    def get_next_request(self):
+        self.req_cmd = self.comm.irecv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
-        req = self.comm.irecv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
-        return req
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+
+        (req_rdy, msg) = self.req_cmd.test()
+
+        if req_rdy:
+            self.process_request_message(msg)
+
+            self.req_cmd = self.comm.irecv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def process_request_message(self, message):
 

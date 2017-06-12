@@ -67,7 +67,6 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
             self.mpi_reqs.append(self.comm.Irecv(buf=self.time_bytes,
                                                  tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value))
 
-
     def register_datatype_channel(self, datatype, channel):
         self.comm.send(ReqDatatypeChannelDataMessage(datatype=datatype, channel=channel),
                        dest=self.config['rank']['simulator'],
@@ -107,6 +106,7 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
             timing_message = timing_system.TimingMessage.unpack(self.time_bytes)
             self.mpi_reqs[1] = self.comm.Irecv(buf=self.time_bytes,
                                                tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value)
+            return timing_message
 
         else:
             return None
