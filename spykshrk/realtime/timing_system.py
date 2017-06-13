@@ -2,7 +2,7 @@ import struct
 import json
 import os
 from collections import OrderedDict
-from spykshrk.realtime import realtime_process
+from spykshrk.realtime.realtime_process import RealtimeMessage, RealtimeClass
 
 from mpi4py import MPI
 
@@ -16,7 +16,7 @@ class TimingSystemError(Exception):
         return repr(self.value) + '\n' + repr(self.data)
 
 
-class TimingMessage(realtime_process.RealtimeMessage):
+class TimingMessage(RealtimeMessage):
     msgheader_format = '=12sqi'
     msgheader_format_size = struct.calcsize(msgheader_format)
     timept_format = '=id'
@@ -109,6 +109,31 @@ class TimingMessage(realtime_process.RealtimeMessage):
                 (self.timing_data == other.timing_data))
 
 
+class TimingSystemBase(RealtimeClass):
+
+    def __init__(self, *args, **kwds):
+        self.time_writer = None
+        self.rank = kwds['rank']
+        super(TimingSystemBase, self).__init__(*args, **kwds)
+
+    def set_timing_writer(self, time_writer):
+        self.time_writer = time_writer
+
+    def write_timing_message(self, timing_msg: TimingMessage):
+        if self.time_writer is not None:
+            timing_msg.record_time(self.rank)
+            self.time_writer.write_timing_message(timing_msg=timing_msg)
+        else:
+            self.class_log.warning('Tried writing timing message before timing file created.')
+
+
+class CreateTimingFileMessage(RealtimeMessage):
+    def __init__(self, save_dir, file_prefix, file_postfix):
+        self.save_dir = save_dir
+        self.file_prefix = file_prefix
+        self.file_postfix = file_postfix
+
+
 class TimingFileWriter:
 
     header_format = '=Qi'
@@ -142,6 +167,13 @@ class TimingFileWriter:
         self._file_handle.write(bytearray(self._header_json, encoding='utf-8'))
 
         self._rec_counter = 0
+
+    @classmethod
+    def create_from_mesage(cls, create_message: CreateTimingFileMessage, rank):
+        return cls(save_dir=create_message.save_dir,
+                   file_prefix=create_message.file_prefix,
+                   mpi_rank=rank,
+                   file_postfix=create_message.file_postfix)
 
     def write_timing_message(self, timing_msg: TimingMessage):
         msg_bytes = timing_msg.pack()

@@ -452,7 +452,6 @@ class RippleManager(realtime_process.BinaryRecordBase, realtime_process.Realtime
                 self.mpi_send.forward_timing_message(timing_msg)
 
 
-
 class RippleMPIRecvInterface(realtime_process.RealtimeClass):
 
     def __init__(self, comm: MPI.Comm, rank, ripple_manager: RippleManager, main_rank=0):

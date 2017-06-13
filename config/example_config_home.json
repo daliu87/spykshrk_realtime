@@ -29,7 +29,8 @@
         "output_dir": "/home/daliu/output/test",
         "prefix": "test_animal",
         "rec_postfix": "bin_rec",
-        "profile_postfix": "pstats"
+        "profile_postfix": "pstats",
+        "timing_postfix": "timing"
     },
 
     "timing": {

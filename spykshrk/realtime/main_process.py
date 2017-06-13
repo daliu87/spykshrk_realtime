@@ -75,7 +75,7 @@ class StimDeciderMPISendInterface(realtime_process.RealtimeClass):
                        tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
 
-class StimDecider(realtime_process.BinaryRecordBase, realtime_process.RealtimeClass):
+class StimDecider(realtime_process.BinaryRecordBase, timing_system.TimingSystemBase):
     def __init__(self, rank, send_interface: StimDeciderMPISendInterface, ripple_n_above_thresh=sys.maxsize):
 
         super().__init__(rank=rank, local_rec_manager=binary_record.RemoteBinaryRecordsManager(manager_label='state'),
@@ -118,9 +118,6 @@ class StimDecider(realtime_process.BinaryRecordBase, realtime_process.RealtimeCl
 
             if num_above >= self._ripple_n_above_thresh:
                 self._send_manager.start_stimulation()
-
-    def log_timing_message(self, timing_msg):
-        pass
 
 
 class StimDeciderMPIRecvInterface(realtime_process.RealtimeClass):
@@ -167,7 +164,7 @@ class StimDeciderMPIRecvInterface(realtime_process.RealtimeClass):
 
             if self.config['timing']['enable_lfp']:
                 timing_msg = timing_system.TimingMessage.unpack(message_bytes=self.timing_bytes)
-                self.stim.log_timing_message(timing_msg=timing_msg)
+                self.stim.write_timing_message(timing_msg=timing_msg)
                 self.mpi_reqs[1] = self.comm.Irecv(buf=self.timing_bytes,
                                                    tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value)
 
@@ -236,6 +233,12 @@ class MainSimulatorManager(realtime_process.RealtimeClass):
                                                               file_prefix=self.config['files']['prefix'],
                                                               file_postfix=self.config['files']['rec_postfix'])
 
+        self.local_timing_file = \
+            timing_system.TimingFileWriter(save_dir=self.config['files']['output_dir'],
+                                           file_prefix=self.config['files']['prefix'],
+                                           mpi_rank=self.rank,
+                                           file_postfix=self.config['files']['timing_postfix'])
+
         # bypass the normal record registration message sending
         self.rec_manager.register_rec_type_message(stim_decider.get_record_register_message())
 
@@ -279,6 +282,9 @@ class MainSimulatorManager(realtime_process.RealtimeClass):
                                                         new_writer_message=self.rec_manager.new_writer_message())
 
             self.send_interface.send_start_rec_message(rank=rec_rank)
+
+        # Create local timing file
+        self.stim_decider.set_timing_writer(self.local_timing_file)
 
         # Update and start bin rec for StimDecider.  Registration is done through MPI but setting and starting
         # the writer must be done locally because StimDecider does not have a MPI command message receiver

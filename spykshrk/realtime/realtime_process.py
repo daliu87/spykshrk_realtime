@@ -19,9 +19,15 @@ class MPIMessageTag(Enum):
 
 class RealtimeClass(object):
     def __init__(self, *args, **kwds):
-        super().__init__(*args, **kwds)
+        super().__init__()
         self.class_log = logging.getLogger(name='{}.{}'.format(self.__class__.__module__,
                                                                self.__class__.__name__))
+
+
+class RealtimeMessage:
+
+    def __str__(self):
+        return '{:}({:})'.format(self.__class__.__name__, self.__dict__)
 
 
 class DataSourceError(RuntimeError):
@@ -55,14 +61,13 @@ class DataSourceReceiver(RealtimeClass, metaclass=ABCMeta):
 
 
 class BinaryRecordBase(RealtimeClass):
-    def __init__(self, rank, local_rec_manager: binary_record.RemoteBinaryRecordsManager,
-                 rec_id, rec_labels, rec_format, *args, **kwds):
+    def __init__(self, *args, **kwds):
         super().__init__(*args, **kwds)
-        self.rank = rank
-        self.local_rec_manager = local_rec_manager
-        self.rec_id = rec_id
-        self.rec_labels = rec_labels
-        self.rec_struct_fmt = rec_format
+        self.rank = kwds['rank']
+        self.local_rec_manager = kwds['local_rec_manager']
+        self.rec_id = kwds['rec_id']
+        self.rec_labels = kwds['rec_labels']
+        self.rec_struct_fmt = kwds['rec_format']
         self.rec_writer = None    # type: binary_record.BinaryRecordsFileWriter
         self.rec_writer_enabled = False
 
@@ -103,12 +108,6 @@ class BinaryRecordBase(RealtimeClass):
             self.rec_writer.write_rec(self.rec_id, *args)
             return True
         return False
-
-
-class RealtimeMessage:
-
-    def __str__(self):
-        return '{:}({:})'.format(self.__class__.__name__, self.__dict__)
 
 
 class ExceptionLoggerWrapperMeta(type):
@@ -196,10 +195,9 @@ class RealtimeProcess(RealtimeClass, metaclass=RealtimeMeta):
         self.ThreadClass = ThreadClass
 
         self.enable_profiler = rank in self.config['rank_settings']['enable_profiler']
-        self.profiler_out_path = os.path.join(config['files']['output_dir'], '{}.{:02d}.{}.{}'.
+        self.profiler_out_path = os.path.join(config['files']['output_dir'], '{}.{:02d}.{}'.
                                               format(config['files']['prefix'],
                                                      rank,
-                                                     'main',
                                                      config['files']['profile_postfix']))
 
         if ThreadClass is not None:
