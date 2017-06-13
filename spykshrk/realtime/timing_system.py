@@ -1,6 +1,7 @@
 import struct
 import json
 import os
+import pandas as pd
 from collections import OrderedDict
 from spykshrk.realtime.realtime_process import RealtimeMessage, RealtimeClass
 
@@ -273,4 +274,40 @@ class TimingFileReader:
 
         return self.rec_id, msg
 
+    def convert_panda_labels(self):
+        timing_labels = {}
+        msg_id_labels = {}
 
+        return_rec = self._read_record()
+        while return_rec is not None:
+
+            msg_id, msg = return_rec
+
+            id_data = msg_id_labels.setdefault(msg.label, [])
+            timing_data = timing_labels.setdefault(msg.label, [])
+
+            id_data.append(msg_id)
+            id_data_unrolled = [it for sublist in msg.timing_data for it in sublist]
+            timing_data.append(id_data_unrolled)
+
+            return_rec = self._read_record()
+
+        timing_df_labels = {}
+        for label in timing_labels.keys():
+            data_id = msg_id_labels[label]
+            timing_data = timing_labels[label]
+
+            num_measurements = len(timing_data[0])/2
+            if not num_measurements.is_integer():
+                raise TimingSystemError('Timing data columns is not even (rank, time). Data is corrupted.')
+            num_measurements = int(num_measurements)
+
+            column_names = []
+            for measurement_id in range(num_measurements):
+                column_names.append('rank{}'.format(measurement_id))
+                column_names.append('time{}'.format(measurement_id))
+
+            timing_df_labels[label] = pd.DataFrame(data=timing_data, index=data_id, columns=column_names)
+
+
+        return timing_df_labels
