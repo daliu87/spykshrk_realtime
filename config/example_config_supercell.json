@@ -6,7 +6,7 @@
             "name": "test",
             "days": [2],
             "epochs": [1], 
-            "tetrodes": [5, 11, 12, 14, 19]
+            "tetrodes": [5, 11, 12, 13, 14, 17, 19, 29]
         }
     }, 
 
@@ -26,10 +26,15 @@
     },
 
     "files": {
-        "output_dir": "/opt/data36/daliu/realtime/spykshrk/irecv",
+        "output_dir": "/opt/data36/daliu/realtime/spykshrk/timing",
         "prefix": "test_animal",
         "rec_postfix": "bin_rec",
-        "profile_postfix": "pstats"
+        "profile_postfix": "pstats",
+        "timing_postfix": "timing"
+    },
+
+    "timing": {
+        "enable_lfp": true
     },
 
     "ripple": {

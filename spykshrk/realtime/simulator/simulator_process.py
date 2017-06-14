@@ -229,10 +229,10 @@ class Simulator(realtime_process.RealtimeClass):
                         timing_msg = timing_system.TimingMessage(label='lfp',
                                                                  timestamp=data_to_send.timestamp,
                                                                  start_rank=self.rank)
-                        self.comm.Send(buf=timing_msg.pack(), dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
+                        self.comm.Ssend(buf=timing_msg.pack(), dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
                                        tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value)
 
-                    self.comm.Send(buf=bytes_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
+                    self.comm.Ssend(buf=bytes_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
                                    tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
 
                 except KeyError as err:
