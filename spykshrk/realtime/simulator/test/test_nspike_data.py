@@ -12,7 +12,7 @@ class TestDataStreamTestAnimal(TestCase):
 
         animal_name = 'test'
         days = [2]
-        tetrodes = [5, 11, 12, 14, 19]
+        tetrodes = [5, 11, 12, 13, 14, 17, 19, 29]
 
         epoch_encode = [1]
         new_data = True
@@ -37,11 +37,11 @@ class TestDataStreamTestAnimal(TestCase):
             self.assertTrue(buffer.ntrode_id in self.anim.tetrodes,
                             msg='ntrode {:} not in anim tetrode list.'.format(buffer.ntrode_id, self.anim.tetrodes))
             last_timestamp = buffer.timestamp
-        self.assertTrue(buffer_count == 449914, 'buffer count was {:}, should have been 449914'.format(buffer_count))
+        self.assertTrue(buffer_count == 719852, 'buffer count was {:}, should have been 719852'.format(buffer_count))
 
     def test_SpkDataStream(self):
 
-        spk = SpkDataStream(self.anim, 1000)
+        spk = SpkDataStream(self.anim)
 
         spk_itr = spk()
         buffer_count = 0
@@ -50,9 +50,9 @@ class TestDataStreamTestAnimal(TestCase):
             buffer_count += 1
             self.assertTrue(buffer.timestamp >= last_timestamp)
             last_timestamp = buffer.timestamp
-        self.assertTrue(buffer_count == 10552)
+        self.assertTrue(buffer_count == 18874, 'buffer count was {:}, should have been 18874.'.format(buffer_count))
 
-    def test_PosMatDataStream(self):
+    def PosMatDataStream(self):
 
         pos = PosMatDataStream(self.anim, 10000)
 

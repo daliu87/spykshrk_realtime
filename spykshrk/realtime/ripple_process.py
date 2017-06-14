@@ -463,9 +463,14 @@ class RippleMPIRecvInterface(realtime_process.RealtimeClass):
         self.main_rank = main_rank
         self.num_ntrodes = None
 
-    def get_next_request(self):
-        req = self.comm.irecv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
-        return req
+        self.req = self.comm.irecv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+
+    def __next__(self):
+        rdy, msg = self.req.test()
+        if rdy:
+            self.process_request_message(msg)
+
+            self.req = self.comm.irecv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def process_request_message(self, message):
 
@@ -550,16 +555,8 @@ class RippleProcess(realtime_process.RealtimeProcess):
 
         try:
             while not self.terminate:
-                req_cmd = self.mpi_recv.get_next_request()
+                self.mpi_recv.__next__()
                 self.rip_man.process_next_data()
-
-                req_rdy = False
-                msg = None
-                while not req_rdy:
-                    self.rip_man.process_next_data()
-                    req_rdy, msg = req_cmd.test()
-
-                self.mpi_recv.process_request_message(msg)
 
         except StopIteration as ex:
             self.class_log.info('Terminating RippleProcess (rank: {:})'.format(self.rank))
