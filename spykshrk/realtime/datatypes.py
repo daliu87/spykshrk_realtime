@@ -39,6 +39,16 @@ class LFPPoint:
         return '{:}({:})'.format(self.__class__.__name__, self.__dict__)
 
 
+class LinearPosPoint:
+    def __init__(self, timestamp, x, vel):
+        self.timestamp = timestamp
+        self.x = x
+        self.vel = vel
+
+    def __str__(self):
+        return '{:}({:})'.format(self.__class__.__name__, self.__dict__)
+
+
 class RawPosPoint:
     def __init__(self, timestamp, x1, y1, x2, y2, camera_id):
         self.timestamp = timestamp
@@ -58,15 +68,6 @@ class PosPoint:
         self.x = x
         self.y = y
         self.camera_id = camera_id
-
-    def __str__(self):
-        return '{:}({:})'.format(self.__class__.__name__, self.__dict__)
-
-
-class LinPosPoint:
-    def __init__(self, timestamp, data):
-        self.timestamp = timestamp
-        self.data = data
 
     def __str__(self):
         return '{:}({:})'.format(self.__class__.__name__, self.__dict__)

@@ -7,6 +7,7 @@ class TestDataStreamTestAnimal(TestCase):
 
     def setUp(self):
         anim_dir = '/home/daliu/data/'
+        anim_dir = '/opt/data36/daliu/other/mkarlsso'
 
         timescale = 10000
 
@@ -52,9 +53,9 @@ class TestDataStreamTestAnimal(TestCase):
             last_timestamp = buffer.timestamp
         self.assertTrue(buffer_count == 18874, 'buffer count was {:}, should have been 18874.'.format(buffer_count))
 
-    def PosMatDataStream(self):
+    def test_PosMatDataStream(self):
 
-        pos = PosMatDataStream(self.anim, 10000)
+        pos = PosMatDataStream(self.anim)
 
         pos_itr = pos()
         buffer_count = 0
@@ -64,4 +65,4 @@ class TestDataStreamTestAnimal(TestCase):
             self.assertTrue(buffer.timestamp >= last_timestamp)
             last_timestamp = buffer.timestamp
 
-        self.assertTrue(buffer_count == 2068)
+        self.assertTrue(buffer_count == 2097, 'buffer count was {:}, should have been 2097.'.format(buffer_count))

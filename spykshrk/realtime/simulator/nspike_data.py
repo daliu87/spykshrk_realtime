@@ -14,7 +14,7 @@ import os.path
 from glob import glob
 import math
 
-from spykshrk.realtime.datatypes import LFPPoint, LinPosPoint, SpikePoint
+from spykshrk.realtime.datatypes import LFPPoint, LinearPosPoint, SpikePoint
 
 try:
     from IPython.terminal.debugger import TerminalPdb
@@ -314,7 +314,7 @@ class SpkDataStream:
                     spk_data = epoch_data_sorted_raw[ind][1]
                     tet_num = epoch_data_sorted_index[ind][0]
 
-                    yield SpikePoint(timestamp=timestamp, ntrode_id=tet_num, data=spk_data)
+                    yield SpikePoint(timestamp=timestamp * 3, ntrode_id=tet_num, data=spk_data)
 
 
 class EEGDataStream:
@@ -539,7 +539,7 @@ class EEGDataStream:
                 return
 
 
-class PosMatData:
+class PosMatDataStream:
     DAY_IND = 0
     TIME_IND = 0
     LINPOS_IND = 1
@@ -547,9 +547,8 @@ class PosMatData:
     SEGINDEX_IND = 2
     VELLIN_IND = 3
 
-    def __init__(self, anim, timestep):
+    def __init__(self, anim):
         print('PosMatData: INIT start')
-        self.timestep = timestep
         self.anim = anim
         path_list = anim.get_posmat_paths()
         # Initialized to empty dataframe to be appended/concated to
@@ -582,24 +581,9 @@ class PosMatData:
 
                 posdata_all_df = pd.DataFrame(posdata_all, index=pos_pd_idx, columns=pos_pd_col)
 
-                # number 'mask' that assigns each row to its appropriate
-                # timestep timebin based on its timestamp.  -1 for 0 offset
-                timestep_mask = ((posdata_all_df['time'] -
-                                  self.anim.times[day][epoch][0] / 10000.).
-                                 floordiv(timestep / 10000.)) - 1
-
-                timestep_ind = pd.MultiIndex.from_tuples([('time_step_bin', 0)])
-                timestep_mask.columns = timestep_ind
-                posdata_all_df[timestep_ind] = timestep_mask
-
-                # Create a timebin mask set (unique) to use as iterator.
-                # Remove all negative timebins because those are outside of range
-                timebin_set = np.unique(timestep_mask.values.ravel()).astype('int', copy=False)
-                self.timebin_uniq[(day, epoch)] = timebin_set[np.nonzero(timebin_set >= 0)]
-
                 self.data = self.data.append(posdata_all_df)
 
-        self.data.sortlevel(0)
+        self.data = self.data.sort_values([('time', 0)])
         #print self.data
         print('PosMatData: INIT done')
 
@@ -607,71 +591,25 @@ class PosMatData:
         for day in self.days:
             for epoch in self.anim.epochs:
                 # get the list of unique timebins
-                timebin_itr = self.timebin_uniq[(day, epoch)]
-                # align start to epoch start time
-                epoch_start_time = self.anim.times[day][epoch][0]
+                day_epoch_data = self.data.loc[day, epoch]
 
-                cur_time = epoch_start_time
+                poslist = []
+                for row_series in day_epoch_data.iterrows():
+                    row = row_series[1]
+                    segind = row['seg_idx', 0]
+                    postime = int(row['time', 0] * 10000)
 
-                next_time = cur_time
+                    if segind == 1:
+                        pos_conv = row['lin_dist_well', 'well_center']
+                        veldata = row['lin_vel', 'well_center']
+                    elif segind == 2 or segind == 3:
+                        pos_conv = row['lin_dist_well', 'well_left'] + 150
+                        veldata = row['lin_vel', 'well_left']
+                    elif segind == 4 or segind == 5:
+                        pos_conv = row['lin_dist_well', 'well_right'] + 300
+                        veldata = row['lin_vel', 'well_right']
 
-                # For every timebin, return the list of positions
-                for timebin_num in timebin_itr:
-
-                    #print 'PosMatData: new timebin {} requested'.format(timebin_num)
-                    # isolate rows that are in the current time bin
-                    #timebin_mask = self.data.loc[day,epoch]['time_step_bin'] == timebin_num
-                    #timebin_idx = timebin_mask[timebin_mask].dropna().index.values.ravel()
-                    #data_rows = self.data.iloc[timebin_idx]
-                    data_rows = self.data[self.data['time_step_bin'][0] == timebin_num]
-
-                    poslist = []
-                    for row_series in data_rows.iterrows():
-                        row = row_series[1]
-                        segind = row['seg_idx', 0]
-                        postime = int(row['time', 0] * 10000)
-
-                        if segind == 1:
-                            pos_conv = row['lin_dist_well', 'well_center']
-                            veldata = row['lin_vel', 'well_center']
-                        elif segind == 2 or segind == 3:
-                            pos_conv = row['lin_dist_well', 'well_left'] + 150
-                            veldata = row['lin_vel', 'well_left']
-                        elif segind == 4 or segind == 5:
-                            pos_conv = row['lin_dist_well', 'well_right'] + 300
-                            veldata = row['lin_vel', 'well_right']
-
-                        # Position data expected to be [offset position, list of dist to wells, segment id, velocity]
-                        poslist.append((postime, (pos_conv,
-                                                  row['lin_dist_well'].tolist(),
-                                                  row['seg_idx'][0].tolist(), veldata)))
-
-                    yield PosTimepoint(day, epoch, (), poslist)
-
-
-class PosMatDataStream:
-    def __init__(self, anim, timestep):
-        self.anim = anim
-        self.block_data = PosMatData(anim, timestep)
-        self.timestep = timestep
-
-    def __iter__(self):
-        return self
-
-    def __call__(self):
-        # initialize iterator for this instance.
-
-        data_itr = self.block_data()
-
-        for pos_block in data_itr:
-            if not pos_block.data:
-                continue
-
-            sorted_block = sorted(pos_block.data, key=(lambda x: x[0]))
-            for pos_pt in sorted_block:
-                pos_packet = LinPosPoint(timestamp=int(pos_pt[0]*30000), data=pos_pt[1])
-
-                yield pos_packet
+                    yield LinearPosPoint(timestamp=int(row['time'].values[0] * 30000), x=pos_conv, vel=veldata)
 
 
 class PosData:
