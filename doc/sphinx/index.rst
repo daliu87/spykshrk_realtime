@@ -12,14 +12,16 @@ spykshrk_realtime
 .. toctree::
    :maxdepth: 2
 
-   simulator/nspike_data.rst
-
 .. contents:: Table of Contents
    :depth: 3
 
 Simulator Tools
 ---------------
 * :doc:`NSpike Data <simulator/nspike_data>`
+
+Complete API
+------------
+* :doc:`Complete API of spykshrk package <complete_api/spykshrk>`
 
 Indices and tables
 ------------------

@@ -39,8 +39,34 @@ class BinaryRecordBaseError(RuntimeError):
 
 
 class DataSourceReceiver(RealtimeClass, metaclass=ABCMeta):
+    """An abstract class that ranks should use to communicate between neural data sources.
+
+    This class should not be instantiated, only its subclasses.
+
+    This provides an abstraction layer for sources of neural data (e.g., saved file simulator, acquisition system)
+    to pipe data (e.g., spikes, lfp, position) to ranks that request data for processing.  This is only an abstraction
+    for a streaming data (e.g. sockets, MPI) and makes a number of assumptions:
+
+    1. The type of data and 'channel' (e.g., electrode channels 1, 2, 3) can be streamed to different client processes
+    and registered by a client one channel at a time
+
+    2. The streams can be started and stopped arbitrarily after the connection is established (no rule if data is lost
+    during pause)
+
+    3. The connection is destroyed when the iterator stops.
+    """
     @abstractmethod
     def register_datatype_channel(self, datatype, channel):
+        """
+
+        Args:
+            datatype: The type of data to request to be streamed, specified by spykshrk.realtime.datatypes.Datatypes
+            channel: The channel of the data type to stream
+
+        Returns:
+            None
+
+        """
         pass
 
     @abstractmethod
