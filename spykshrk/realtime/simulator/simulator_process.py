@@ -6,7 +6,8 @@ import struct
 import time
 import numpy as np
 
-import spykshrk.realtime.realtime_process as realtime_process
+import spykshrk.realtime.logging as rt_logging
+import spykshrk.realtime.realtime_base as realtime_base
 import spykshrk.realtime.datatypes as datatypes
 import spykshrk.realtime.simulator.nspike_data as nspike_data
 import spykshrk.realtime.simulator.sim_databuffer as sim_databuffer
@@ -17,42 +18,39 @@ class SimulatorError(RuntimeError):
     pass
 
 
-class ReqDatatypeChannelDataMessage(realtime_process.RealtimeMessage):
+class ReqDatatypeChannelDataMessage(rt_logging.PrintableMessage):
     def __init__(self, datatype, channel):
         self. datatype = datatype
         self.channel = channel
 
 
-class StartAllStreamMessage(realtime_process.RealtimeMessage):
+class StartAllStreamMessage(rt_logging.PrintableMessage):
     def __init__(self):
         pass
 
 
-class StopAllStreamMessage(realtime_process.RealtimeMessage):
+class StopAllStreamMessage(rt_logging.PrintableMessage):
     def __init__(self):
         pass
 
 
-class PauseAllStreamMessages(realtime_process.RealtimeMessage):
+class PauseAllStreamMessages(rt_logging.PrintableMessage):
     def __init__(self):
         pass
 
 
-class SimTrodeListMessage(realtime_process.RealtimeMessage):
+class SimTrodeListMessage(rt_logging.PrintableMessage):
     def __init__(self, trode_list):
         self.trode_list = trode_list
 
 
-class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
+class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
     """ A Class to be created and used by ranks that need to communicate with the Simulator Process/Rank.
     
     Goal is to provide an abstraction layer for interacting with other sources.
     """
     def __init__(self, comm: MPI.Comm, rank, config):
-        super().__init__()
-        self.comm = comm
-        self.rank = rank
-        self.config = config
+        super().__init__(comm=comm, rank=rank, config=config)
         self.start = False
         self.stop = False
 
@@ -62,27 +60,27 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
         self.mpi_statuses = []
 
         self.mpi_reqs.append(self.comm.Irecv(buf=self.data_bytes,
-                                             tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value))
+                                             tag=realtime_base.MPIMessageTag.SIMULATOR_DATA.value))
         self.mpi_statuses.append(MPI.Status)
 
         if self.config['timing']['enable_lfp']:
             self.mpi_reqs.append(self.comm.Irecv(buf=self.time_bytes,
-                                                 tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value))
+                                                 tag=realtime_base.MPIMessageTag.TIMING_MESSAGE.value))
             self.mpi_statuses.append(MPI.Status)
 
     def register_datatype_channel(self, datatype, channel):
         self.comm.send(ReqDatatypeChannelDataMessage(datatype=datatype, channel=channel),
                        dest=self.config['rank']['simulator'],
-                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def start_all_streams(self):
         self.comm.send(StartAllStreamMessage(), dest=self.config['rank']['simulator'],
-                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
         self.start = True
 
     def stop_all_streams(self):
         self.comm.send(StopAllStreamMessage(), dest=self.config['rank']['simulator'],
-                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
         self.start = False
 
     def stop_iterator(self):
@@ -103,20 +101,20 @@ class SimulatorRemoteReceiver(realtime_process.DataSourceReceiver):
         if rdy:
             data_message = datatypes.LFPPoint.unpack(self.data_bytes)
             self.mpi_reqs[0] = self.comm.Irecv(buf=self.data_bytes,
-                                               tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
+                                               tag=realtime_base.MPIMessageTag.SIMULATOR_DATA.value)
 
             timing_message = None
             if self.config['timing']['enable_lfp']:
                 timing_message = timing_system.TimingMessage.unpack(self.time_bytes)
                 self.mpi_reqs[1] = self.comm.Irecv(buf=self.time_bytes,
-                                                   tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value)
+                                                   tag=realtime_base.MPIMessageTag.TIMING_MESSAGE.value)
             return data_message, timing_message
 
         else:
             return None
 
 
-class SimulatorProcess(realtime_process.RealtimeProcess):
+class SimulatorProcess(realtime_base.RealtimeProcess):
     def __init__(self, comm: MPI.Comm, rank, config):
         super().__init__(comm=comm, rank=rank, config=config)
         self.terminate = False
@@ -131,7 +129,7 @@ class SimulatorProcess(realtime_process.RealtimeProcess):
 
         mpi_status = MPI.Status()
         while not self.terminate:
-            req = self.comm.irecv(tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+            req = self.comm.irecv(tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
             msg_avail = False
             while not msg_avail:
@@ -152,7 +150,7 @@ class SimulatorProcess(realtime_process.RealtimeProcess):
             elif isinstance(message, PauseAllStreamMessages):
                 self.sim.pause_datastream()
 
-            elif isinstance(message, realtime_process.TerminateMessage):
+            elif isinstance(message, realtime_base.TerminateMessage):
                 if self.ThreadClass is not None:
                     self.thread.trigger_termination()
                 self.trigger_termination()
@@ -160,12 +158,9 @@ class SimulatorProcess(realtime_process.RealtimeProcess):
         self.class_log.info("Simulator Process Main reached end, exiting.")
 
 
-class Simulator(realtime_process.RealtimeClass):
+class Simulator(realtime_base.RealtimeMPIClass):
     def __init__(self, comm: MPI.Comm, rank, config):
-        super().__init__()
-        self.comm = comm
-        self.rank = rank
-        self.config = config
+        super().__init__(comm=comm, rank=rank, config=config)
 
         self._stop_next = False
 
@@ -183,14 +178,14 @@ class Simulator(realtime_process.RealtimeClass):
         except TypeError as err:
             self.class_log.exception("TypeError: nspike_animal_info does not match nspike_data.AnimalInfo arguments.",
                                      exc_info=err)
-            comm.send(realtime_process.TerminateErrorMessage("For SimulatorThread, nspike_animal_info config did"
+            comm.send(realtime_base.TerminateErrorMessage("For SimulatorThread, nspike_animal_info config did"
                                                              "not match nspike_data.AnimalInfo arguments."),
                       dest=config['rank']['supervisor'],
-                      tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+                      tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
         self.comm.send(obj=SimTrodeListMessage(self.config['simulator']['nspike_animal_info']['tetrodes']),
                        dest=config['rank']['supervisor'],
-                       tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
         self.running = False
 
@@ -231,10 +226,10 @@ class Simulator(realtime_process.RealtimeClass):
                                                                  timestamp=data_to_send.timestamp,
                                                                  start_rank=self.rank)
                         self.comm.Ssend(buf=timing_msg.pack(), dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
-                                        tag=realtime_process.MPIMessageTag.TIMING_MESSAGE.value)
+                                        tag=realtime_base.MPIMessageTag.TIMING_MESSAGE.value)
 
                     self.comm.Ssend(buf=bytes_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
-                                    tag=realtime_process.MPIMessageTag.SIMULATOR_DATA.value)
+                                    tag=realtime_base.MPIMessageTag.SIMULATOR_DATA.value)
 
                 except KeyError as err:
                     self.class_log.exception(("KeyError: Tetrode id ({:}) not in lfp channel request dict {:}, "
@@ -243,7 +238,7 @@ class Simulator(realtime_process.RealtimeClass):
 
         except StopIteration as err:
             # Simulation is done, send terminate message
-            self.comm.send(obj=realtime_process.TerminateMessage(), dest=self.config['rank']['supervisor'],
-                           tag=realtime_process.MPIMessageTag.COMMAND_MESSAGE.value)
+            self.comm.send(obj=realtime_base.TerminateMessage(), dest=self.config['rank']['supervisor'],
+                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
 

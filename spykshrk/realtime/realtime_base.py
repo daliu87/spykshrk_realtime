@@ -1,13 +1,15 @@
-import threading
-from mpi4py import MPI
+import cProfile
 import logging
+import os
+import time
 from abc import ABCMeta, abstractmethod
 from enum import Enum
-import cProfile
-import time
-import os
+
+from mpi4py import MPI
 
 import spykshrk.realtime.binary_record as binary_record
+from spykshrk.realtime.logging import LoggingClass, PrintableMessage
+from spykshrk.realtime.timing_system import TimingMessage
 
 
 class MPIMessageTag(Enum):
@@ -17,17 +19,12 @@ class MPIMessageTag(Enum):
     TIMING_MESSAGE = 4
 
 
-class RealtimeClass(object):
-    def __init__(self, *args, **kwds):
-        super().__init__()
-        self.class_log = logging.getLogger(name='{}.{}'.format(self.__class__.__module__,
-                                                               self.__class__.__name__))
-
-
-class RealtimeMessage:
-
-    def __str__(self):
-        return '{:}({:})'.format(self.__class__.__name__, self.__dict__)
+class RealtimeMPIClass(LoggingClass):
+    def __init__(self, comm: MPI.Comm, rank, config, *args, **kwargs):
+        self.comm = comm
+        self.rank = rank
+        self.config = config
+        super(RealtimeMPIClass, self).__init__(*args, **kwargs)
 
 
 class DataSourceError(RuntimeError):
@@ -38,7 +35,7 @@ class BinaryRecordBaseError(RuntimeError):
     pass
 
 
-class DataSourceReceiver(RealtimeClass, metaclass=ABCMeta):
+class DataSourceReceiver(RealtimeMPIClass, metaclass=ABCMeta):
     """An abstract class that ranks should use to communicate between neural data sources.
 
     This class should not be instantiated, only its subclasses.
@@ -86,7 +83,25 @@ class DataSourceReceiver(RealtimeClass, metaclass=ABCMeta):
         pass
 
 
-class BinaryRecordBase(RealtimeClass):
+class TimingSystemBase(LoggingClass):
+
+    def __init__(self, *args, **kwds):
+        self.time_writer = None
+        self.rank = kwds['rank']
+        super(TimingSystemBase, self).__init__(*args, **kwds)
+
+    def set_timing_writer(self, time_writer):
+        self.time_writer = time_writer
+
+    def write_timing_message(self, timing_msg: TimingMessage):
+        if self.time_writer is not None:
+            timing_msg.record_time(self.rank)
+            self.time_writer.write_timing_message(timing_msg=timing_msg)
+        else:
+            self.class_log.warning('Tried writing timing message before timing file created.')
+
+
+class BinaryRecordBase(LoggingClass):
     def __init__(self, *args, **kwds):
         super().__init__(*args, **kwds)
         self.rank = kwds['rank']
@@ -209,16 +224,11 @@ class RealtimeMeta(ExceptionLoggerWrapperMeta, ProfilerWrapperMeta):
         super(RealtimeMeta, cls).__init__(name, bases, attrs)
 
 
-class RealtimeProcess(RealtimeClass, metaclass=RealtimeMeta):
+class RealtimeProcess(RealtimeMPIClass, metaclass=RealtimeMeta):
 
-    def __init__(self, comm: MPI.Comm, rank, config, ThreadClass=None, **kwds):
+    def __init__(self, comm: MPI.Comm, rank, config, **kwds):
 
-        super().__init__()
-
-        self.comm = comm
-        self.rank = rank
-        self.config = config
-        self.ThreadClass = ThreadClass
+        super().__init__(comm=comm, rank=rank, config=config)
 
         self.enable_profiler = rank in self.config['rank_settings']['enable_profiler']
         self.profiler_out_path = os.path.join(config['files']['output_dir'], '{}.{:02d}.{}'.
@@ -226,33 +236,11 @@ class RealtimeProcess(RealtimeClass, metaclass=RealtimeMeta):
                                                      rank,
                                                      config['files']['profile_postfix']))
 
-        if ThreadClass is not None:
-            self.thread = ThreadClass(comm=comm, rank=rank, config=config, parent=self, **kwds)
-
     def main_loop(self):
-        if self.ThreadClass is not None:
-            self.thread.start()
+        pass
 
 
-class RealtimeThread(RealtimeClass, threading.Thread, metaclass=RealtimeMeta):
-
-    def __init__(self, comm: MPI.Comm, rank, config, parent):
-        super().__init__(name=self.__class__.__name__)
-        super().__init__()
-        self.parent = parent
-        self.comm = comm
-        self.rank = rank
-        self.config = config
-
-        self.enable_profiler = rank in self.config['rank_settings']['enable_profiler']
-        self.profiler_out_path = os.path.join(config['files']['output_dir'], '{}.{:02d}.{}.{}'.
-                                              format(config['files']['prefix'],
-                                                     rank,
-                                                     'thread',
-                                                     config['files']['profile_postfix']))
-
-
-class DataStreamIterator(RealtimeClass, metaclass=ABCMeta):
+class DataStreamIterator(LoggingClass, metaclass=ABCMeta):
 
     @abstractmethod
     def __init__(self):
@@ -280,64 +268,63 @@ class DataStreamIterator(RealtimeClass, metaclass=ABCMeta):
         pass
 
 
-class TerminateErrorMessage(RealtimeMessage):
+class TerminateErrorMessage(PrintableMessage):
     def __init__(self, message):
         self.message = message
         pass
 
 
-class TerminateMessage(RealtimeMessage):
+class TerminateMessage(PrintableMessage):
     def __init__(self):
         pass
 
 
-class EnableStimulationMessage(RealtimeMessage):
+class EnableStimulationMessage(PrintableMessage):
     def __init__(self):
         pass
 
 
-class DisableStimulationMessage(RealtimeMessage):
+class DisableStimulationMessage(PrintableMessage):
     def __init__(self):
         pass
 
 
-class StartRecordMessage(RealtimeMessage):
+class StartRecordMessage(PrintableMessage):
     def __init__(self):
         pass
 
 
-class StopRecordMessage(RealtimeMessage):
+class StopRecordMessage(PrintableMessage):
     def __init__(self):
         pass
 
 
-class CloseRecordMessage(RealtimeMessage):
+class CloseRecordMessage(PrintableMessage):
     def __init__(self):
         pass
 
 
-class RequestStatusMessage(RealtimeMessage):
+class RequestStatusMessage(PrintableMessage):
     def __init__(self):
         pass
 
 
-class ResetFilterMessage(RealtimeMessage):
+class ResetFilterMessage(PrintableMessage):
     def __init__(self):
         pass
 
 
-class NumTrodesMessage(RealtimeMessage):
+class NumTrodesMessage(PrintableMessage):
     def __init__(self, num_ntrodes):
         self.num_ntrodes = num_ntrodes
 
 
-class TurnOnLFPMessage(RealtimeMessage):
+class TurnOnLFPMessage(PrintableMessage):
     def __init__(self, lfp_enable_list):
         self.lfp_enable_list = lfp_enable_list
 
 
-class TurnOffLFPMessage(RealtimeMessage):
+class TurnOffLFPMessage(PrintableMessage):
     def __init__(self):
         pass
-
 

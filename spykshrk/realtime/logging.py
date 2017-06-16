@@ -8,3 +8,14 @@ class MakeFileHandler(logging.FileHandler):
         logging.FileHandler.__init__(self, filename, mode, encoding, delay)
 
 
+class LoggingClass(object):
+    def __init__(self, *args, **kwds):
+        super().__init__()
+        self.class_log = logging.getLogger(name='{}.{}'.format(self.__class__.__module__,
+                                                               self.__class__.__name__))
+
+
+class PrintableMessage:
+
+    def __str__(self):
+        return '{:}({:})'.format(self.__class__.__name__, self.__dict__)

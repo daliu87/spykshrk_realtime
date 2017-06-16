@@ -1,11 +1,12 @@
-import struct
 import json
 import os
-import pandas as pd
+import struct
 from collections import OrderedDict
-from spykshrk.realtime.realtime_process import RealtimeMessage, RealtimeClass
 
+import pandas as pd
 from mpi4py import MPI
+
+from spykshrk.realtime.logging import PrintableMessage
 
 
 class TimingSystemError(Exception):
@@ -17,7 +18,7 @@ class TimingSystemError(Exception):
         return repr(self.value) + '\n' + repr(self.data)
 
 
-class TimingMessage(RealtimeMessage):
+class TimingMessage(PrintableMessage):
     msgheader_format = '=12sqi'
     msgheader_format_size = struct.calcsize(msgheader_format)
     timept_format = '=id'
@@ -110,25 +111,7 @@ class TimingMessage(RealtimeMessage):
                 (self.timing_data == other.timing_data))
 
 
-class TimingSystemBase(RealtimeClass):
-
-    def __init__(self, *args, **kwds):
-        self.time_writer = None
-        self.rank = kwds['rank']
-        super(TimingSystemBase, self).__init__(*args, **kwds)
-
-    def set_timing_writer(self, time_writer):
-        self.time_writer = time_writer
-
-    def write_timing_message(self, timing_msg: TimingMessage):
-        if self.time_writer is not None:
-            timing_msg.record_time(self.rank)
-            self.time_writer.write_timing_message(timing_msg=timing_msg)
-        else:
-            self.class_log.warning('Tried writing timing message before timing file created.')
-
-
-class CreateTimingFileMessage(RealtimeMessage):
+class CreateTimingFileMessage(PrintableMessage):
     def __init__(self, save_dir, file_prefix, file_postfix):
         self.save_dir = save_dir
         self.file_prefix = file_prefix
