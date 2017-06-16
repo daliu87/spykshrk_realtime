@@ -172,8 +172,9 @@ class Simulator(realtime_process.RealtimeClass):
         try:
             self.nspike_anim = nspike_data.AnimalInfo(**config['simulator']['nspike_animal_info'])
             lfp_stream = nspike_data.EEGDataStream(self.nspike_anim)
-            #pos_stream = nspike_data.PosMatDataStream(self.nspike_anim, 1000)
-            self.databuffer = sim_databuffer.SimDataBuffer([lfp_stream()])
+            pos_stream = nspike_data.PosMatDataStream(self.nspike_anim)
+            spk_stream = nspike_data.SpkDataStream(self.nspike_anim)
+            self.databuffer = sim_databuffer.SimDataBuffer([lfp_stream(), spk_stream(), pos_stream()])
 
             self.lfp_chan_req_dict = {}
             self.pos_chan_req = []

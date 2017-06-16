@@ -593,23 +593,24 @@ class PosMatDataStream:
                 # get the list of unique timebins
                 day_epoch_data = self.data.loc[day, epoch]
 
-                poslist = []
-                for row_series in day_epoch_data.iterrows():
-                    row = row_series[1]
-                    segind = row['seg_idx', 0]
-                    postime = int(row['time', 0] * 10000)
+                pos_raw = day_epoch_data.values
+
+                for row_id in range(len(pos_raw)):
+                    row = pos_raw[row_id]
+                    segind = row[4]     # seg_idx
+                    postimestamp = int(row[0] * 30000)    # timestamp
 
                     if segind == 1:
-                        pos_conv = row['lin_dist_well', 'well_center']
-                        veldata = row['lin_vel', 'well_center']
+                        pos_conv = row[1]          # ['lin_dist_well', 'well_center']
+                        veldata = row[5]           # ['lin_vel', 'well_center']
                     elif segind == 2 or segind == 3:
-                        pos_conv = row['lin_dist_well', 'well_left'] + 150
-                        veldata = row['lin_vel', 'well_left']
+                        pos_conv = row[2] + 150    # ['lin_dist_well', 'well_left']
+                        veldata = row[6]           # ['lin_vel', 'well_left']
                     elif segind == 4 or segind == 5:
-                        pos_conv = row['lin_dist_well', 'well_right'] + 300
-                        veldata = row['lin_vel', 'well_right']
+                        pos_conv = row[3] + 300    # ['lin_dist_well', 'well_right']
+                        veldata = row[7]           # ['lin_vel', 'well_right']
 
-                    yield LinearPosPoint(timestamp=int(row['time'].values[0] * 30000), x=pos_conv, vel=veldata)
+                    yield LinearPosPoint(timestamp=postimestamp, x=pos_conv, vel=veldata)
 
 
 class PosData:
