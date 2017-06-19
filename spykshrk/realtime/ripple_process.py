@@ -366,8 +366,7 @@ class RippleManager(realtime_base.BinaryRecordBase, rt_logging.LoggingClass):
     def select_ntrodes(self, ntrode_list):
         self.class_log.debug("Registering continuous channels: {:}.".format(ntrode_list))
         for ntrode in ntrode_list:
-            self.data_interface.register_datatype_channel(datatype=datatypes.Datatypes.CONTINUOUS,
-                                                          channel=ntrode)
+            self.data_interface.register_datatype_channel(channel=ntrode)
 
             self.ripple_filters.setdefault(ntrode, RippleFilter(rec_base=self, param=self.param, ntrode_id=ntrode))
 
@@ -530,7 +529,8 @@ class RippleProcess(realtime_base.RealtimeProcess):
         if self.config['datasource'] == 'simulator':
             data_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
                                                                        rank=self.rank,
-                                                                       config=self.config)
+                                                                       config=self.config,
+                                                                       datatype=datatypes.Datatypes.LFP)
 
             self.rip_man = RippleManager(rank=rank,
                                          local_rec_manager=self.local_rec_manager,

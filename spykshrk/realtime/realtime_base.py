@@ -14,9 +14,11 @@ from spykshrk.realtime.timing_system import TimingMessage
 
 class MPIMessageTag(Enum):
     COMMAND_MESSAGE = 1
-    SIMULATOR_DATA = 2
-    FEEDBACK_DATA = 3
-    TIMING_MESSAGE = 4
+    FEEDBACK_DATA = 2
+    TIMING_MESSAGE = 3
+    SIMULATOR_LFP_DATA = 10
+    SIMULATOR_SPK_DATA = 11
+    SIMULATOR_POS_DATA = 12
 
 
 class RealtimeMPIClass(LoggingClass):
@@ -52,12 +54,27 @@ class DataSourceReceiver(RealtimeMPIClass, metaclass=ABCMeta):
 
     3. The connection is destroyed when the iterator stops.
     """
+
     @abstractmethod
-    def register_datatype_channel(self, datatype, channel):
+    def __init__(self, comm, rank, config, datatype, *args, **kwds):
         """
 
         Args:
+            comm:
+            rank:
+            config:
             datatype: The type of data to request to be streamed, specified by spykshrk.realtime.datatypes.Datatypes
+            *args:
+            **kwds:
+        """
+        super(DataSourceReceiver, self).__init__(comm=comm, rank=rank, config=config, *args, **kwds)
+        self.datatype = datatype
+
+    @abstractmethod
+    def register_datatype_channel(self, channel):
+        """
+
+        Args:
             channel: The channel of the data type to stream
 
         Returns:
