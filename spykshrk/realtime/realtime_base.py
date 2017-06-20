@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from abc import ABCMeta, abstractmethod
-from enum import Enum
+from enum import Enum, IntEnum
 
 from mpi4py import MPI
 
@@ -19,6 +19,14 @@ class MPIMessageTag(Enum):
     SIMULATOR_LFP_DATA = 10
     SIMULATOR_SPK_DATA = 11
     SIMULATOR_POS_DATA = 12
+
+
+class RecordIDs(IntEnum):
+    RIPPLE_STATE = 1
+
+    STIM_STATE = 10
+
+    TIMING = 100
 
 
 class RealtimeMPIClass(LoggingClass):
@@ -123,15 +131,21 @@ class BinaryRecordBase(LoggingClass):
         super().__init__(*args, **kwds)
         self.rank = kwds['rank']
         self.local_rec_manager = kwds['local_rec_manager']
-        self.rec_id = kwds['rec_id']
+        self.rec_ids = kwds['rec_ids']
         self.rec_labels = kwds['rec_labels']
-        self.rec_struct_fmt = kwds['rec_format']
+        self.rec_struct_fmts = kwds['rec_formats']
         self.rec_writer = None    # type: binary_record.BinaryRecordsFileWriter
         self.rec_writer_enabled = False
 
-    def get_record_register_message(self):
-        return self.local_rec_manager.create_register_rec_type_message(rec_id=self.rec_id, rec_labels=self.rec_labels,
-                                                                       rec_struct_fmt=self.rec_struct_fmt)
+    def get_record_register_messages(self):
+
+        messages = []
+        for rec_id, rec_label, rec_fmt in zip(self.rec_ids, self.rec_labels, self.rec_struct_fmts):
+            messages.append(self.local_rec_manager.create_register_rec_type_message(rec_id=rec_id,
+                                                                                    rec_labels=rec_label,
+                                                                                    rec_struct_fmt=rec_fmt))
+
+        return messages
 
     def set_record_writer_from_message(self, create_message):
         self.class_log.info('Creating record from message {}'.format(create_message))
@@ -161,9 +175,12 @@ class BinaryRecordBase(LoggingClass):
         if self.rec_writer:
             self.rec_writer.close()
 
-    def write_record(self, *args):
+    def write_record(self, rec_id, *args):
+        if rec_id not in self.rec_ids:
+            raise binary_record.BinaryRecordsError('{} attempted to write record whose id {} it did not register. '
+                                                   'Rcord: {}'.format(self.__class__.__name__, rec_id, args))
         if self.rec_writer_enabled and not self.rec_writer.closed:
-            self.rec_writer.write_rec(self.rec_id, *args)
+            self.rec_writer.write_rec(rec_id, *args)
             return True
         return False
 

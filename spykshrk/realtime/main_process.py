@@ -70,16 +70,18 @@ class StimDeciderMPISendInterface(realtime_base.RealtimeMPIClass):
         self.rank = rank
         self.config = config
 
-    def send_record_register_message(self, record_register_message):
-        self.comm.send(obj=record_register_message, dest=self.config['rank']['supervisor'],
-                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+    def send_record_register_messages(self, record_register_messages):
+        for message in record_register_messages:
+            self.comm.send(obj=message, dest=self.config['rank']['supervisor'],
+                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
 
 class StimDecider(realtime_base.BinaryRecordBase, realtime_base.TimingSystemBase):
     def __init__(self, rank, send_interface: StimDeciderMPISendInterface, ripple_n_above_thresh=sys.maxsize):
 
         super().__init__(rank=rank, local_rec_manager=binary_record.RemoteBinaryRecordsManager(manager_label='state'),
-                         rec_id=10, rec_labels=['timestamp', 'ntrode_id', 'threshold_state'], rec_format='Iii')
+                         rec_ids=[realtime_base.RecordIDs.STIM_STATE],
+                         rec_labels=[['timestamp', 'ntrode_id', 'threshold_state']], rec_formats=['Iii'])
         self.rank = rank
         self.send_interface = send_interface
         self._ripple_n_above_thresh = ripple_n_above_thresh
@@ -90,7 +92,7 @@ class StimDecider(realtime_base.BinaryRecordBase, realtime_base.TimingSystemBase
         # main_manager.rec_manager.register_rec_type_message(rec_type_message=self.get_record_register_message())
 
     def send_record_register_message(self):
-        self.send_interface.send_record_register_message(self.get_record_register_message())
+        self.send_interface.send_record_register_messages(self.get_record_register_messages())
 
     def reset(self):
         self._ripple_thresh_states = {}
@@ -109,7 +111,7 @@ class StimDecider(realtime_base.BinaryRecordBase, realtime_base.TimingSystemBase
         self._ripple_n_above_thresh = ripple_n_above_thresh
 
     def update_ripple_threshold_state(self, timestamp, ntrode_id, threshold_state):
-        self.write_record(timestamp, ntrode_id, threshold_state)
+        self.write_record(realtime_base.RecordIDs.STIM_STATE, timestamp, ntrode_id, threshold_state)
         if self._enabled:
             self._ripple_thresh_states[ntrode_id] = threshold_state
             num_above = 0
@@ -235,7 +237,8 @@ class MainSimulatorManager(rt_logging.LoggingClass):
                                            file_postfix=self.config['files']['timing_postfix'])
 
         # bypass the normal record registration message sending
-        self.rec_manager.register_rec_type_message(stim_decider.get_record_register_message())
+        for message in stim_decider.get_record_register_messages():
+            self.rec_manager.register_rec_type_message(message)
 
         super().__init__()
 

@@ -278,7 +278,8 @@ class RippleFilter(rt_logging.LoggingClass):
 
         # rec_labels=['current_time', 'ntrode_index', 'thresh_crossed', 'lockout', 'lfp_data', 'rd','current_val'],
         # rec_format='Ii??dd',
-        self.rec_base.write_record(self.current_time, self.ntrode_id, self.thresh_crossed,
+        self.rec_base.write_record(realtime_base.RecordIDs.RIPPLE_STATE,
+                                   self.current_time, self.ntrode_id, self.thresh_crossed,
                                    self.in_lockout, int(data_point.data), rd, self.current_val)
 
         return self.thresh_crossed
@@ -304,9 +305,10 @@ class RippleMPISendInterface(realtime_base.RealtimeMPIClass):
 
         self.num_ntrodes = None
 
-    def send_record_register_message(self, record_register_message):
-        self.comm.send(obj=record_register_message, dest=self.config['rank']['supervisor'],
-                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+    def send_record_register_messages(self, record_register_messages):
+        for message in record_register_messages:
+            self.comm.send(obj=message, dest=self.config['rank']['supervisor'],
+                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def send_ripple_status_message(self, status_dict_list):
         if len(status_dict_list) == 0:
@@ -335,15 +337,15 @@ class RippleManager(realtime_base.BinaryRecordBase, rt_logging.LoggingClass):
                  data_interface: simulator_process.SimulatorRemoteReceiver):
         super().__init__(rank=rank,
                          local_rec_manager=local_rec_manager,
-                         rec_id=1,
-                         rec_labels=['timestamp',
+                         rec_ids=[realtime_base.RecordIDs.RIPPLE_STATE],
+                         rec_labels=[['timestamp',
                                      'ntrode_id',
                                      'thresh_crossed',
                                      'lockout',
                                      'lfp_data',
                                      'rd',
-                                     'current_val'],
-                         rec_format='Ii??ddd')
+                                     'current_val']],
+                         rec_formats=['Ii??ddd'])
 
         self.rank = rank
         self.mpi_send = send_interface
@@ -357,7 +359,7 @@ class RippleManager(realtime_base.BinaryRecordBase, rt_logging.LoggingClass):
         self.custom_baseline_std_dict = {}
         self.data_packet_counter = 0
 
-        self.mpi_send.send_record_register_message(self.get_record_register_message())
+        self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
     def set_num_trodes(self, message: realtime_base.NumTrodesMessage):
         self.num_ntrodes = message.num_ntrodes
