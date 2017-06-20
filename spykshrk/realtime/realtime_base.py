@@ -201,6 +201,23 @@ class BinaryRecordBase(LoggingClass):
         return False
 
 
+class BinaryRecordBaseWithTiming(BinaryRecordBase):
+    def __init__(self, *args, **kwds):
+        super(BinaryRecordBaseWithTiming, self).__init__(*args, **kwds)
+
+        self.rec_ids.append(RecordIDs.TIMING)
+        self.rec_labels.append(['Timestamp', 'label', 'datatype' 'wtime'])
+        self.rec_formats.append('q10shd')
+
+    def record_timing(self, timestamp, datatype, label):
+        if len(label) > 10:
+            raise binary_record.BinaryRecordsError("Timing label {} too long, must be "
+                                                   "10 characters or less.".format(label))
+
+        self.write_record(RecordIDs.TIMING, timestamp, label.encode('utf-8'), datatype, MPI.Wtime())
+
+
+
 class ExceptionLoggerWrapperMeta(type):
     """
         A metaclass that wraps the run() or main_loop() method so exceptions are logged.
