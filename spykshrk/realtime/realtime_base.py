@@ -131,16 +131,32 @@ class BinaryRecordBase(LoggingClass):
         super().__init__(*args, **kwds)
         self.rank = kwds['rank']
         self.local_rec_manager = kwds['local_rec_manager']
-        self.rec_ids = kwds['rec_ids']
-        self.rec_labels = kwds['rec_labels']
-        self.rec_struct_fmts = kwds['rec_formats']
+        try:
+            self.rec_ids = kwds['rec_ids']
+        except KeyError:
+            self.rec_ids = []
+        try:
+            self.rec_labels = kwds['rec_labels']
+        except KeyError:
+            self.rec_labels = []
+        try:
+            self.rec_formats = kwds['rec_formats']
+        except KeyError:
+            self.rec_formats = []
+
+        kwds_none = [not self.rec_ids, not self.rec_labels, not self.rec_formats]
+        if any(kwds_none) and not all(kwds_none):
+            raise binary_record.BinaryRecordsError("BinaryRecordBase missing **kwd arguements, "
+                                                   "rec_ids, rec_labels, rec_formats must be populated or all"
+                                                   "empty lists.")
+
         self.rec_writer = None    # type: binary_record.BinaryRecordsFileWriter
         self.rec_writer_enabled = False
 
     def get_record_register_messages(self):
 
         messages = []
-        for rec_id, rec_label, rec_fmt in zip(self.rec_ids, self.rec_labels, self.rec_struct_fmts):
+        for rec_id, rec_label, rec_fmt in zip(self.rec_ids, self.rec_labels, self.rec_formats):
             messages.append(self.local_rec_manager.create_register_rec_type_message(rec_id=rec_id,
                                                                                     rec_labels=rec_label,
                                                                                     rec_struct_fmt=rec_fmt))
@@ -149,7 +165,7 @@ class BinaryRecordBase(LoggingClass):
 
     def set_record_writer_from_message(self, create_message):
         self.class_log.info('Creating record from message {}'.format(create_message))
-        self.set_record_writer(self.local_rec_manager.create_writer_from_message(create_message, mpi_rank=self.rank))
+        self.set_record_writer(self.local_rec_manager.create_writer_from_message(create_message))
 
     def set_record_writer(self, rec_writer):
         self.class_log.info('Setting record writer {}'.format(rec_writer))

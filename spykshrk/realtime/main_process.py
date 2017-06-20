@@ -33,8 +33,8 @@ class MainProcess(realtime_base.RealtimeProcess):
 
         super().__init__(comm=comm, rank=rank, config=config)
 
-        self.stim_decider = StimDecider(rank=rank, send_interface=StimDeciderMPISendInterface(comm=comm, rank=rank,
-                                                                                              config=config))
+        self.stim_decider = StimDecider(rank=rank, config=config, send_interface=
+                                        StimDeciderMPISendInterface(comm=comm, rank=rank, config=config))
         self.data_recv = StimDeciderMPIRecvInterface(comm=comm, rank=rank, config=config,
                                                      stim_decider=self.stim_decider)
 
@@ -77,9 +77,13 @@ class StimDeciderMPISendInterface(realtime_base.RealtimeMPIClass):
 
 
 class StimDecider(realtime_base.BinaryRecordBase, realtime_base.TimingSystemBase):
-    def __init__(self, rank, send_interface: StimDeciderMPISendInterface, ripple_n_above_thresh=sys.maxsize):
+    def __init__(self, rank, config, send_interface: StimDeciderMPISendInterface, ripple_n_above_thresh=sys.maxsize):
 
-        super().__init__(rank=rank, local_rec_manager=binary_record.RemoteBinaryRecordsManager(manager_label='state'),
+        super().__init__(rank=rank,
+                         local_rec_manager=binary_record.RemoteBinaryRecordsManager(manager_label='state',
+                                                                                    local_rank=rank,
+                                                                                    manager_rank=
+                                                                                    config['rank']['supervisor']),
                          rec_ids=[realtime_base.RecordIDs.STIM_STATE],
                          rec_labels=[['timestamp', 'ntrode_id', 'threshold_state']], rec_formats=['Iii'])
         self.rank = rank

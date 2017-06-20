@@ -42,17 +42,23 @@ class BinaryRecordTypeMessage:
 
 
 class RemoteBinaryRecordsManager:
-    """Remote manager for file records.  This class can generate messages that can be used to register records
+    """Remote manager for file records.
+    
+    Only ONE of these classes should be instantiated per rank/process, per manager.
+    
+    This class can generate messages that can be used to register records
     with the root BinaryRecordsManager and can process create record file messages,
     but it does not handle communication to the root BinaryRecordsManager.
     Communication between remote and root managers must be explicitly performed by the developer."""
-    def __init__(self, manager_label, manager_rank=0):
+    def __init__(self, manager_label, local_rank, manager_rank=0):
         self._manager_label = manager_label
+        self.rank = local_rank
         self._manager_rank = manager_rank
-        self._local_files = {}
+
+        self._local_files = None
 
     def create_register_rec_type_message(self, rec_id, rec_labels, rec_struct_fmt):
-        if len(self._local_files) > 0:
+        if self._local_files is not None:
             raise BinaryRecordsError('Cannot add more record types after remote manager has created a file!')
         else:
             return BinaryRecordTypeMessage(manager_label=self._manager_label,
@@ -60,12 +66,18 @@ class RemoteBinaryRecordsManager:
                                            rec_labels=rec_labels,
                                            rec_struct_fmt=rec_struct_fmt)
 
-    def create_writer_from_message(self, create_message: BinaryRecordCreateMessage, mpi_rank=-1):
-        new_bin_writer = BinaryRecordsFileWriter(create_message=create_message, mpi_rank=mpi_rank)
+    def create_writer_from_message(self, create_message: BinaryRecordCreateMessage):
 
-        self._local_files[create_message.file_id] = new_bin_writer
+        if self._local_files is None:
+            new_bin_writer = BinaryRecordsFileWriter(create_message=create_message, mpi_rank=self.rank)
 
-        return new_bin_writer
+            self._local_files = new_bin_writer
+
+        else:
+            # TODO Error checking to make sure message is compatible with existing file
+            pass
+
+        return self._local_files
 
     def close(self):
         for file_id, file in self._local_files.items():
