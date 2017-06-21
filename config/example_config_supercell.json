@@ -33,10 +33,6 @@
         "timing_postfix": "timing"
     },
 
-    "timing": {
-        "enable_lfp": true
-    },
-
     "ripple": {
         "RippleParameterMessage": {
             "rip_coeff1": 1.2,

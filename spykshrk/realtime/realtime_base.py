@@ -206,11 +206,11 @@ class BinaryRecordBaseWithTiming(BinaryRecordBase):
         super(BinaryRecordBaseWithTiming, self).__init__(*args, **kwds)
 
         self.rec_ids.append(RecordIDs.TIMING)
-        self.rec_labels.append(['Timestamp', 'label', 'datatype' 'wtime'])
-        self.rec_formats.append('q10shd')
+        self.rec_labels.append(['timestamp', 'label', 'datatype', 'wtime'])
+        self.rec_formats.append('q20shd')
 
     def record_timing(self, timestamp, datatype, label):
-        if len(label) > 10:
+        if len(label) > 20:
             raise binary_record.BinaryRecordsError("Timing label {} too long, must be "
                                                    "10 characters or less.".format(label))
 

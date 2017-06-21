@@ -332,7 +332,7 @@ class RippleMPISendInterface(realtime_base.RealtimeMPIClass):
                        tag=realtime_base.MPIMessageTag.TIMING_MESSAGE.value)
 
 
-class RippleManager(realtime_base.BinaryRecordBase, rt_logging.LoggingClass):
+class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.LoggingClass):
     def __init__(self, rank, local_rec_manager, send_interface: RippleMPISendInterface,
                  data_interface: simulator_process.SimulatorRemoteReceiver):
         super().__init__(rank=rank,
@@ -433,7 +433,12 @@ class RippleManager(realtime_base.BinaryRecordBase, rt_logging.LoggingClass):
             timing_msg = msgs[1]
 
             if isinstance(datapoint, LFPPoint):
+                self.record_timing(timestamp=datapoint.timestamp, datatype=datatypes.Datatypes.LFP, label='rip_recv')
+
                 filter_state = self.ripple_filters[datapoint.ntrode_id].process_data(data_point=datapoint)
+
+                self.record_timing(timestamp=datapoint.timestamp, datatype=datatypes.Datatypes.LFP, label='rip_send')
+
                 self.mpi_send.send_ripple_thresh_state(timestamp=datapoint.timestamp,
                                                        ntrode_id=datapoint.ntrode_id,
                                                        thresh_state=filter_state)
@@ -447,8 +452,8 @@ class RippleManager(realtime_base.BinaryRecordBase, rt_logging.LoggingClass):
                                        format(type(datapoint)))
 
             if timing_msg is not None:
-                timing_msg.record_time(rank=self.rank)
-                self.mpi_send.forward_timing_message(timing_msg)
+                # Currently timing message is always None
+                pass
 
 
 class RippleMPIRecvInterface(realtime_base.RealtimeMPIClass):

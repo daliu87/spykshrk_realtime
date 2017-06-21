@@ -4,6 +4,7 @@ import spykshrk.realtime.simulator.simulator_process as simulator_process
 import spykshrk.realtime.ripple_process as ripple_process
 import spykshrk.realtime.binary_record as binary_record
 import spykshrk.realtime.timing_system as timing_system
+import spykshrk.realtime.datatypes as datatypes
 
 from mpi4py import MPI
 from time import sleep
@@ -76,7 +77,7 @@ class StimDeciderMPISendInterface(realtime_base.RealtimeMPIClass):
                            tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
 
-class StimDecider(realtime_base.BinaryRecordBase, realtime_base.TimingSystemBase):
+class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
     def __init__(self, rank, config, send_interface: StimDeciderMPISendInterface, ripple_n_above_thresh=sys.maxsize):
 
         super().__init__(rank=rank,
@@ -115,6 +116,8 @@ class StimDecider(realtime_base.BinaryRecordBase, realtime_base.TimingSystemBase
         self._ripple_n_above_thresh = ripple_n_above_thresh
 
     def update_ripple_threshold_state(self, timestamp, ntrode_id, threshold_state):
+        # Log timing
+        self.record_timing(timestamp=timestamp, datatype=datatypes.Datatypes.LFP, label='stim_rip_state')
         self.write_record(realtime_base.RecordIDs.STIM_STATE, timestamp, ntrode_id, threshold_state)
         if self._enabled:
             self._ripple_thresh_states[ntrode_id] = threshold_state
@@ -144,12 +147,6 @@ class StimDeciderMPIRecvInterface(realtime_base.RealtimeMPIClass):
                                        tag=realtime_base.MPIMessageTag.FEEDBACK_DATA.value)
         self.mpi_statuses.append(MPI.Status())
         self.mpi_reqs.append(req_feedback)
-        if config['timing']['enable_lfp']:
-            pass
-            req_timing = self.comm.Irecv(buf=self.timing_bytes,
-                                         tag=realtime_base.MPIMessageTag.TIMING_MESSAGE.value)
-            self.mpi_reqs.append(req_timing)
-            self.mpi_statuses.append(MPI.Status())
 
     def __iter__(self):
         return self
@@ -165,12 +162,6 @@ class StimDeciderMPIRecvInterface(realtime_base.RealtimeMPIClass):
 
                 self.mpi_reqs[0] = self.comm.Irecv(buf=self.feedback_bytes,
                                                    tag=realtime_base.MPIMessageTag.FEEDBACK_DATA.value)
-
-            if self.config['timing']['enable_lfp']:
-                timing_msg = timing_system.TimingMessage.unpack(message_bytes=self.timing_bytes)
-                self.stim.write_timing_message(timing_msg=timing_msg)
-                self.mpi_reqs[1] = self.comm.Irecv(buf=self.timing_bytes,
-                                                   tag=realtime_base.MPIMessageTag.TIMING_MESSAGE.value)
 
 
 class MainMPISendInterface(realtime_base.RealtimeMPIClass):
@@ -284,9 +275,6 @@ class MainSimulatorManager(rt_logging.LoggingClass):
                                                         new_writer_message=self.rec_manager.new_writer_message())
 
             self.send_interface.send_start_rec_message(rank=rec_rank)
-
-        # Create local timing file
-        self.stim_decider.set_timing_writer(self.local_timing_file)
 
         # Update and start bin rec for StimDecider.  Registration is done through MPI but setting and starting
         # the writer must be done locally because StimDecider does not have a MPI command message receiver

@@ -81,11 +81,6 @@ class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
                                              tag=self.mpi_sim_data_tag))
         self.mpi_statuses.append(MPI.Status)
 
-        if self.config['timing'][self.config_enable_timing]:
-            self.mpi_reqs.append(self.comm.Irecv(buf=self.time_bytes,
-                                                 tag=realtime_base.MPIMessageTag.TIMING_MESSAGE.value))
-            self.mpi_statuses.append(MPI.Status)
-
     def register_datatype_channel(self, channel):
         self.comm.send(ReqDatatypeChannelDataMessage(datatype=self.datatype, channel=channel),
                        dest=self.config['rank']['simulator'],
@@ -121,11 +116,8 @@ class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
             self.mpi_reqs[0] = self.comm.Irecv(buf=self.data_bytes,
                                                tag=self.mpi_sim_data_tag)
 
+            # Option to return timing message but disabled
             timing_message = None
-            if self.config['timing'][self.config_enable_timing]:
-                timing_message = timing_system.TimingMessage.unpack(self.time_bytes)
-                self.mpi_reqs[1] = self.comm.Irecv(buf=self.time_bytes,
-                                                   tag=realtime_base.MPIMessageTag.TIMING_MESSAGE.value)
             return data_message, timing_message
 
         else:
@@ -252,13 +244,6 @@ class Simulator(realtime_base.RealtimeMPIClass):
                 try:
                     bytes_to_send = data_to_send.pack()
 
-                    if self.config['timing']['enable_lfp']:
-                        timing_msg = timing_system.TimingMessage(label='lfp',
-                                                                 timestamp=data_to_send.timestamp,
-                                                                 start_rank=self.rank)
-                        self.comm.Ssend(buf=timing_msg.pack(), dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
-                                        tag=realtime_base.MPIMessageTag.TIMING_MESSAGE.value)
-
                     self.comm.Ssend(buf=bytes_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
                                     tag=realtime_base.MPIMessageTag.SIMULATOR_LFP_DATA.value)
 
@@ -272,13 +257,6 @@ class Simulator(realtime_base.RealtimeMPIClass):
                     bytes_to_send = data_to_send.pack()
 
                     for dest_rank in self.spk_chan_req_dict[data_to_send.ntrode_id]:
-                        if self.config['timing']['enable_spk']:
-                            timing_msg = timing_system.TimingMessage(label='spk',
-                                                                     timestamp=data_to_send.timestamp,
-                                                                     start_rank=self.rank)
-                            self.comm.Ssend(buf=timing_msg.pack(), dest=dest_rank,
-                                            tag=realtime_base.MPIMessageTag.TIMING_MESSAGE.value)
-
                         self.comm.Ssend(buf=bytes_to_send, dest=dest_rank,
                                         tag=realtime_base.MPIMessageTag.SIMULATOR_SPK_DATA.value)
 

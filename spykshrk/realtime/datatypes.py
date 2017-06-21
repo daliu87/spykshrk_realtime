@@ -1,11 +1,11 @@
 
-from enum import Enum
+from enum import IntEnum
 import struct
 from spykshrk.realtime.logging import PrintableMessage
 from mpi4py import MPI
 
 
-class Datatypes(Enum):
+class Datatypes(IntEnum):
     LFP = 1
     POSITION = 2
     SPIKES = 3
