@@ -4,6 +4,7 @@ import json
 import struct
 from collections import OrderedDict
 import pandas as pd
+import numpy as np
 from abc import ABCMeta, abstractmethod
 
 
@@ -280,6 +281,10 @@ class BinaryRecordsFileReader:
         self._extract_json_header()
         self._header = json.loads(self._header_bytes.decode('utf-8'))
 
+    @staticmethod
+    def c_bytes_to_string(c_bytes):
+        return c_bytes.split(b'\0')[0].decode('utf-8')
+
     def _extract_json_header(self):
         self._file_handle.seek(0)
         self._header_bytes = bytearray()
@@ -372,6 +377,13 @@ class BinaryRecordsFileReader:
             panda_frames = {key: pd.DataFrame(data=rec_data[key], columns=['rec_ind'] + columns[key])
                             for key in columns.keys()}
 
-        return panda_frames
+        # Converting bytes into strings
+        for id, table in panda_frames.items():
+            if len(table) > 0:
+                for col_name in table:
+                    if table[col_name].dtype == np.object:
+                        if isinstance(table[col_name].iloc[0], bytes):
+                            table[col_name] = table[col_name].apply(self.c_bytes_to_string)
 
+        return panda_frames
 
