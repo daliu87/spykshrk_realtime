@@ -242,7 +242,7 @@ class BinaryRecordsFileWriter:
 
     def write_rec(self, rec_type_id, *args):
         try:
-            rec_bytes = struct.pack('=IB' + self.rec_format_dict[rec_type_id], self._rec_counter, rec_type_id, *args)
+            rec_bytes = struct.pack('=QB' + self.rec_format_dict[rec_type_id], self._rec_counter, rec_type_id, *args)
             self._file_handle.write(rec_bytes)
             self._rec_counter += 1
         except struct.error as ex:

@@ -433,11 +433,13 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
             timing_msg = msgs[1]
 
             if isinstance(datapoint, LFPPoint):
-                self.record_timing(timestamp=datapoint.timestamp, datatype=datatypes.Datatypes.LFP, label='rip_recv')
+                self.record_timing(timestamp=datapoint.timestamp, ntrode_id=datapoint.ntrode_id,
+                                   datatype=datatypes.Datatypes.LFP, label='rip_recv')
 
                 filter_state = self.ripple_filters[datapoint.ntrode_id].process_data(data_point=datapoint)
 
-                self.record_timing(timestamp=datapoint.timestamp, datatype=datatypes.Datatypes.LFP, label='rip_send')
+                self.record_timing(timestamp=datapoint.timestamp, ntrode_id=datapoint.ntrode_id,
+                                   datatype=datatypes.Datatypes.LFP, label='rip_send')
 
                 self.mpi_send.send_ripple_thresh_state(timestamp=datapoint.timestamp,
                                                        ntrode_id=datapoint.ntrode_id,

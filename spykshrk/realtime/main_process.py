@@ -117,7 +117,8 @@ class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
 
     def update_ripple_threshold_state(self, timestamp, ntrode_id, threshold_state):
         # Log timing
-        self.record_timing(timestamp=timestamp, datatype=datatypes.Datatypes.LFP, label='stim_rip_state')
+        self.record_timing(timestamp=timestamp, ntrode_id=ntrode_id,
+                           datatype=datatypes.Datatypes.LFP, label='stim_rip_state')
         self.write_record(realtime_base.RecordIDs.STIM_STATE, timestamp, ntrode_id, threshold_state)
         if self._enabled:
             self._ripple_thresh_states[ntrode_id] = threshold_state
