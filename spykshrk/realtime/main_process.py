@@ -1,4 +1,5 @@
-import spykshrk.realtime.logging as rt_logging
+import spykshrk.realtime.realtime_base
+import spykshrk.realtime.realtime_logging as rt_logging
 import spykshrk.realtime.realtime_base as realtime_base
 import spykshrk.realtime.simulator.simulator_process as simulator_process
 import spykshrk.realtime.ripple_process as ripple_process
@@ -176,7 +177,7 @@ class MainMPISendInterface(realtime_base.RealtimeMPIClass):
                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def send_channel_selection(self, rank, channel_selects):
-        self.comm.send(obj=ripple_process.ChannelSelection(channel_selects), dest=rank,
+        self.comm.send(obj=spykshrk.realtime.realtime_base.ChannelSelection(channel_selects), dest=rank,
                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def send_new_writer_message(self, rank, new_writer_message):
@@ -188,7 +189,7 @@ class MainMPISendInterface(realtime_base.RealtimeMPIClass):
                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def send_turn_on_datastreams(self, rank):
-        self.comm.send(obj=ripple_process.TurnOnDataStream(), dest=rank,
+        self.comm.send(obj=spykshrk.realtime.realtime_base.TurnOnDataStream(), dest=rank,
                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
     def send_ripple_parameter(self, rank, param_message):
@@ -258,6 +259,9 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         self.class_log.debug("Received ntrode list from simulator {:}.".format(trode_list))
         for rip_rank in self.config['rank']['ripples']:
             self.send_interface.send_num_ntrode(rank=rip_rank, num_ntrodes=len(trode_list))
+        for enc_rank in self.config['rank']['encoders']:
+            self.send_interface.send_num_ntrode(rank=enc_rank, num_ntrodes=len(trode_list))
+
 
         # Round robin allocation of channels to ripple
         enable_count = 0
@@ -269,6 +273,17 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         # Set channel assignments for all ripple ranks
         for rank_ind, rank in enumerate(self.config['rank']['ripples']):
             self.send_interface.send_channel_selection(rank, all_ripple_process_enable[rank_ind])
+
+        # Round robin allocation of channels to encoders
+        enable_count = 0
+        all_encoder_process_enable = [[] for _ in self.config['rank']['encoders']]
+        for chan_ind, chan_id in enumerate(trode_list):
+            all_encoder_process_enable[enable_count % len(self.config['rank']['encoders'])].append(chan_id)
+            enable_count += 1
+
+        # Set channel assignments for all encoder ranks
+        for rank_ind, rank in enumerate(self.config['rank']['encoders']):
+            self.send_interface.send_channel_selection(rank, all_encoder_process_enable[rank_ind])
 
         # Update binary_record file writers before starting datastream
         for rec_rank in self.config['rank_settings']['enable_rec']:
@@ -285,6 +300,10 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         sleep(0.5)
         # Then turn on data streaming to ripple ranks
         for rank in self.config['rank']['ripples']:
+            self.send_interface.send_turn_on_datastreams(rank)
+
+        # Turn on data streaming to encoder
+        for rank in self.config['rank']['encoders']:
             self.send_interface.send_turn_on_datastreams(rank)
 
     def register_rec_type_message(self, message):

@@ -6,7 +6,7 @@ from collections import OrderedDict
 import pandas as pd
 from mpi4py import MPI
 
-from spykshrk.realtime.logging import PrintableMessage
+from spykshrk.realtime.realtime_logging import PrintableMessage
 
 
 class TimingSystemError(Exception):

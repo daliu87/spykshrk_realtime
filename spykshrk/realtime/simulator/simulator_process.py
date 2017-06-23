@@ -6,7 +6,7 @@ import struct
 import time
 import numpy as np
 
-import spykshrk.realtime.logging as rt_logging
+import spykshrk.realtime.realtime_logging as rt_logging
 import spykshrk.realtime.realtime_base as realtime_base
 import spykshrk.realtime.datatypes as datatypes
 import spykshrk.realtime.simulator.nspike_data as nspike_data
@@ -179,8 +179,8 @@ class Simulator(realtime_base.RealtimeMPIClass):
             lfp_stream = nspike_data.EEGDataStream(self.nspike_anim)
             pos_stream = nspike_data.PosMatDataStream(self.nspike_anim)
             spk_stream = nspike_data.SpkDataStream(self.nspike_anim)
-            #self.databuffer = sim_databuffer.SimDataBuffer([lfp_stream(), spk_stream(), pos_stream()])
-            self.databuffer = sim_databuffer.SimDataBuffer([lfp_stream() ])
+            self.databuffer = sim_databuffer.SimDataBuffer([lfp_stream(), spk_stream(), pos_stream()])
+            #self.databuffer = sim_databuffer.SimDataBuffer([lfp_stream() ])
 
             self.lfp_chan_req_dict = {}
             self.spk_chan_req_dict = {}

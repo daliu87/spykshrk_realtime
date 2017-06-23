@@ -2,6 +2,7 @@
 import spykshrk.realtime.main_process as main_process
 import spykshrk.realtime.ripple_process as ripple_process
 import spykshrk.realtime.simulator.simulator_process as simulator_process
+from spykshrk.realtime import encoder_process
 import datetime
 import logging
 import logging.config
@@ -55,7 +56,7 @@ def main(argv):
                 'formatter': 'simple',
             },
             'debug_file_handler': {
-                'class': 'spykshrk.realtime.logging.MakeFileHandler',
+                'class': 'spykshrk.realtime.realtime_logging.MakeFileHandler',
                 'level': 'DEBUG',
                 'formatter': 'simple',
                 'filename': ('log/{date_str}_debug.log/{date_str}_MPI-{rank:02d}_debug.log'.
@@ -96,5 +97,9 @@ def main(argv):
     if rank == config['rank']['simulator']:
         simulator_proc = simulator_process.SimulatorProcess(comm, rank, config=config)
         simulator_proc.main_loop()
+
+    if rank in config['rank']['encoders']:
+        encoding_proc = encoder_process.EncoderProcess(comm, rank, config=config)
+        encoding_proc.main_loop()
 
 main(sys.argv[1:])

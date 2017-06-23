@@ -1,20 +1,17 @@
 import struct
-from collections import deque
 from collections import OrderedDict
+from collections import deque
 
-import spykshrk.realtime.logging as rt_logging
+from mpi4py import MPI
+
+import spykshrk.realtime.binary_record as binary_record
+import spykshrk.realtime.datatypes as datatypes
 import spykshrk.realtime.realtime_base as realtime_base
+import spykshrk.realtime.realtime_logging as rt_logging
 import spykshrk.realtime.simulator.simulator_process as simulator_process
 import spykshrk.realtime.timing_system as timing_system
 from spykshrk.realtime.datatypes import LFPPoint
-from mpi4py import MPI
-import spykshrk.realtime.binary_record as binary_record
-import spykshrk.realtime.datatypes as datatypes
-
-
-class ChannelSelection(rt_logging.PrintableMessage):
-    def __init__(self, ntrode_list):
-        self.ntrode_list = ntrode_list
+from spykshrk.realtime.realtime_base import ChannelSelection, TurnOnDataStream
 
 
 class RippleParameterMessage(rt_logging.PrintableMessage):
@@ -34,11 +31,6 @@ class RippleParameterMessage(rt_logging.PrintableMessage):
         self.enabled = enabled
         self.use_custom_baseline = use_custom_baseline
         self.update_custom_baseline = update_custom_baseline
-
-
-class TurnOnDataStream(rt_logging.PrintableMessage):
-    def __init__(self):
-        pass
 
 
 class CustomRippleBaselineMeanMessage(rt_logging.PrintableMessage):
@@ -373,23 +365,23 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
             self.ripple_filters.setdefault(ntrode, RippleFilter(rec_base=self, param=self.param, ntrode_id=ntrode))
 
     def turn_on_datastreams(self):
-        self.class_log.debug("Turn on datastreams.")
+        self.class_log.info("Turn on datastreams.")
         self.data_interface.start_all_streams()
 
     def update_ripple_parameter(self, parameter: RippleParameterMessage):
-        self.class_log.debug("Ripple parameter updated.")
+        self.class_log.info("Ripple parameter updated.")
         self.param = parameter
         for rip_filter in self.ripple_filters.values():     # type: RippleFilter
             rip_filter.update_parameter(self.param)
 
     def set_custom_baseline_mean(self, custom_mean_dict):
-        self.class_log.debug("Custom baseline mean updated.")
+        self.class_log.info("Custom baseline mean updated.")
         self.custom_baseline_mean_dict = custom_mean_dict
         for ntrode_index, rip_filt in self.ripple_filters.items():
             rip_filt.custom_baseline_mean = self.custom_baseline_mean_dict[ntrode_index]
 
     def set_custom_baseline_std(self, custom_std_dict):
-        self.class_log.debug("Custom baseline std updated.")
+        self.class_log.info("Custom baseline std updated.")
         self.custom_baseline_std_dict = custom_std_dict
         for ntrode_index, rip_filt in self.ripple_filters.items():
             rip_filt.custom_baseline_std = self.custom_baseline_std_dict[ntrode_index]

@@ -14,15 +14,15 @@
         "supervisor": 0,
         "simulator": 1,
         "ripples": [2,3],
+        "encoders": [4,5],
         "latency": 6,
         "position": 7,
-        "encoders": [],
         "decoder": 8
     }, 
 
     "rank_settings": {
         "enable_rec": [2, 3],
-        "enable_profiler": [0, 1, 2, 3]
+        "enable_profiler": [0, 1, 2, 3, 4, 5]
     },
 
     "files": {

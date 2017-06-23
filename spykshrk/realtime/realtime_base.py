@@ -8,7 +8,8 @@ from enum import Enum, IntEnum
 from mpi4py import MPI
 
 import spykshrk.realtime.binary_record as binary_record
-from spykshrk.realtime.logging import LoggingClass, PrintableMessage
+from spykshrk.realtime import realtime_logging as rt_logging
+from spykshrk.realtime.realtime_logging import LoggingClass, PrintableMessage
 from spykshrk.realtime.timing_system import TimingMessage
 
 
@@ -23,6 +24,8 @@ class MPIMessageTag(Enum):
 
 class RecordIDs(IntEnum):
     RIPPLE_STATE = 1
+    ENCODER_INPUT = 2
+    ENCODER_OUTPUT = 3
 
     STIM_STATE = 10
 
@@ -256,9 +259,11 @@ class ProfilerWrapperMeta(type):
     def profile_wrap(func):
         def outer(self):
             if self.enable_profiler:
-                prof = cProfile.Profile(timer=time.perf_counter)
+                prof = cProfile.Profile()
                 prof.runcall(func, self)
                 prof.dump_stats(file=self.profiler_out_path)
+            else:
+                func(self)
 
         return outer
 
@@ -395,3 +400,12 @@ class TurnOffLFPMessage(PrintableMessage):
     def __init__(self):
         pass
 
+
+class ChannelSelection(rt_logging.PrintableMessage):
+    def __init__(self, ntrode_list):
+        self.ntrode_list = ntrode_list
+
+
+class TurnOnDataStream(rt_logging.PrintableMessage):
+    def __init__(self):
+        pass

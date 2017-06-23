@@ -86,7 +86,7 @@ class TestBinaryRecordBaseWithTiming(TestCase):
         rec_base.write_record(1, 1, 1)
         rec_base.start_record_writing()
         rec_base.write_record(1, 2, 2)
-        rec_base.record_timing(100, 1, 'label')
+        rec_base.record_timing(100, 10, 1, 'label')
         rec_base.stop_record_writing()
         rec_base.write_record(1, 3, 3)
 
