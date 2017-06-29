@@ -21,7 +21,7 @@
     }, 
 
     "rank_settings": {
-        "enable_rec": [2, 3],
+        "enable_rec": [2, 3, 4, 5],
         "enable_profiler": [0, 1, 2, 3, 4, 5]
     },
 

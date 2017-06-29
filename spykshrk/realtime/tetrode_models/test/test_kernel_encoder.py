@@ -8,7 +8,6 @@ import numpy as np
 class TestRSTKernelEncoder(TestCase):
 
     def setUp(self):
-        print(sys.path)
         kernel = RST.kernel_param(0, 2, -1024, 1024, 1)
         pos_bin_struct = PosBinStruct([0, 10], 20)
         self.rst_param = RSTParameter(kernel, pos_bin_struct)

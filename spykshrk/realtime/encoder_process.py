@@ -5,6 +5,8 @@ from spykshrk.realtime.simulator import simulator_process
 
 from spykshrk.realtime.datatypes import SpikePoint
 from spykshrk.realtime.realtime_base import ChannelSelection, TurnOnDataStream
+from spykshrk.realtime.tetrode_models import kernel_encoder
+import spykshrk.realtime.rst.RSTPython as RST
 
 
 class RStarEncoderManager(realtime_logging.LoggingClass):
@@ -24,14 +26,22 @@ class RStarEncoderManager(realtime_logging.LoggingClass):
         self.mpi_send = send_interface
         self.data_interface = data_interface
 
+        kernel = RST.kernel_param(0, 25, -1024, 1024, 1)
+        pos_bin_struct = kernel_encoder.PosBinStruct([0, 450], 150)
+        self.rst_param = kernel_encoder.RSTParameter(kernel, pos_bin_struct)
+        self.encoders = {}
+
     def set_num_trodes(self, message: realtime_base.NumTrodesMessage):
         self.num_ntrodes = message.num_ntrodes
         self.class_log.info('Set number of ntrodes: {:d}'.format(self.num_ntrodes))
 
     def select_ntrodes(self, ntrode_list):
-        self.class_log.debug("Registering continuous channels: {:}.".format(ntrode_list))
+        self.class_log.debug("Registering spiking channels: {:}.".format(ntrode_list))
         for ntrode in ntrode_list:
             self.data_interface.register_datatype_channel(channel=ntrode)
+
+            self.encoders.setdefault(ntrode, kernel_encoder.RSTKernelEncoder('/tmp/ntrode{:}'.format(ntrode),
+                                                                             True, self.rst_param))
 
     def turn_on_datastreams(self):
         self.class_log.info("Turn on datastreams.")
@@ -51,6 +61,9 @@ class RStarEncoderManager(realtime_logging.LoggingClass):
             datapoint = msgs[0]
             timing_msg = msgs[1]
             if isinstance(datapoint, SpikePoint):
+                amp_marks = [max(x) for x in datapoint.data]
+                self.encoders[datapoint.ntrode_id].new_mark(amp_marks)
+
                 pass
                 #self.class_log.debug('Received SpikePoint.')
 
@@ -103,7 +116,6 @@ class EncoderProcess(realtime_base.RealtimeMPIClass, metaclass=realtime_base.Pro
                                               format(config['files']['prefix'],
                                                      rank,
                                                      config['files']['profile_postfix']))
-        self.class_log.debug('Class init')
 
         self.local_rec_manager = binary_record.RemoteBinaryRecordsManager(manager_label='state', local_rank=rank,
                                                                           manager_rank=config['rank']['supervisor'])
@@ -122,15 +134,20 @@ class EncoderProcess(realtime_base.RealtimeMPIClass, metaclass=realtime_base.Pro
                                            data_interface=data_interface)
 
         self.mpi_recv = EncoderMPIRecvInterface(comm=comm, rank=rank, config=config, encoder_manager=self.enc_man)
-        self.class_log.debug('Class init end')
+
+        self.terminate = False
+
+    def trigger_termination(self):
+        self.terminate = True
 
     def main_loop(self):
-        self.class_log.debug("main loop")
 
-        while True:
-            self.mpi_recv.__next__()
-            self.enc_man.process_next_data()
+        try:
+            while not self.terminate:
+                self.mpi_recv.__next__()
+                self.enc_man.process_next_data()
 
-        self.class_log.info('Terminating EncodingProcess (rank: {:})'.format(self.rank))
+        except StopIteration as ex:
+            self.class_log.info('Terminating EncodingProcess (rank: {:})'.format(self.rank))
 
         self.class_log.info("Encoding Process reached end, exiting.")
