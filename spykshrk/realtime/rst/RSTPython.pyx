@@ -83,7 +83,7 @@ cdef class RSTPython:
 			RST.RemoveRST(tree_name)
 			create_success = RST.CreateRST(tree_name,4096, False)
 			if create_success:
-				print 'Created Tree: %s successfully' % (tree_name)
+				print('Created Tree: %s successfully' % (tree_name))
 			else:
 				raise Exception('Error: Tried to create a new R*-Tree but failed (%s)'%(tree_name))
 
@@ -91,7 +91,7 @@ cdef class RSTPython:
 
 		open_success = RST.OpenRST(&self.rst, tree_name)
 		if open_success:
-			print 'Opened Tree:%s successfully' % (tree_name)
+			print('Opened Tree:%s successfully' % (tree_name))
 		else:
 			raise Exception('Error: Tried to load a R*-Tree that does not exist (%s)'%(tree_name))
 
@@ -110,10 +110,9 @@ cdef class RSTPython:
 	def __dealloc__(self):
 		close_success = RST.CloseRST(&self.rst)
 		if close_success:
-			print 'Closed Tree...'
+			print('Closed Tree...')
 		else:
-			print 'Error Closing Tree...'
-
+			print('Error Closing Tree...')
 
 
 	def insert_rec(self, x1, x2, x3, x4, pos):

@@ -1,1 +1,3 @@
 build/
+RSTPython.c
+RSTPython.*.so
