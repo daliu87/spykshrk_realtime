@@ -1,6 +1,7 @@
 
 .idea/
 _build/
+build/
 _static/
 _templates/
 
