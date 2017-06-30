@@ -9,9 +9,19 @@ from spykshrk.realtime.tetrode_models import kernel_encoder
 import spykshrk.realtime.rst.RSTPython as RST
 
 
-class RStarEncoderManager(realtime_logging.LoggingClass):
+class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
+    def __init__(self, comm: MPI.Comm, rank, config):
+        super(EncoderMPISendInterface, self).__init__(comm=comm, rank=rank, config=config)
 
-    def __init__(self, rank, local_rec_manager, send_interface,
+    def send_record_register_messages(self, record_register_messages):
+        for message in record_register_messages:
+            self.comm.send(obj=message, dest=self.config['rank']['supervisor'],
+                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+
+
+class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_logging.LoggingClass):
+
+    def __init__(self, rank, local_rec_manager, send_interface: EncoderMPISendInterface,
                  spike_interface: simulator_process.SimulatorRemoteReceiver,
                  pos_interface: simulator_process.SimulatorRemoteReceiver):
 
@@ -38,6 +48,8 @@ class RStarEncoderManager(realtime_logging.LoggingClass):
 
         self.spk_counter = 0
         self.pos_counter = 0
+
+        self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
     def set_num_trodes(self, message: realtime_base.NumTrodesMessage):
         self.num_ntrodes = message.num_ntrodes
@@ -99,10 +111,8 @@ class RStarEncoderManager(realtime_logging.LoggingClass):
                 pass
 
 
-
-
 class EncoderMPIRecvInterface(realtime_base.RealtimeMPIClass):
-    def __init__(self, comm: MPI.Comm, rank, config, encoder_manager):
+    def __init__(self, comm: MPI.Comm, rank, config, encoder_manager: RStarEncoderManager):
         super(EncoderMPIRecvInterface, self).__init__(comm=comm, rank=rank, config=config)
         self.enc_man = encoder_manager
 
@@ -133,10 +143,14 @@ class EncoderMPIRecvInterface(realtime_base.RealtimeMPIClass):
             self.class_log.debug("Turn on data stream")
             self.enc_man.turn_on_datastreams()
 
+        elif isinstance(message, binary_record.BinaryRecordCreateMessage):
+            self.enc_man.set_record_writer_from_message(message)
 
-class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
-    def __init__(self, comm: MPI.Comm, rank, config):
-        super(EncoderMPISendInterface, self).__init__(comm=comm, rank=rank, config=config)
+        elif isinstance(message, realtime_base.StartRecordMessage):
+            self.enc_man.start_record_writing()
+
+        elif isinstance(message, realtime_base.StopRecordMessage):
+            self.enc_man.stop_record_writing()
 
 
 class EncoderProcess(realtime_base.RealtimeMPIClass, metaclass=realtime_base.ProfilerWrapperMeta):
