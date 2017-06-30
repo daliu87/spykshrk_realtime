@@ -7,8 +7,9 @@ from mpi4py import MPI
 
 class Datatypes(IntEnum):
     LFP = 1
-    POSITION = 2
-    SPIKES = 3
+    SPIKES = 2
+    POSITION = 3
+    LINEAR_POSITION = 4
 
 
 class SpikePoint(PrintableMessage):
@@ -61,12 +62,27 @@ class LFPPoint(PrintableMessage):
     def packed_message_size(cls):
         return struct.calcsize(cls._byte_format)
 
+
 class LinearPosPoint(PrintableMessage):
+    _byte_format = '=qff'
+
     def __init__(self, timestamp, x, vel):
         self.timestamp = timestamp
         self.x = x
         self.vel = vel
 
+    def pack(self):
+        return struct.pack(self._byte_format, self.timestamp, self.x, self.vel)
+
+    @classmethod
+    def unpack(cls, message_bytes):
+        timestamp, x, vel = struct.unpack(cls._byte_format, message_bytes)
+        message = cls(timestamp=timestamp, x=x, vel=vel)
+        return message
+
+    @classmethod
+    def packed_message_size(cls):
+        return struct.calcsize(cls._byte_format)
 
 class RawPosPoint(PrintableMessage):
     def __init__(self, timestamp, x1, y1, x2, y2, camera_id):

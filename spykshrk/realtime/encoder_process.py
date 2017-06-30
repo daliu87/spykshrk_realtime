@@ -3,7 +3,7 @@ from mpi4py import MPI
 from spykshrk.realtime import realtime_base, realtime_logging, binary_record, datatypes
 from spykshrk.realtime.simulator import simulator_process
 
-from spykshrk.realtime.datatypes import SpikePoint
+from spykshrk.realtime.datatypes import SpikePoint, LinearPosPoint
 from spykshrk.realtime.realtime_base import ChannelSelection, TurnOnDataStream
 from spykshrk.realtime.tetrode_models import kernel_encoder
 import spykshrk.realtime.rst.RSTPython as RST
@@ -12,7 +12,8 @@ import spykshrk.realtime.rst.RSTPython as RST
 class RStarEncoderManager(realtime_logging.LoggingClass):
 
     def __init__(self, rank, local_rec_manager, send_interface,
-                 data_interface: simulator_process.SimulatorRemoteReceiver):
+                 spike_interface: simulator_process.SimulatorRemoteReceiver,
+                 pos_interface: simulator_process.SimulatorRemoteReceiver):
 
         super(RStarEncoderManager, self).__init__(rank=rank,
                                                   local_rec_manager=local_rec_manager,
@@ -24,12 +25,19 @@ class RStarEncoderManager(realtime_logging.LoggingClass):
                                                                'i'])
         self.rank = rank
         self.mpi_send = send_interface
-        self.data_interface = data_interface
+        self.spike_interface = spike_interface
+        self.pos_interface = pos_interface
 
         kernel = RST.kernel_param(0, 25, -1024, 1024, 1)
         pos_bin_struct = kernel_encoder.PosBinStruct([0, 450], 150)
         self.rst_param = kernel_encoder.RSTParameter(kernel, pos_bin_struct)
         self.encoders = {}
+
+        # Register position, right now only one position channel is supported
+        self.pos_interface.register_datatype_channel(-1)
+
+        self.spk_counter = 0
+        self.pos_counter = 0
 
     def set_num_trodes(self, message: realtime_base.NumTrodesMessage):
         self.num_ntrodes = message.num_ntrodes
@@ -38,21 +46,22 @@ class RStarEncoderManager(realtime_logging.LoggingClass):
     def select_ntrodes(self, ntrode_list):
         self.class_log.debug("Registering spiking channels: {:}.".format(ntrode_list))
         for ntrode in ntrode_list:
-            self.data_interface.register_datatype_channel(channel=ntrode)
+            self.spike_interface.register_datatype_channel(channel=ntrode)
 
             self.encoders.setdefault(ntrode, kernel_encoder.RSTKernelEncoder('/tmp/ntrode{:}'.format(ntrode),
                                                                              True, self.rst_param))
 
     def turn_on_datastreams(self):
         self.class_log.info("Turn on datastreams.")
-        self.data_interface.start_all_streams()
+        self.spike_interface.start_all_streams()
+        self.pos_interface.start_all_streams()
 
     def trigger_termination(self):
-        self.data_interface.stop_iterator()
+        self.spike_interface.stop_iterator()
 
     def process_next_data(self):
 
-        msgs = self.data_interface.__next__()
+        msgs = self.spike_interface.__next__()
 
         if msgs is None:
             # No data avaliable but datastreams are still running, continue polling
@@ -61,11 +70,35 @@ class RStarEncoderManager(realtime_logging.LoggingClass):
             datapoint = msgs[0]
             timing_msg = msgs[1]
             if isinstance(datapoint, SpikePoint):
+                self.spk_counter += 1
                 amp_marks = [max(x) for x in datapoint.data]
+
+                self.encoders[datapoint.ntrode_id].query_mark_hist(amp_marks, datapoint.timestamp)
+
                 self.encoders[datapoint.ntrode_id].new_mark(amp_marks)
 
+                if self.spk_counter % 1000 == 0:
+                    self.class_log.debug('Received {} spikes.'.format(self.spk_counter))
                 pass
                 #self.class_log.debug('Received SpikePoint.')
+
+        msgs = self.pos_interface.__next__()
+        if msgs is None:
+            # No data avaliable but datastreams are still running, continue polling
+            pass
+        else:
+            datapoint = msgs[0]
+            timing_msg = msgs[1]
+            if isinstance(datapoint, LinearPosPoint):
+                self.pos_counter += 1
+                for encoder in self.encoders.values():   # type: kernel_encoder.RSTKernelEncoder
+                    encoder.update_covariate(datapoint.x)
+
+                if self.pos_counter % 100 == 0:
+                    self.class_log.debug('Received {} pos datapoints.'.format(self.pos_counter))
+                pass
+
+
 
 
 class EncoderMPIRecvInterface(realtime_base.RealtimeMPIClass):
@@ -123,15 +156,21 @@ class EncoderProcess(realtime_base.RealtimeMPIClass, metaclass=realtime_base.Pro
         self.mpi_send = EncoderMPISendInterface(comm=comm, rank=rank, config=config)
 
         if self.config['datasource'] == 'simulator':
-            data_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
-                                                                       rank=self.rank,
-                                                                       config=self.config,
-                                                                       datatype=datatypes.Datatypes.SPIKES)
+            spike_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
+                                                                        rank=self.rank,
+                                                                        config=self.config,
+                                                                        datatype=datatypes.Datatypes.SPIKES)
+
+            pos_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
+                                                                      rank=self.rank,
+                                                                      config=self.config,
+                                                                      datatype=datatypes.Datatypes.LINEAR_POSITION)
 
         self.enc_man = RStarEncoderManager(rank=rank,
                                            local_rec_manager=self.local_rec_manager,
                                            send_interface=self.mpi_send,
-                                           data_interface=data_interface)
+                                           spike_interface=spike_interface,
+                                           pos_interface=pos_interface)
 
         self.mpi_recv = EncoderMPIRecvInterface(comm=comm, rank=rank, config=config, encoder_manager=self.enc_man)
 

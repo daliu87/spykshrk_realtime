@@ -13,13 +13,14 @@ from spykshrk.realtime.realtime_logging import LoggingClass, PrintableMessage
 from spykshrk.realtime.timing_system import TimingMessage
 
 
-class MPIMessageTag(Enum):
+class MPIMessageTag(IntEnum):
     COMMAND_MESSAGE = 1
     FEEDBACK_DATA = 2
     TIMING_MESSAGE = 3
     SIMULATOR_LFP_DATA = 10
     SIMULATOR_SPK_DATA = 11
     SIMULATOR_POS_DATA = 12
+    SIMULATOR_LINPOS_DATA = 12
 
 
 class RecordIDs(IntEnum):

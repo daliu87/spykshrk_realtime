@@ -439,7 +439,7 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
 
                 self.data_packet_counter += 1
                 if (self.data_packet_counter % 10000) == 0:
-                    self.class_log.debug('Received {:} datapoints.'.format(self.data_packet_counter))
+                    self.class_log.debug('Received {:} LFP datapoints.'.format(self.data_packet_counter))
 
             else:
                 self.class_log.warning('RippleManager should only receive LFP Data, instead received {:}'.

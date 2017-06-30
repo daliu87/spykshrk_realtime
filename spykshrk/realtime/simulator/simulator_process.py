@@ -61,18 +61,22 @@ class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
         if self.datatype is datatypes.Datatypes.LFP:
 
             self.data_bytes = bytearray(datatypes.LFPPoint.packed_message_size())
-            self.mpi_sim_data_tag = realtime_base.MPIMessageTag.SIMULATOR_LFP_DATA.value
+            self.mpi_sim_data_tag = realtime_base.MPIMessageTag.SIMULATOR_LFP_DATA
             self.config_enable_timing = 'enable_lfp'
             self.DataPointCls = datatypes.LFPPoint
 
             pass
         elif self.datatype is datatypes.Datatypes.SPIKES:
             self.data_bytes = bytearray(datatypes.SpikePoint.packed_message_size())
-            self.mpi_sim_data_tag = realtime_base.MPIMessageTag.SIMULATOR_SPK_DATA.value
+            self.mpi_sim_data_tag = realtime_base.MPIMessageTag.SIMULATOR_SPK_DATA
             self.config_enable_timing = 'enable_spk'
             self.DataPointCls = datatypes.SpikePoint
             pass
-        elif self.datatype is datatypes.Datatypes.POSITION:
+        elif self.datatype is datatypes.Datatypes.LINEAR_POSITION:
+            self.data_bytes = bytearray(datatypes.LinearPosPoint.packed_message_size())
+            self.mpi_sim_data_tag = realtime_base.MPIMessageTag.SIMULATOR_LINPOS_DATA
+            self.config_enable_timing = 'enable_pos'
+            self.DataPointCls = datatypes.LinearPosPoint
             pass
         else:
             raise SimulatorError('{} is not a valid datatype.'.format(self.datatype))
@@ -153,8 +157,8 @@ class SimulatorProcess(realtime_base.RealtimeProcess):
                 elif message.datatype is datatypes.Datatypes.SPIKES:
                     self.sim.update_spk_chan_req(mpi_status.source, message.channel)
 
-                elif message.datatype is datatypes.Datatypes.POSITION:
-                    self.sim.update_pos_chan_req(mpi_status.source)
+                elif message.datatype is datatypes.Datatypes.LINEAR_POSITION:
+                    self.sim.update_linpos_chan_req(mpi_status.source)
 
             elif isinstance(message, StartAllStreamMessage):
                 self.sim.start_datastream()
@@ -224,7 +228,9 @@ class Simulator(realtime_base.RealtimeMPIClass):
 
         self.class_log.debug("Spike channel/ntrode {:} registered by rank {:}".format(spk_chan, dest_rank))
 
-    def update_pos_chan_req(self, dest_rank):
+    def update_linpos_chan_req(self, dest_rank):
+
+        self.class_log.debug("Linear position registered by rank {:}".format(dest_rank))
         self.pos_chan_req.append(dest_rank)
 
     def start_datastream(self):
@@ -245,7 +251,7 @@ class Simulator(realtime_base.RealtimeMPIClass):
                     bytes_to_send = data_to_send.pack()
 
                     self.comm.Ssend(buf=bytes_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
-                                    tag=realtime_base.MPIMessageTag.SIMULATOR_LFP_DATA.value)
+                                    tag=realtime_base.MPIMessageTag.SIMULATOR_LFP_DATA)
 
                 except KeyError as err:
                     self.class_log.exception(("KeyError: Tetrode id ({:}) not in lfp channel request dict {:}, "
@@ -258,12 +264,21 @@ class Simulator(realtime_base.RealtimeMPIClass):
 
                     for dest_rank in self.spk_chan_req_dict[data_to_send.ntrode_id]:
                         self.comm.Ssend(buf=bytes_to_send, dest=dest_rank,
-                                        tag=realtime_base.MPIMessageTag.SIMULATOR_SPK_DATA.value)
+                                        tag=realtime_base.MPIMessageTag.SIMULATOR_SPK_DATA)
 
                 except KeyError as err:
                     self.class_log.exception(("KeyError: Tetrode id ({:}) not in spike channel request dict {:}, "
                                               "was likely never requested by a receiving/computing ranks.").
                                              format(data_to_send.ntrode_id, self.spk_chan_req_dict), exc_info=err)
+
+            elif isinstance(data_to_send, datatypes.LinearPosPoint):
+                #self.class_log.debug("LinearPosPoints {}".format(self.pos_chan_req))
+                bytes_to_send = data_to_send.pack()
+
+                for dest_rank in self.pos_chan_req:
+                    self.comm.Ssend(buf=bytes_to_send, dest=dest_rank,
+                                    tag=realtime_base.MPIMessageTag.SIMULATOR_LINPOS_DATA)
+
         except StopIteration as err:
             # Simulation is done, send terminate message
             self.comm.send(obj=realtime_base.TerminateMessage(), dest=self.config['rank']['supervisor'],
