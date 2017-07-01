@@ -133,10 +133,25 @@ class SimulatorSendInterface(realtime_base.RealtimeMPIClass):
     def __init__(self, comm: MPI.Comm, rank, config):
         super().__init__(comm=comm, rank=rank, config=config)
 
+    def send_terminate_error(self, msg):
+        comm.send(realtime_base.TerminateErrorMessage(msg),
+                  dest=self.config['rank']['supervisor'],
+                  tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+
+    def send_ntrode_list(self, ntrode_list):
+        self.comm.send(obj=SimTrodeListMessage(ntrode_list),
+                       dest=self.config['rank']['supervisor'],
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+
+    def send_terminate(self):
+        self.comm.send(obj=realtime_base.TerminateMessage(), dest=self.config['rank']['supervisor'],
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+
 
 class Simulator(realtime_base.RealtimeMPIClass):
-    def __init__(self, comm: MPI.Comm, rank, config):
+    def __init__(self, comm, rank, config, mpi_send: SimulatorSendInterface):
         super().__init__(comm=comm, rank=rank, config=config)
+        self.mpi_send = mpi_send
 
         self._stop_next = False
 
@@ -156,14 +171,10 @@ class Simulator(realtime_base.RealtimeMPIClass):
         except TypeError as err:
             self.class_log.exception("TypeError: nspike_animal_info does not match nspike_data.AnimalInfo arguments.",
                                      exc_info=err)
-            comm.send(realtime_base.TerminateErrorMessage("For SimulatorThread, nspike_animal_info config did "
-                                                          "not match nspike_data.AnimalInfo arguments."),
-                      dest=config['rank']['supervisor'],
-                      tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+            self.mpi_send.send_terminate_error("For SimulatorThread, nspike_animal_info config did "
+                                               "not match nspike_data.AnimalInfo arguments.")
 
-        self.comm.send(obj=SimTrodeListMessage(self.config['simulator']['nspike_animal_info']['tetrodes']),
-                       dest=config['rank']['supervisor'],
-                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+        self.mpi_send.send_ntrode_list(self.config['simulator']['nspike_animal_info']['tetrodes'])
 
         self.running = False
 
@@ -243,8 +254,7 @@ class Simulator(realtime_base.RealtimeMPIClass):
 
         except StopIteration as err:
             # Simulation is done, send terminate message
-            self.comm.send(obj=realtime_base.TerminateMessage(), dest=self.config['rank']['supervisor'],
-                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+            self.mpi_send.send_terminate()
 
 
 class SimulatorProcess(realtime_base.RealtimeProcess):
@@ -252,9 +262,11 @@ class SimulatorProcess(realtime_base.RealtimeProcess):
         super().__init__(comm=comm, rank=rank, config=config)
         self.terminate = False
 
-        self.sim = Simulator(comm=comm, rank=rank, config=config)
+        self.mpi_send = SimulatorSendInterface(comm=comm, rank=rank, config=config)
 
-        self.mpi_recv = SimulatorRecvInterface(comm, rank, config, self.sim)
+        self.sim = Simulator(comm=comm, rank=rank, config=config, mpi_send=self.mpi_send)
+
+        self.mpi_recv = SimulatorRecvInterface(comm=comm, rank=rank, config=config, simulator=self.sim)
 
     def trigger_termination(self):
         self.terminate = True
@@ -274,7 +286,7 @@ class SimulatorRecvInterface(realtime_base.RealtimeProcess):
         super(SimulatorRecvInterface, self).__init__(comm=comm, rank=rank, config=config)
         self.sim = simulator
 
-        self.req = self.comm.irecv(tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+        self.req = self.comm.irecv(tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
         self.mpi_status = MPI.Status()
 
     def __next__(self):
@@ -282,7 +294,7 @@ class SimulatorRecvInterface(realtime_base.RealtimeProcess):
         if rdy:
             self.process_request_message(msg)
 
-            self.req = self.comm.irecv(tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+            self.req = self.comm.irecv(tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
     def process_request_message(self, message):
 
