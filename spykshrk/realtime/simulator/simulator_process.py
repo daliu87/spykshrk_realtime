@@ -128,48 +128,10 @@ class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
             return None
 
 
-class SimulatorProcess(realtime_base.RealtimeProcess):
+class SimulatorSendInterface(realtime_base.RealtimeMPIClass):
+
     def __init__(self, comm: MPI.Comm, rank, config):
         super().__init__(comm=comm, rank=rank, config=config)
-        self.terminate = False
-
-        self.sim = Simulator(comm=comm, rank=rank, config=config)
-
-    def trigger_termination(self):
-        self.terminate = True
-
-    def main_loop(self):
-        #self.thread.start()
-
-        mpi_status = MPI.Status()
-        while not self.terminate:
-            req = self.comm.irecv(tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
-
-            msg_avail = False
-            while not msg_avail:
-                self.sim.send_next_data()
-                (msg_avail, message) = req.test(status=mpi_status)
-
-            if isinstance(message, ReqDatatypeChannelDataMessage):
-                if message.datatype is datatypes.Datatypes.LFP:
-                    self.sim.update_cont_chan_req(mpi_status.source, message.channel)
-
-                elif message.datatype is datatypes.Datatypes.SPIKES:
-                    self.sim.update_spk_chan_req(mpi_status.source, message.channel)
-
-                elif message.datatype is datatypes.Datatypes.LINEAR_POSITION:
-                    self.sim.update_linpos_chan_req(mpi_status.source)
-
-            elif isinstance(message, StartAllStreamMessage):
-                self.sim.start_datastream()
-
-            elif isinstance(message, PauseAllStreamMessages):
-                self.sim.pause_datastream()
-
-            elif isinstance(message, realtime_base.TerminateMessage):
-                self.trigger_termination()
-
-        self.class_log.info("Simulator Process Main reached end, exiting.")
 
 
 class Simulator(realtime_base.RealtimeMPIClass):
@@ -284,4 +246,62 @@ class Simulator(realtime_base.RealtimeMPIClass):
             self.comm.send(obj=realtime_base.TerminateMessage(), dest=self.config['rank']['supervisor'],
                            tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
+
+class SimulatorProcess(realtime_base.RealtimeProcess):
+    def __init__(self, comm: MPI.Comm, rank, config):
+        super().__init__(comm=comm, rank=rank, config=config)
+        self.terminate = False
+
+        self.sim = Simulator(comm=comm, rank=rank, config=config)
+
+        self.mpi_recv = SimulatorRecvInterface(comm, rank, config, self.sim)
+
+    def trigger_termination(self):
+        self.terminate = True
+
+    def main_loop(self):
+
+        while not self.terminate:
+            self.mpi_recv.__next__()
+            self.sim.send_next_data()
+
+        self.class_log.info("Simulator Process Main reached end, exiting.")
+
+
+class SimulatorRecvInterface(realtime_base.RealtimeProcess):
+
+    def __init__(self, comm: MPI.Comm, rank, config, simulator: Simulator):
+        super(SimulatorRecvInterface, self).__init__(comm=comm, rank=rank, config=config)
+        self.sim = simulator
+
+        self.req = self.comm.irecv(tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+        self.mpi_status = MPI.Status()
+
+    def __next__(self):
+        rdy, msg = self.req.test(status=self.mpi_status)
+        if rdy:
+            self.process_request_message(msg)
+
+            self.req = self.comm.irecv(tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+
+    def process_request_message(self, message):
+
+        if isinstance(message, ReqDatatypeChannelDataMessage):
+            if message.datatype is datatypes.Datatypes.LFP:
+                self.sim.update_cont_chan_req(self.mpi_status.source, message.channel)
+
+            elif message.datatype is datatypes.Datatypes.SPIKES:
+                self.sim.update_spk_chan_req(self.mpi_status.source, message.channel)
+
+            elif message.datatype is datatypes.Datatypes.LINEAR_POSITION:
+                self.sim.update_linpos_chan_req(self.mpi_status.source)
+
+        elif isinstance(message, StartAllStreamMessage):
+            self.sim.start_datastream()
+
+        elif isinstance(message, PauseAllStreamMessages):
+            self.sim.pause_datastream()
+
+        elif isinstance(message, realtime_base.TerminateMessage):
+            raise StopIteration()
 

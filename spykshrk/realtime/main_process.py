@@ -330,7 +330,7 @@ class MainSimulatorMPIRecvInterface(realtime_base.RealtimeMPIClass):
 
     def __next__(self):
 
-        (req_rdy, msg) = self.req_cmd.test()
+        (req_rdy, msg) = self.req_cmd.test(status=self.mpi_status)
 
         if req_rdy:
             self.process_request_message(msg)
