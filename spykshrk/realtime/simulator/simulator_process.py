@@ -255,6 +255,7 @@ class Simulator(realtime_base.RealtimeMPIClass):
         except StopIteration as err:
             # Simulation is done, send terminate message
             self.mpi_send.send_terminate()
+            raise
 
 
 class SimulatorProcess(realtime_base.RealtimeProcess):
@@ -273,11 +274,12 @@ class SimulatorProcess(realtime_base.RealtimeProcess):
 
     def main_loop(self):
 
-        while not self.terminate:
-            self.mpi_recv.__next__()
-            self.sim.send_next_data()
-
-        self.class_log.info("Simulator Process Main reached end, exiting.")
+        try:
+            while not self.terminate:
+                self.mpi_recv.__next__()
+                self.sim.send_next_data()
+        except StopIteration as err:
+            self.class_log.info("Simulator Process Main reached end, exiting.")
 
 
 class SimulatorRecvInterface(realtime_base.RealtimeProcess):

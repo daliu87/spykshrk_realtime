@@ -30,7 +30,8 @@ class RSTKernelEncoderQuery(PrintableMessage):
         self.query_hist = query_hist
 
     def pack(self):
-        struct.pack('=qi', self.query_time, len(self.query_list))
+        struct.pack('=qi', self.query_time, len(self.query_weights))
+        struct.pack()
 
 
 class RSTKernelEncoder:
