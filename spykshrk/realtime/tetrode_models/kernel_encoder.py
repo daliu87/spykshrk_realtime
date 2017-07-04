@@ -1,4 +1,6 @@
-import realtime_replay.rst.RSTPython as RST
+import spykshrk.realtime.rst.RSTPython as RST
+import struct
+from spykshrk.realtime.realtime_logging import PrintableMessage
 import numpy as np
 
 
@@ -20,15 +22,15 @@ class RSTParameter:
         self.pos_hist_struct = pos_hist_struct
 
 
-class _RSTKernelEncoderQuery:
-    def __init__(self, query_hist, query_list, query_time):
-        self.query_hist = query_hist
-        self.query_list = query_list
+class RSTKernelEncoderQuery(PrintableMessage):
+    def __init__(self, query_time, query_weights, query_positions, query_hist):
         self.query_time = query_time
+        self.query_weights = query_weights
+        self.query_positions = query_positions
+        self.query_hist = query_hist
 
-    def __str__(self):
-        return '{:s}, {:s}, {:s}'.format(self.query_time.__str__(), self.query_list.__str__(),
-                                         self.query_hist.__str__())
+    def pack(self):
+        struct.pack('=qi', self.query_time, len(self.query_list))
 
 
 class RSTKernelEncoder:
@@ -69,18 +71,23 @@ class RSTKernelEncoder:
         x2_h = x2 + self.kernel.stddev * 2.5
         x3_h = x3 + self.kernel.stddev * 2.5
         x4_h = x4 + self.kernel.stddev * 2.5
-        query_results = self.tree.query_rec(
-            x1_l, x2_l, x3_l, x4_l, x1_h, x2_h, x3_h, x4_h, x1, x2, x3, x4)
-        return query_results
+        query_weights, query_positions = self.tree.query_rec(x1_l, x2_l, x3_l, x4_l,
+                                                             x1_h, x2_h, x3_h, x4_h,
+                                                             x1, x2, x3, x4)
+        return query_weights, query_positions
 
     def query_mark_hist(self, mark, time):
-        query_results = self.query_mark(mark)
+        query_weights, query_positions = self.query_mark(mark)
         query_hist, query_hist_edges = np.histogram(
-            a=query_results[1], bins=self.param.pos_hist_struct.pos_bin_edges,
-            weights=query_results[0], normed=False)
+            a=query_positions, bins=self.param.pos_hist_struct.pos_bin_edges,
+            weights=query_weights, normed=False)
         query_hist = np.nan_to_num(query_hist) / self.pos_hist
         query_hist = np.nan_to_num(query_hist)
         query_hist = query_hist / (np.sum(query_hist) * self.param.pos_hist_struct.pos_bin_delta)
         query_hist = np.nan_to_num(query_hist)
 
-        return _RSTKernelEncoderQuery(query_hist, query_results, time)
+        return RSTKernelEncoderQuery(query_time=time,
+                                     query_weights=query_weights,
+                                     query_positions=query_positions,
+                                     query_hist=query_hist)
+
