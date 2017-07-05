@@ -85,7 +85,9 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                 self.spk_counter += 1
                 amp_marks = [max(x) for x in datapoint.data]
 
-                query_result = self.encoders[datapoint.ntrode_id].query_mark_hist(amp_marks, datapoint.timestamp)
+                query_result = self.encoders[datapoint.ntrode_id].query_mark_hist(amp_marks,
+                                                                                  datapoint.timestamp,
+                                                                                  datapoint.ntrode_id)
 
                 #self.class_log.debug(query_result)
                 self.encoders[datapoint.ntrode_id].new_mark(amp_marks)

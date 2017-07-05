@@ -23,15 +23,50 @@ class RSTParameter:
 
 
 class RSTKernelEncoderQuery(PrintableMessage):
-    def __init__(self, query_time, query_weights, query_positions, query_hist):
+    _header_byte_fmt = '=qiii'
+    _header_byte_len = struct.calcsize(_header_byte_fmt)
+
+    def __init__(self, query_time, ntrode_id, query_weights, query_positions, query_hist):
         self.query_time = query_time
+        self.ntrode_id = ntrode_id
         self.query_weights = query_weights
         self.query_positions = query_positions
         self.query_hist = query_hist
 
     def pack(self):
-        struct.pack('=qi', self.query_time, len(self.query_weights))
-        struct.pack()
+        query_len = len(self.query_weights)
+        query_byte_len = query_len * struct.calcsize('=f')
+        query_hist_len = len(self.query_hist)
+        query_hist_byte_len = query_hist_len * struct.calcsize('=d')
+
+        message_bytes = struct.pack(self._header_byte_fmt,
+                                    self.query_time,
+                                    self.ntrode_id,
+                                    query_byte_len,
+                                    query_hist_byte_len)
+
+        message_bytes = message_bytes + self.query_weights.tobytes() + \
+                        self.query_positions.tobytes() + self.query_hist.tobytes()
+
+        return message_bytes
+
+    @classmethod
+    def unpack(cls, message_bytes):
+        query_time, ntrode_id, query_len, query_hist_len = struct.unpack(cls._header_byte_fmt,
+                                                                         message_bytes[0:cls._header_byte_len])
+
+        query_weights = np.frombuffer(message_bytes[cls._header_byte_len: cls._header_byte_len+query_len],
+                                      dtype='float32')
+
+        query_positions = np.frombuffer(message_bytes[cls._header_byte_len+query_len:
+                                                      cls._header_byte_len+2*query_len],
+                                       dtype='float32')
+
+        query_hist = np.frombuffer(message_bytes[cls._header_byte_len+2*query_len:
+                                                 cls._header_byte_len+2*query_len+query_hist_len])
+
+        return cls(query_time=query_time, ntrode_id=ntrode_id, query_weights=query_weights,
+                   query_positions=query_positions, query_hist=query_hist)
 
 
 class RSTKernelEncoder:
@@ -77,7 +112,7 @@ class RSTKernelEncoder:
                                                              x1, x2, x3, x4)
         return query_weights, query_positions
 
-    def query_mark_hist(self, mark, time):
+    def query_mark_hist(self, mark, time, ntrode_id):
         query_weights, query_positions = self.query_mark(mark)
         query_hist, query_hist_edges = np.histogram(
             a=query_positions, bins=self.param.pos_hist_struct.pos_bin_edges,
@@ -88,6 +123,7 @@ class RSTKernelEncoder:
         query_hist = np.nan_to_num(query_hist)
 
         return RSTKernelEncoderQuery(query_time=time,
+                                     ntrode_id=ntrode_id,
                                      query_weights=query_weights,
                                      query_positions=query_positions,
                                      query_hist=query_hist)
