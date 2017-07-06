@@ -11,7 +11,7 @@ try:
     from IPython.terminal.debugger import TerminalPdb
     bp = TerminalPdb(color_scheme='linux').set_trace
 except AttributeError as err:
-    print('Warning: Attribute Error ({}), disabling IPython TerminalPdb.'.format(err))
+    # print('Warning: Attribute Error ({}), disabling IPython TerminalPdb.'.format(err))
     bp = lambda: None
 
 idx = pd.IndexSlice

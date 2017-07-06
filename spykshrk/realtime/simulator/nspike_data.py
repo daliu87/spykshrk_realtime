@@ -20,7 +20,7 @@ try:
     from IPython.terminal.debugger import TerminalPdb
     bp = TerminalPdb().set_trace
 except AttributeError as err:
-    print('Warning: Attribute Error ({}), disabling IPython TerminalPdb.'.format(err))
+    #print('Warning: Attribute Error ({}), disabling IPython TerminalPdb.'.format(err))
     bp = lambda: None
 
 # setup pandas string/print format for debugging/interactive
@@ -369,7 +369,7 @@ class EEGDataStream:
                 # empty dataframe per day so each tetrode's dataframe
                 # can be joined
                 day_data = self.data.setdefault(day, pd.DataFrame())
-                print('preallocating')
+                # print('preallocating')
 
                 tet_eeg_data_list = []
                 tet_eeg_time_list = []

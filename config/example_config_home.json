@@ -2,31 +2,29 @@
     "datasource": "simulator",
     "simulator": {
         "nspike_animal_info": {
-            "base_dir": "/home/daliu/data/",
+            "base_dir": "/opt/data36/daliu/other/mkarlsso/",
             "name": "test",
             "days": [2],
             "epochs": [1], 
-            "tetrodes": [5, 11, 13, 12, 14, 17, 19, 29  ]
+            "tetrodes": [5, 11, 12, 13]
         }
     }, 
 
     "rank": {
         "supervisor": 0,
         "simulator": 1,
-        "ripples": [2,3],
-        "encoders": [4,5],
-        "decoder": 6,
-        "latency": 7,
-        "position": 8
+        "ripples": [2],
+        "encoders": [3],
+        "decoder": 4
     }, 
 
     "rank_settings": {
         "enable_rec": [2, 3],
-        "enable_profiler": [0, 1, 2, 3]
+        "enable_profiler": [0, 1, 2, 3, 4]
     },
 
     "files": {
-        "output_dir": "/home/daliu/output/test",
+        "output_dir": "/opt/data36/daliu/realtime/spykshrk/timing",
         "prefix": "test_animal",
         "rec_postfix": "bin_rec",
         "profile_postfix": "pstats",
@@ -53,15 +51,13 @@
             "5":  0,
             "11": 0,
             "12": 0,
-            "14": 0,
-            "19": 0
+            "13": 0
         },
         "CustomRippleBaselineStdMessage": {
             "5":  1,
             "11": 1,
             "12": 1,
-            "14": 1,
-            "19": 1
+            "13": 1
         }
     }
 }
