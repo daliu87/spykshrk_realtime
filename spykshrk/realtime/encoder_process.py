@@ -110,7 +110,7 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                     encoder.update_covariate(datapoint.x)
 
                 if self.pos_counter % 100 == 0:
-                    self.class_log.debug('Received {} pos datapoints.'.format(self.pos_counter))
+                    self.class_log.info('Received {} pos datapoints.'.format(self.pos_counter))
                 pass
 
 
@@ -156,16 +156,10 @@ class EncoderMPIRecvInterface(realtime_base.RealtimeMPIClass):
             self.enc_man.stop_record_writing()
 
 
-class EncoderProcess(realtime_base.RealtimeMPIClass, metaclass=realtime_base.ProfilerWrapperMeta):
+class EncoderProcess(realtime_base.RealtimeProcess):
     def __init__(self, comm: MPI.Comm, rank, config):
 
         super().__init__(comm, rank, config)
-
-        self.enable_profiler = rank in self.config['rank_settings']['enable_profiler']
-        self.profiler_out_path = os.path.join(config['files']['output_dir'], '{}.{:02d}.{}'.
-                                              format(config['files']['prefix'],
-                                                     rank,
-                                                     config['files']['profile_postfix']))
 
         self.local_rec_manager = binary_record.RemoteBinaryRecordsManager(manager_label='state', local_rank=rank,
                                                                           manager_rank=config['rank']['supervisor'])

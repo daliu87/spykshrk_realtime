@@ -27,6 +27,7 @@ class RecordIDs(IntEnum):
     RIPPLE_STATE = 1
     ENCODER_INPUT = 2
     ENCODER_OUTPUT = 3
+    DECODER_OUTPUT = 4
 
     STIM_STATE = 10
 
