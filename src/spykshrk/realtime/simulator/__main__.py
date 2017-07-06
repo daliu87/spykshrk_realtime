@@ -1,8 +1,7 @@
 # import trodes.FSData.fsDataMain as fsDataMain
-import spykshrk.realtime.main_process as main_process
-import spykshrk.realtime.ripple_process as ripple_process
-import spykshrk.realtime.simulator.simulator_process as simulator_process
-from spykshrk.realtime import encoder_process
+
+from spykshrk.realtime import main_process, ripple_process, encoder_process, decoder_process
+from spykshrk.realtime.simulator import simulator_process
 import datetime
 import logging
 import logging.config
@@ -101,5 +100,9 @@ def main(argv):
     if rank in config['rank']['encoders']:
         encoding_proc = encoder_process.EncoderProcess(comm, rank, config=config)
         encoding_proc.main_loop()
+
+    if rank == config['rank']['decoder']:
+        decoding_proc = decoder_process.DecoderProcess(comm=comm, rank=rank, config=config)
+        decoding_proc.main_loop()
 
 main(sys.argv[1:])

@@ -6,15 +6,22 @@ class DecoderMPISendInterface(realtime_base.RealtimeMPIClass):
     def __init__(self, comm :MPI.Comm, rank, config):
         super(DecoderMPISendInterface, self).__init__(comm=comm, rank=rank, config=config)
 
+    def send_record_register_messages(self, record_register_messages):
+        for message in record_register_messages:
+            self.comm.send(obj=message, dest=self.config['rank']['supervisor'],
+                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+
 
 class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
     def __init__(self, rank, local_rec_manager, send_interface: DecoderMPISendInterface):
         super(BayesianDecodeManager, self).__init__(rank=rank, local_rec_manager=local_rec_manager,
                                                     rec_ids=[realtime_base.RecordIDs.DECODER_OUTPUT],
                                                     rec_labels=[['TBD']],
-                                                    rec_format=['i'])
+                                                    rec_formats=['i'])
 
         self.mpi_send = send_interface
+
+        self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
 
 class DecoderRecvInterface(realtime_base.RealtimeMPIClass):
@@ -36,6 +43,15 @@ class DecoderRecvInterface(realtime_base.RealtimeMPIClass):
         if isinstance(message, realtime_base.TerminateMessage):
             self.class_log.debug("Received TerminateMessage")
             raise StopIteration()
+
+        elif isinstance(message, binary_record.BinaryRecordCreateMessage):
+            self.dec_man.set_record_writer_from_message(message)
+
+        elif isinstance(message, realtime_base.StartRecordMessage):
+            self.dec_man.start_record_writing()
+
+        elif isinstance(message, realtime_base.StopRecordMessage):
+            self.dec_man.stop_record_writing()
 
 
 class DecoderProcess(realtime_base.RealtimeProcess):
