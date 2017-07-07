@@ -117,7 +117,7 @@ class RSTKernelEncoder:
         query_hist, query_hist_edges = np.histogram(
             a=query_positions, bins=self.param.pos_hist_struct.pos_bin_edges,
             weights=query_weights, normed=False)
-        query_hist = np.nan_to_num(query_hist) / self.pos_hist
+        query_hist = np.nan_to_num(query_hist) / (self.pos_hist + 0.001)
         query_hist = np.nan_to_num(query_hist)
         query_hist = query_hist / (np.sum(query_hist) * self.param.pos_hist_struct.pos_bin_delta)
         query_hist = np.nan_to_num(query_hist)

@@ -1,4 +1,6 @@
 import os
+import struct
+import numpy as np
 from mpi4py import MPI
 from spykshrk.realtime import realtime_base, realtime_logging, binary_record, datatypes
 from spykshrk.realtime.simulator import simulator_process
@@ -7,6 +9,39 @@ from spykshrk.realtime.datatypes import SpikePoint, LinearPosPoint
 from spykshrk.realtime.realtime_base import ChannelSelection, TurnOnDataStream
 from spykshrk.realtime.tetrode_models import kernel_encoder
 import spykshrk.realtime.rst.RSTPython as RST
+
+
+class SpikeDecodeResultsMessage(realtime_logging.PrintableMessage):
+
+    _header_byte_fmt = '=qii'
+    _header_byte_len = struct.calcsize(_header_byte_fmt)
+
+    def __init__(self, timestamp, ntrode_id, pos_hist):
+        self.timestamp = timestamp
+        self.ntrode_id = ntrode_id
+        self.pos_hist = pos_hist
+
+    def pack(self):
+        pos_hist_len = len(self.pos_hist)
+        pos_hist_byte_len = pos_hist_len * struct.calcsize('=d')
+
+        message_bytes = struct.pack(self._header_byte_fmt,
+                                    self.timestamp,
+                                    self.ntrode_id,
+                                    pos_hist_byte_len)
+
+        message_bytes = message_bytes + self.pos_hist.tobytes()
+
+        return message_bytes
+
+    @classmethod
+    def unpack(cls, message_bytes):
+        timestamp, ntrode_id, pos_hist_len = struct.unpack(cls._header_byte_fmt,
+                                                           message_bytes[0:cls._header_byte_len])
+
+        pos_hist = np.frombuffer(message_bytes[cls._header_byte_len:cls._header_byte_len+pos_hist_len])
+
+        return cls(timestamp=timestamp, ntrode_id=ntrode_id, pos_hist=pos_hist)
 
 
 class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
@@ -18,7 +53,7 @@ class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
             self.comm.send(obj=message, dest=self.config['rank']['supervisor'],
                            tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
-    def send_decoded_spike(self, query_result_message: kernel_encoder.RSTKernelEncoderQuery):
+    def send_decoded_spike(self, query_result_message: SpikeDecodeResultsMessage):
         self.comm.Send(buf=query_result_message.pack(), dest=self.config['rank']['decoder'],
                        tag=realtime_base.MPIMessageTag.SPIKE_DECODE_DATA)
 
@@ -31,14 +66,17 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
 
         super(RStarEncoderManager, self).__init__(rank=rank,
                                                   local_rec_manager=local_rec_manager,
-                                                  rec_ids=[realtime_base.RecordIDs.ENCODER_INPUT,
+                                                  rec_ids=[realtime_base.RecordIDs.ENCODER_QUERY,
                                                            realtime_base.RecordIDs.ENCODER_OUTPUT],
-                                                  rec_labels=[['TBD'],
+                                                  rec_labels=[['timestamp',
+                                                               'trodes_id',
+                                                               'weight',
+                                                               'position'],
                                                               ['timestamp',
                                                                'trode_id'] +
                                                               ['x'+str(x) for x in
                                                                range(config['encoder']['position']['bins'])]],
-                                                  rec_formats=['i',
+                                                  rec_formats=['qidd',
                                                                'qi'+'d'*config['encoder']['position']['bins']])
         self.rank = rank
         self.mpi_send = send_interface
@@ -104,12 +142,20 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                                     datapoint.timestamp,
                                     datapoint.ntrode_id)                # type: kernel_encoder.RSTKernelEncoderQuery
 
+                # for weight, position in zip(query_result.query_weights, query_result.query_positions):
+                #     self.write_record(realtime_base.RecordIDs.ENCODER_QUERY,
+                #                       query_result.query_time,
+                #                       query_result.ntrode_id,
+                #                       weight, position)
+
                 self.write_record(realtime_base.RecordIDs.ENCODER_OUTPUT,
                                   query_result.query_time,
                                   query_result.ntrode_id,
                                   *query_result.query_hist)
 
-                self.mpi_send.send_decoded_spike(query_result)
+                self.mpi_send.send_decoded_spike(SpikeDecodeResultsMessage(timestamp=query_result.query_time,
+                                                                           ntrode_id=query_result.ntrode_id,
+                                                                           pos_hist=query_result.query_hist))
 
                 # self.class_log.debug(query_result)
                 self.encoders[datapoint.ntrode_id].new_mark(amp_marks)

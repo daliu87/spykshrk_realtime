@@ -28,7 +28,7 @@ class MPIMessageTag(IntEnum):
 
 class RecordIDs(IntEnum):
     RIPPLE_STATE = 1
-    ENCODER_INPUT = 2
+    ENCODER_QUERY = 2
     ENCODER_OUTPUT = 3
     DECODER_OUTPUT = 4
 
@@ -172,7 +172,8 @@ class BinaryRecordBase(LoggingClass):
         return messages
 
     def set_record_writer_from_message(self, create_message):
-        self.class_log.info('Creating record from message {}'.format(create_message))
+        #self.class_log.info('Creating record from message {}'.format(create_message))
+        self.class_log.info('Creating record from message.')
         self.set_record_writer(self.local_rec_manager.create_writer_from_message(create_message))
 
     def set_record_writer(self, rec_writer):

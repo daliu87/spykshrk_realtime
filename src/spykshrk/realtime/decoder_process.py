@@ -1,6 +1,5 @@
 from mpi4py import MPI
-from spykshrk.realtime import realtime_base, realtime_logging, binary_record, datatypes
-from spykshrk.realtime.tetrode_models import kernel_encoder
+from spykshrk.realtime import realtime_base, realtime_logging, binary_record, datatypes, encoder_process
 
 
 class DecoderMPISendInterface(realtime_base.RealtimeMPIClass):
@@ -24,7 +23,7 @@ class SpikeDecodeRecvInterface(realtime_base.RealtimeMPIClass):
         rdy = self.req.Test()
         if rdy:
 
-            msg = kernel_encoder.RSTKernelEncoderQuery.unpack(self.msg_buffer)
+            msg = encoder_process.SpikeDecodeResultsMessage.unpack(self.msg_buffer)
             self.req = self.comm.Irecv(buf=self.msg_buffer, tag=realtime_base.MPIMessageTag.SPIKE_DECODE_DATA)
             return msg
 
