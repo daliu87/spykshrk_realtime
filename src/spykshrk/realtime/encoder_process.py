@@ -18,6 +18,10 @@ class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
             self.comm.send(obj=message, dest=self.config['rank']['supervisor'],
                            tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
+    def send_decoded_spike(self, query_result_message: kernel_encoder.RSTKernelEncoderQuery):
+        self.comm.Send(buf=query_result_message.pack(), dest=self.config['rank']['decoder'],
+                       tag=realtime_base.MPIMessageTag.SPIKE_DECODE_DATA)
+
 
 class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_logging.LoggingClass):
 
@@ -89,7 +93,9 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                                                                                   datapoint.timestamp,
                                                                                   datapoint.ntrode_id)
 
-                #self.class_log.debug(query_result)
+                self.mpi_send.send_decoded_spike(query_result)
+
+                # self.class_log.debug(query_result)
                 self.encoders[datapoint.ntrode_id].new_mark(amp_marks)
 
                 if self.spk_counter % 1000 == 0:

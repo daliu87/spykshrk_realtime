@@ -6,7 +6,8 @@ from Cython.Build import cythonize
 import numpy
 
 
-sourcefiles = ['RSTPython.pyx','RStarTree.c','RSTInterUtil.c','RSTInOut.c','RSTInstDel.c','RSTUtil.c','RSTQuery.c','RSTJoin.c','RSTFunctions.c']
+sourcefiles = ['RSTPython.pyx', 
+               'RStarTree.c','RSTInterUtil.c','RSTInOut.c','RSTInstDel.c','RSTUtil.c','RSTQuery.c','RSTJoin.c','RSTFunctions.c']
 		
 sourcefiles = ['./src/spykshrk/realtime/rst/' + src for src in sourcefiles]
 
