@@ -17,7 +17,7 @@ class SpikeDecodeRecvInterface(realtime_base.RealtimeMPIClass):
     def __init__(self, comm: MPI.Comm, rank, config):
         super(SpikeDecodeRecvInterface, self).__init__(comm=comm, rank=rank, config=config)
 
-        self.msg_buffer = bytearray(10000)
+        self.msg_buffer = bytearray(50000)
         self.req = self.comm.Irecv(buf=self.msg_buffer, tag=realtime_base.MPIMessageTag.SPIKE_DECODE_DATA)
 
     def __next__(self):
@@ -44,11 +44,16 @@ class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         self.spike_interface = spike_decode_interface
 
         self.mpi_send.send_record_register_messages(self.get_record_register_messages())
+        self.msg_counter = 0
 
     def process_next_data(self):
         spike_dec_msg = self.spike_interface.__next__()
 
         if spike_dec_msg is not None:
+            self.msg_counter += 1
+            if self.msg_counter % 1000 == 0:
+                self.class_log.debug('Received {} decoded messages.'.format(self.msg_counter))
+
             pass
             # self.class_log.debug(spike_dec_msg)
 

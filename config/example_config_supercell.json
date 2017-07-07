@@ -69,5 +69,22 @@
             "19": 1,
             "29": 1
         }
+    }, 
+
+    "encoder": {
+        "kernel": {
+            "mean": 0,
+            "std": 25,
+            "lower": -1024,
+            "upper": 1024,
+            "interval": 1
+        }, 
+
+        "position": {
+            "lower": 0,
+            "upper": 450,
+            "bins": 150
+        }
     }
+
 }

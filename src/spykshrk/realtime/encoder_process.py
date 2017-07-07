@@ -25,7 +25,7 @@ class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
 
 class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_logging.LoggingClass):
 
-    def __init__(self, rank, local_rec_manager, send_interface: EncoderMPISendInterface,
+    def __init__(self, rank, config, local_rec_manager, send_interface: EncoderMPISendInterface,
                  spike_interface: simulator_process.SimulatorRemoteReceiver,
                  pos_interface: simulator_process.SimulatorRemoteReceiver):
 
@@ -34,16 +34,26 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                                                   rec_ids=[realtime_base.RecordIDs.ENCODER_INPUT,
                                                            realtime_base.RecordIDs.ENCODER_OUTPUT],
                                                   rec_labels=[['TBD'],
-                                                              ['TBD']],
+                                                              ['timestamp',
+                                                               'trode_id'] +
+                                                              ['x'+str(x) for x in
+                                                               range(config['encoder']['position']['bins'])]],
                                                   rec_formats=['i',
-                                                               'i'])
+                                                               'qi'+'d'*config['encoder']['position']['bins']])
         self.rank = rank
         self.mpi_send = send_interface
         self.spike_interface = spike_interface
         self.pos_interface = pos_interface
 
-        kernel = RST.kernel_param(0, 25, -1024, 1024, 1)
-        pos_bin_struct = kernel_encoder.PosBinStruct([0, 450], 150)
+        kernel = RST.kernel_param(mean=config['encoder']['kernel']['mean'],
+                                  stddev=config['encoder']['kernel']['std'],
+                                  min_val=config['encoder']['kernel']['lower'],
+                                  max_val=config['encoder']['kernel']['upper'],
+                                  interval=config['encoder']['kernel']['interval'])
+
+        pos_bin_struct = kernel_encoder.PosBinStruct([config['encoder']['position']['lower'],
+                                                      config['encoder']['position']['upper']],
+                                                     config['encoder']['position']['bins'])
         self.rst_param = kernel_encoder.RSTParameter(kernel, pos_bin_struct)
         self.encoders = {}
 
@@ -89,9 +99,15 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                 self.spk_counter += 1
                 amp_marks = [max(x) for x in datapoint.data]
 
-                query_result = self.encoders[datapoint.ntrode_id].query_mark_hist(amp_marks,
-                                                                                  datapoint.timestamp,
-                                                                                  datapoint.ntrode_id)
+                query_result = self.encoders[datapoint.ntrode_id]. \
+                    query_mark_hist(amp_marks,
+                                    datapoint.timestamp,
+                                    datapoint.ntrode_id)                # type: kernel_encoder.RSTKernelEncoderQuery
+
+                self.write_record(realtime_base.RecordIDs.ENCODER_OUTPUT,
+                                  query_result.query_time,
+                                  query_result.ntrode_id,
+                                  *query_result.query_hist)
 
                 self.mpi_send.send_decoded_spike(query_result)
 
@@ -112,7 +128,7 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
             timing_msg = msgs[1]
             if isinstance(datapoint, LinearPosPoint):
                 self.pos_counter += 1
-                for encoder in self.encoders.values():   # type: kernel_encoder.RSTKernelEncoder
+                for encoder in self.encoders.values():
                     encoder.update_covariate(datapoint.x)
 
                 if self.pos_counter % 100 == 0:
@@ -184,6 +200,7 @@ class EncoderProcess(realtime_base.RealtimeProcess):
                                                                       datatype=datatypes.Datatypes.LINEAR_POSITION)
 
         self.enc_man = RStarEncoderManager(rank=rank,
+                                           config=config,
                                            local_rec_manager=self.local_rec_manager,
                                            send_interface=self.mpi_send,
                                            spike_interface=spike_interface,

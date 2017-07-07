@@ -304,8 +304,8 @@ class BinaryRecordsFileReader:
 
             if level == 0:
                 break
-            elif len(self._header_bytes) >= 1000:
-                raise BinaryRecordsError('Could not find end of JSON header before 1000 byte header limit.',
+            elif len(self._header_bytes) >= 10000:
+                raise BinaryRecordsError('Could not find end of JSON header before 10000 byte header limit.',
                                          file_path=self._file_path)
 
             # read next byte
