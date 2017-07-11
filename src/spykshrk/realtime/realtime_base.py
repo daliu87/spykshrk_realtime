@@ -226,7 +226,6 @@ class BinaryRecordBaseWithTiming(BinaryRecordBase):
         self.write_record(RecordIDs.TIMING, timestamp, ntrode_id, label.encode('utf-8'), datatype, MPI.Wtime())
 
 
-
 class ExceptionLoggerWrapperMeta(type):
     """
         A metaclass that wraps the run() or main_loop() method so exceptions are logged.

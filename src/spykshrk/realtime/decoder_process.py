@@ -1,4 +1,6 @@
 from mpi4py import MPI
+import math
+import numpy as np
 from spykshrk.realtime import realtime_base, realtime_logging, binary_record, datatypes, encoder_process
 
 
@@ -32,23 +34,56 @@ class SpikeDecodeRecvInterface(realtime_base.RealtimeMPIClass):
 
 
 class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
-    def __init__(self, rank, local_rec_manager, send_interface: DecoderMPISendInterface,
+    def __init__(self, rank, config, local_rec_manager, send_interface: DecoderMPISendInterface,
                  spike_decode_interface: SpikeDecodeRecvInterface):
         super(BayesianDecodeManager, self).__init__(rank=rank, local_rec_manager=local_rec_manager,
                                                     rec_ids=[realtime_base.RecordIDs.DECODER_OUTPUT],
-                                                    rec_labels=[['TBD']],
-                                                    rec_formats=['i'])
+                                                    rec_labels=[['timestamp'] +
+                                                                ['x'+str(x) for x in
+                                                                range(config['encoder']['position']['bins'])]],
+                                                    rec_formats=['q'+'d'*config['encoder']['position']['bins']])
 
+        self.config = config
         self.mpi_send = send_interface
         self.spike_interface = spike_decode_interface
 
         self.mpi_send.send_record_register_messages(self.get_record_register_messages())
         self.msg_counter = 0
 
+        self.current_time_bin = 0
+        self.current_est_pos_hist = np.ones(self.config['encoder']['position']['bins'])
+        self.current_spike_count = 0
+
     def process_next_data(self):
         spike_dec_msg = self.spike_interface.__next__()
 
         if spike_dec_msg is not None:
+
+            if self.current_time_bin == 0:
+                self.current_time_bin = math.floor(spike_dec_msg.timestamp/self.config['decoder']['bin_size'])
+                spike_time_bin = self.current_time_bin
+            else:
+                spike_time_bin = math.floor(spike_dec_msg.timestamp/self.config['decoder']['bin_size'])
+
+            if spike_time_bin == self.current_time_bin:
+                # Spike is in current time bin
+                self.current_est_pos_hist *= spike_dec_msg.pos_hist
+                self.current_spike_count += 1
+
+            elif spike_time_bin > self.current_time_bin:
+                # Spike is in next time bin, advance to tracking next time bin
+                self.write_record(realtime_base.RecordIDs.DECODER_OUTPUT,
+                                  self.current_time_bin*self.config['decoder']['bin_size'],
+                                  *self.current_est_pos_hist)
+                self.current_spike_count = 0
+                self.current_est_pos_hist = spike_dec_msg.pos_hist
+                self.current_time_bin = spike_time_bin
+
+            elif spike_time_bin < self.current_time_bin:
+                # Spike is in an old time bin, discard and mark as missed
+                self.class_log.debug('Spike was excluded from Bayesian decode calculation, arrived late.')
+                pass
+
             self.msg_counter += 1
             if self.msg_counter % 1000 == 0:
                 self.class_log.debug('Received {} decoded messages.'.format(self.msg_counter))
@@ -98,7 +133,8 @@ class DecoderProcess(realtime_base.RealtimeProcess):
 
         self.mpi_send = DecoderMPISendInterface(comm=comm, rank=rank, config=config)
         self.spike_decode_interface = SpikeDecodeRecvInterface(comm=comm, rank=rank, config=config)
-        self.dec_man = BayesianDecodeManager(rank=rank, local_rec_manager=self.local_rec_manager,
+        self.dec_man = BayesianDecodeManager(rank=rank, config=config,
+                                             local_rec_manager=self.local_rec_manager,
                                              send_interface=self.mpi_send,
                                              spike_decode_interface=self.spike_decode_interface)
         self.mpi_recv = DecoderRecvInterface(comm=comm, rank=rank, config=config, decode_manager=self.dec_man)

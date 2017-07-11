@@ -3,8 +3,8 @@
     "simulator": {
         "nspike_animal_info": {
             "base_dir": "/opt/data36/daliu/other/mkarlsso/",
-            "name": "test",
-            "days": [2],
+            "name": "bond",
+            "days": [4],
             "epochs": [1], 
             "tetrodes": [5, 11, 12, 13, 14, 17, 19, 29]
         }
@@ -85,6 +85,10 @@
             "upper": 450,
             "bins": 150
         }
+    },
+
+    "decoder": {
+        "bin_size": 3000
     }
 
 }
