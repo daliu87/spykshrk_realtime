@@ -112,7 +112,8 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
         for ntrode in ntrode_list:
             self.spike_interface.register_datatype_channel(channel=ntrode)
 
-            self.encoders.setdefault(ntrode, kernel_encoder.RSTKernelEncoder('/tmp/ntrode{:}'.format(ntrode),
+            self.encoders.setdefault(ntrode, kernel_encoder.RSTKernelEncoder('/tmp/ntrode{:}'.
+                                                                             format(ntrode),
                                                                              True, self.rst_param))
 
     def turn_on_datastreams(self):
