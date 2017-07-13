@@ -174,6 +174,11 @@ class Simulator(realtime_base.RealtimeMPIClass):
             self.mpi_send.send_terminate_error("For SimulatorThread, nspike_animal_info config did "
                                                "not match nspike_data.AnimalInfo arguments.")
 
+        # Pause to make sure other ranks have started
+        time.sleep(1.)
+
+        # Send ntrode configuration.  This automatically triggers a cascade of messages to start the simulation
+        # and receiving ranks
         self.mpi_send.send_ntrode_list(self.config['simulator']['nspike_animal_info']['tetrodes'])
 
         self.running = False

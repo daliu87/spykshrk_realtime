@@ -49,9 +49,10 @@ class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
         super(EncoderMPISendInterface, self).__init__(comm=comm, rank=rank, config=config)
 
     def send_record_register_messages(self, record_register_messages):
+        self.class_log.debug("Sending binary record registration messages.")
         for message in record_register_messages:
             self.comm.send(obj=message, dest=self.config['rank']['supervisor'],
-                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
     def send_decoded_spike(self, query_result_message: SpikeDecodeResultsMessage):
         self.comm.Send(buf=query_result_message.pack(), dest=self.config['rank']['decoder'],
