@@ -343,6 +343,8 @@ class MainSimulatorMPIRecvInterface(realtime_base.RealtimeMPIClass):
             self.main_manager.handle_ntrode_list(message.trode_list)
 
         elif isinstance(message, binary_record.BinaryRecordTypeMessage):
+            self.class_log.debug("BinaryRecordTypeMessage received for rec id {} from rank {}".
+                                 format(message.rec_id, self.mpi_status.source))
             self.main_manager.register_rec_type_message(message)
 
         elif isinstance(message, realtime_base.TerminateMessage):
