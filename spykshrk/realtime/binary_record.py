@@ -273,11 +273,15 @@ class BinaryRecordsFileReader:
                                                                    mpi_rank=self._mpi_rank,
                                                                    manager_label=self._manager_label,
                                                                    file_postfix=self._file_postfix)
-        self._file_handle = open(self._file_path, 'rb')
         self._filemeta_as_col = filemeta_as_col
 
         self._header_bytes = None
         self._data_start_byte = None
+        self._file_handle = None
+        self._header = None
+
+    def start_record_reading(self):
+        self._file_handle = open(self._file_path, 'rb')
         self._extract_json_header()
         self._header = json.loads(self._header_bytes.decode('utf-8'))
 
@@ -387,3 +391,7 @@ class BinaryRecordsFileReader:
 
         return panda_frames
 
+
+def reader_multiprocessor_helper(reader):
+    reader.start_record_reading()
+    return reader.convert_pandas()
