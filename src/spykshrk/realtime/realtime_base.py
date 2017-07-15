@@ -177,7 +177,7 @@ class BinaryRecordBase(LoggingClass):
         self.set_record_writer(self.local_rec_manager.create_writer_from_message(create_message))
 
     def set_record_writer(self, rec_writer):
-        self.class_log.info('Setting record writer {}'.format(rec_writer))
+        self.class_log.info('Setting record writer')
         if self.rec_writer_enabled:
             raise BinaryRecordBaseError('Can\'t change writer file while recording is on going!')
         self.rec_writer = rec_writer

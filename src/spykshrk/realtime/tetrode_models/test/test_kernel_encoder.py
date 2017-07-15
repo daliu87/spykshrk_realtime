@@ -24,3 +24,12 @@ class TestRSTKernelEncoder(TestCase):
                                format(results[0][0], results[1][0]))
         self.assertAlmostEqual(results[0][1], 0.025, 2, 'Further point ({:} {:}) should be almost 0.025.'.
                                format(results[0][1], results[1][1]))
+
+    def test_query_mark_hist(self):
+        rst_encoder = RSTKernelEncoder('/tmp/test', True, self.rst_param)
+        rst_encoder.update_covariate(10)
+        rst_encoder.new_mark([1, 1, 1, 1])
+        rst_encoder.update_covariate(5)
+        rst_encoder.new_mark([3, 3, 3, 3])
+        results = rst_encoder.query_mark_hist([1, 1, 1, 1], 100, 1)
+        print(results.query_hist)

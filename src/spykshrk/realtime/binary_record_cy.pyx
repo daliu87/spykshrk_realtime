@@ -102,13 +102,12 @@ class BinaryRecordsFileReader:
         # read header
         #cdef unsigned long rec_ind
         #cdef unsigned char rec_type_id
-        rec_ind = self._file_handle.read(struct.calcsize('=Q'))
-        rec_type_id = self._file_handle.read(struct.calcsize('=B'))
-        if not rec_type_id:
+        rec_head_bytes = self._file_handle.read(struct.calcsize('=QB'))
+        if not rec_head_bytes:
             return None
 
         try:
-            #rec_ind, rec_type_id = struct.unpack('=QB', rec_head_bytes)
+            rec_ind, rec_type_id = struct.unpack('=QB', rec_head_bytes)
 
             rec_fmt = self._header['rec_formats'][str(rec_type_id)]
             rec_data_bytes = self._file_handle.read(struct.calcsize('='+rec_fmt))

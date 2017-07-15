@@ -223,7 +223,7 @@ class Simulator(realtime_base.RealtimeMPIClass):
                 try:
                     bytes_to_send = data_to_send.pack()
 
-                    self.comm.Send(buf=bytes_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
+                    self.comm.Ssend(buf=bytes_to_send, dest=self.lfp_chan_req_dict[data_to_send.ntrode_id],
                                     tag=realtime_base.MPIMessageTag.SIMULATOR_LFP_DATA)
 
                 except KeyError as err:
