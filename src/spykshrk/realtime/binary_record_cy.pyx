@@ -102,11 +102,6 @@ class BinaryRecordsFileReader:
     def get_rec_labels(self):
         return {int(key): value for key, value in self._header['rec_labels'].items()}
 
-    def _unpack_header(self, rec_head_bytes):
-        rec_ind, rec_type_id = struct.unpack('=QB', rec_head_bytes)
-
-        return rec_ind, rec_type_id
-
     def _read_record(self):
         # Assuming file_handle pointer is aligned to the beginning of a message
         # read header
@@ -117,8 +112,7 @@ class BinaryRecordsFileReader:
             return None
 
         try:
-
-            rec_ind, rec_type_id = self._unpack_header(rec_head_bytes)
+            rec_ind, rec_type_id = struct.unpack('=QB', rec_head_bytes)
 
             rec_fmt = self._header['rec_formats'][str(rec_type_id)]
             rec_data_bytes = self._file_handle.read(struct.calcsize('='+rec_fmt))

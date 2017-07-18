@@ -392,6 +392,17 @@ class BinaryRecordsFileReader:
         return panda_frames
 
 
-def reader_multiprocessor_helper(reader):
+def reader_multiprocessing_helper(reader):
+    """
+    A helper function that takes a BinaryRecordFileReader object and returns a pandas table of the data.
+    
+    Specifically used for multiprocessing Pool.map().
+    
+    Args:
+        reader: A BinaryRecordFileReader 
+
+    Returns:
+
+    """
     reader.start_record_reading()
     return reader.convert_pandas()
