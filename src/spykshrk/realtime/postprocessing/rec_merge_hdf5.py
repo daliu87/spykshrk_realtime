@@ -19,6 +19,10 @@ def merge_pandas(pandas_item):
     merged = pd.concat(pandas, ignore_index=True)
     merged = merged.apply(pd.to_numeric, errors='ignore')
 
+    if 'timestamp' in merged.columns:
+        merged.sort_values(['timestamp'], inplace=True)
+        merged.reset_index(drop=True, inplace=True)
+
     return rec_id, merged
 
 
@@ -63,7 +67,7 @@ def main(argv):
                                          '{}.rec_merged.h5'.format(config['files']['prefix'])))
 
     for rec_id, rec_df in pandas_merged:
-        hdf_store['rec{}'.format(rec_id)] = rec_df
+        hdf_store['rec_{}'.format(rec_id)] = rec_df
 
     hdf_store.close()
 
