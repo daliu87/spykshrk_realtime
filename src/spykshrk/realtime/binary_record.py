@@ -268,12 +268,15 @@ class BinaryRecordsFileReader:
         self._mpi_rank = mpi_rank
         self._manager_label = manager_label
         self._file_postfix = file_postfix
-        self._file_path = BinaryRecordsFileWriter.format_full_path(save_dir=self._save_dir,
-                                                                   file_prefix=self._file_prefix,
-                                                                   mpi_rank=self._mpi_rank,
-                                                                   manager_label=self._manager_label,
-                                                                   file_postfix=self._file_postfix)
+        self._file_path = self.format_full_path(save_dir=self._save_dir,
+                                                file_prefix=self._file_prefix,
+                                                mpi_rank=self._mpi_rank,
+                                                manager_label=self._manager_label,
+                                                file_postfix=self._file_postfix)
         self._filemeta_as_col = filemeta_as_col
+
+        if not os.path.isfile(self._file_path):
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self._file_path)
 
         self._header_bytes = None
         self._data_start_byte = None
@@ -284,6 +287,13 @@ class BinaryRecordsFileReader:
         self._file_handle = open(self._file_path, 'rb')
         self._extract_json_header()
         self._header = json.loads(self._header_bytes.decode('utf-8'))
+
+
+    @staticmethod
+    def format_full_path(save_dir, file_prefix, mpi_rank, manager_label, file_postfix):
+        file_path = os.path.join(save_dir, '{}.{:02d}.{}.{}'.format(file_prefix, mpi_rank,
+                                                                    manager_label, file_postfix))
+        return file_path
 
     @staticmethod
     def c_bytes_to_string(c_bytes):
@@ -343,6 +353,8 @@ class BinaryRecordsFileReader:
     def _read_record(self):
         # Assuming file_handle pointer is aligned to the beginning of a message
         # read header
+        #cdef unsigned long rec_ind
+        #cdef unsigned char rec_type_id
         rec_head_bytes = self._file_handle.read(struct.calcsize('=QB'))
         if not rec_head_bytes:
             return None
@@ -369,10 +381,10 @@ class BinaryRecordsFileReader:
         rec_count = 0
         if self._filemeta_as_col:
             for rec in self:
-                rec_data[rec[1]].append((rec[0],) + (self._file_id,) + (self._file_path,) + rec[2])
+                rec_data[rec[1]].append((rec[0],) + (self._mpi_rank,) + (self._file_path,) + rec[2])
 
             panda_frames = {key: pd.DataFrame(data=rec_data[key],
-                                              columns=['rec_ind', 'file_id', 'file_path'] + columns[key])
+                                              columns=['rec_ind', 'mpi_rank', 'file_path'] + columns[key])
                             for key in columns.keys()}
         else:
             for rec in self:
@@ -389,7 +401,10 @@ class BinaryRecordsFileReader:
                         if isinstance(table[col_name].iloc[0], bytes):
                             table[col_name] = table[col_name].apply(self.c_bytes_to_string)
 
-        return panda_frames
+        # Try to convert column dtypes to numeric
+        panda_numeric_frames = {key: df.apply(pd.to_numeric, errors='ignore') for key, df in panda_frames.items()}
+
+        return panda_numeric_frames
 
 
 def reader_multiprocessing_helper(reader):

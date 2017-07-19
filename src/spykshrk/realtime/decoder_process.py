@@ -68,6 +68,7 @@ class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
             if spike_time_bin == self.current_time_bin:
                 # Spike is in current time bin
                 self.current_est_pos_hist *= spike_dec_msg.pos_hist
+                self.current_est_pos_hist = self.current_est_pos_hist / np.max(self.current_est_pos_hist)
                 self.current_spike_count += 1
 
             elif spike_time_bin > self.current_time_bin:

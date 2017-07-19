@@ -6,6 +6,7 @@ import json
 import os
 import pandas as pd
 import numpy as np
+import errno
 
 
 class BinaryRecordsError(Exception):
@@ -29,6 +30,9 @@ class BinaryRecordsFileReader:
                                                 manager_label=self._manager_label,
                                                 file_postfix=self._file_postfix)
         self._filemeta_as_col = filemeta_as_col
+
+        if not os.path.isfile(self._file_path):
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self._file_path)
 
         self._header_bytes = None
         self._data_start_byte = None
@@ -153,4 +157,6 @@ class BinaryRecordsFileReader:
                         if isinstance(table[col_name].iloc[0], bytes):
                             table[col_name] = table[col_name].apply(self.c_bytes_to_string)
 
-        return panda_frames
+        panda_numeric_frames = {key: df.apply(pd.to_numeric, errors='ignore') for key, df in panda_frames.items()}
+
+        return panda_numeric_frames
