@@ -43,6 +43,7 @@ def main(argv):
     bin_list = []
     for rec_mpi_rank in config['rank_settings']['enable_rec']:
         try:
+            print('Processing rank {}'.format(rec_mpi_rank))
             binrec = bin_rec_cy.BinaryRecordsFileReader(save_dir=config['files']['output_dir'],
                                                         file_prefix=config['files']['prefix'],
                                                         mpi_rank= rec_mpi_rank,

@@ -570,7 +570,7 @@ class PosMatDataStream:
                 poslinvel_epoch = posdata[0, epoch]['statematrix'][0, 0]['linearVelocity'][0, 0]
                 posdata_all = np.hstack((postime_epoch, poslindist_epoch, possegind_epoch, poslinvel_epoch))
 
-                pos_pd_idx = pd.MultiIndex.from_product(
+                pos_pd_idx = pd.MultiInderoduct(
                     ([day], [epoch], range(postime_epoch.size)), names=['day', 'epoch', 'idx'])
 
                 pos_pd_col = pd.MultiIndex.from_tuples(
