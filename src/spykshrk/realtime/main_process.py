@@ -287,10 +287,11 @@ class MainSimulatorManager(rt_logging.LoggingClass):
 
         # Update binary_record file writers before starting datastream
         for rec_rank in self.config['rank_settings']['enable_rec']:
-            self.send_interface.send_new_writer_message(rank=rec_rank,
-                                                        new_writer_message=self.rec_manager.new_writer_message())
+            if rec_rank is not self.rank:
+                self.send_interface.send_new_writer_message(rank=rec_rank,
+                                                            new_writer_message=self.rec_manager.new_writer_message())
 
-            self.send_interface.send_start_rec_message(rank=rec_rank)
+                self.send_interface.send_start_rec_message(rank=rec_rank)
 
         # Update and start bin rec for StimDecider.  Registration is done through MPI but setting and starting
         # the writer must be done locally because StimDecider does not have a MPI command message receiver

@@ -74,11 +74,12 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                                                                'weight',
                                                                'position'],
                                                               ['timestamp',
-                                                               'trode_id'] +
+                                                               'trode_id',
+                                                               'position'] +
                                                               ['x'+str(x) for x in
                                                                range(config['encoder']['position']['bins'])]],
                                                   rec_formats=['qidd',
-                                                               'qi'+'d'*config['encoder']['position']['bins']])
+                                                               'qid'+'d'*config['encoder']['position']['bins']])
         self.rank = rank
         self.mpi_send = send_interface
         self.spike_interface = spike_interface
@@ -101,6 +102,9 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
 
         self.spk_counter = 0
         self.pos_counter = 0
+
+        self.current_pos = 0
+        self.current_vel = 0
 
         self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
@@ -139,28 +143,32 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                 self.spk_counter += 1
                 amp_marks = [max(x) for x in datapoint.data]
 
-                query_result = self.encoders[datapoint.ntrode_id]. \
-                    query_mark_hist(amp_marks,
-                                    datapoint.timestamp,
-                                    datapoint.ntrode_id)                # type: kernel_encoder.RSTKernelEncoderQuery
+                if max(amp_marks) > 100:
+                    query_result = self.encoders[datapoint.ntrode_id]. \
+                        query_mark_hist(amp_marks,
+                                        datapoint.timestamp,
+                                        datapoint.ntrode_id)                # type: kernel_encoder.RSTKernelEncoderQuery
 
-                # for weight, position in zip(query_result.query_weights, query_result.query_positions):
-                #     self.write_record(realtime_base.RecordIDs.ENCODER_QUERY,
-                #                       query_result.query_time,
-                #                       query_result.ntrode_id,
-                #                       weight, position)
+                    # for weight, position in zip(query_result.query_weights, query_result.query_positions):
+                    #     self.write_record(realtime_base.RecordIDs.ENCODER_QUERY,
+                    #                       query_result.query_time,
+                    #                       query_result.ntrode_id,
+                    #                       weight, position)
 
-                self.write_record(realtime_base.RecordIDs.ENCODER_OUTPUT,
-                                  query_result.query_time,
-                                  query_result.ntrode_id,
-                                  *query_result.query_hist)
+                    self.write_record(realtime_base.RecordIDs.ENCODER_OUTPUT,
+                                      query_result.query_time,
+                                      query_result.ntrode_id,
+                                      self.current_pos,
+                                      *query_result.query_hist)
 
-                self.mpi_send.send_decoded_spike(SpikeDecodeResultsMessage(timestamp=query_result.query_time,
-                                                                           ntrode_id=query_result.ntrode_id,
-                                                                           pos_hist=query_result.query_hist))
+                    self.mpi_send.send_decoded_spike(SpikeDecodeResultsMessage(timestamp=query_result.query_time,
+                                                                               ntrode_id=query_result.ntrode_id,
+                                                                               pos_hist=query_result.query_hist))
 
-                # self.class_log.debug(query_result)
-                self.encoders[datapoint.ntrode_id].new_mark(amp_marks)
+                    if self.current_vel > 2.0:
+
+                    # self.class_log.debug(query_result)
+                        self.encoders[datapoint.ntrode_id].new_mark(amp_marks)
 
                 if self.spk_counter % 1000 == 0:
                     self.class_log.debug('Received {} spikes.'.format(self.spk_counter))
@@ -176,6 +184,9 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
             timing_msg = msgs[1]
             if isinstance(datapoint, LinearPosPoint):
                 self.pos_counter += 1
+
+                self.current_pos = datapoint.x
+                self.current_vel = datapoint.vel
                 for encoder in self.encoders.values():
                     encoder.update_covariate(datapoint.x)
 
