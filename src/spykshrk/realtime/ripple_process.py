@@ -438,7 +438,7 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
                                                        thresh_state=filter_state)
 
                 self.data_packet_counter += 1
-                if (self.data_packet_counter % 10000) == 0:
+                if (self.data_packet_counter % 100000) == 0:
                     self.class_log.debug('Received {:} LFP datapoints.'.format(self.data_packet_counter))
 
             else:

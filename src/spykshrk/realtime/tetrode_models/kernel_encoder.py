@@ -99,14 +99,14 @@ class RSTKernelEncoder:
         x2 = mark[1]
         x3 = mark[2]
         x4 = mark[3]
-        x1_l = x1 - self.kernel.stddev * 2.5
-        x2_l = x2 - self.kernel.stddev * 2.5
-        x3_l = x3 - self.kernel.stddev * 2.5
-        x4_l = x4 - self.kernel.stddev * 2.5
-        x1_h = x1 + self.kernel.stddev * 2.5
-        x2_h = x2 + self.kernel.stddev * 2.5
-        x3_h = x3 + self.kernel.stddev * 2.5
-        x4_h = x4 + self.kernel.stddev * 2.5
+        x1_l = x1 - self.kernel.stddev * 5
+        x2_l = x2 - self.kernel.stddev * 5
+        x3_l = x3 - self.kernel.stddev * 5
+        x4_l = x4 - self.kernel.stddev * 5
+        x1_h = x1 + self.kernel.stddev * 5
+        x2_h = x2 + self.kernel.stddev * 5
+        x3_h = x3 + self.kernel.stddev * 5
+        x4_h = x4 + self.kernel.stddev * 5
         query_weights, query_positions = self.tree.query_rec(x1_l, x2_l, x3_l, x4_l,
                                                              x1_h, x2_h, x3_h, x4_h,
                                                              x1, x2, x3, x4)

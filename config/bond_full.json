@@ -5,7 +5,7 @@
             "base_dir": "/opt/data36/daliu/other/mkarlsso/",
             "name": "bond",
             "days": [4],
-            "epochs": [1], 
+            "epochs": [1, 3], 
             "tetrodes": [5, 11, 12, 13, 14, 17, 19, 29]
         }
     }, 
@@ -72,17 +72,19 @@
     "encoder": {
         "kernel": {
             "mean": 0,
-            "std": 25,
+            "std": 5,
             "lower": -1024,
             "upper": 1024,
             "interval": 1
-        }, 
+        },
 
         "position": {
             "lower": 0,
             "upper": 450,
             "bins": 150
-        }
+        },
+        "vel": 2.0,
+        "spk_amp": 60
     },
 
     "decoder": {

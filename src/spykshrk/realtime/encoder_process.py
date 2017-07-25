@@ -81,6 +81,7 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                                                   rec_formats=['qidd',
                                                                'qid'+'d'*config['encoder']['position']['bins']])
         self.rank = rank
+        self.config = config
         self.mpi_send = send_interface
         self.spike_interface = spike_interface
         self.pos_interface = pos_interface
@@ -143,7 +144,7 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                 self.spk_counter += 1
                 amp_marks = [max(x) for x in datapoint.data]
 
-                if max(amp_marks) > 100:
+                if max(amp_marks) > self.config['encoder']['spk_amp']:
                     query_result = self.encoders[datapoint.ntrode_id]. \
                         query_mark_hist(amp_marks,
                                         datapoint.timestamp,
@@ -165,15 +166,13 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                                                                                ntrode_id=query_result.ntrode_id,
                                                                                pos_hist=query_result.query_hist))
 
-                    if self.current_vel > 2.0:
+                    if abs(self.current_vel) > self.config['encoder']['vel']:
 
-                    # self.class_log.debug(query_result)
                         self.encoders[datapoint.ntrode_id].new_mark(amp_marks)
 
-                if self.spk_counter % 1000 == 0:
+                if self.spk_counter % 10000 == 0:
                     self.class_log.debug('Received {} spikes.'.format(self.spk_counter))
                 pass
-                #self.class_log.debug('Received SpikePoint.')
 
         msgs = self.pos_interface.__next__()
         if msgs is None:
@@ -190,7 +189,7 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                 for encoder in self.encoders.values():
                     encoder.update_covariate(datapoint.x)
 
-                if self.pos_counter % 100 == 0:
+                if self.pos_counter % 1000 == 0:
                     self.class_log.info('Received {} pos datapoints.'.format(self.pos_counter))
                 pass
 
