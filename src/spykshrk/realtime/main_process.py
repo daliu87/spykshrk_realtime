@@ -72,10 +72,8 @@ class StimDeciderMPISendInterface(realtime_base.RealtimeMPIClass):
         self.rank = rank
         self.config = config
 
-    def send_record_register_messages(self, record_register_messages):
-        for message in record_register_messages:
-            self.comm.send(obj=message, dest=self.config['rank']['supervisor'],
-                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+    def start_stimulation(self):
+        pass
 
 
 class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
@@ -89,16 +87,13 @@ class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
                          rec_ids=[realtime_base.RecordIDs.STIM_STATE],
                          rec_labels=[['timestamp', 'ntrode_id', 'threshold_state']], rec_formats=['Iii'])
         self.rank = rank
-        self.send_interface = send_interface
+        self._send_interface = send_interface
         self._ripple_n_above_thresh = ripple_n_above_thresh
         self._ripple_thresh_states = {}
         self._enabled = False
 
         # Setup bin rec file
         # main_manager.rec_manager.register_rec_type_message(rec_type_message=self.get_record_register_message())
-
-    def send_record_register_message(self):
-        self.send_interface.send_record_register_messages(self.get_record_register_messages())
 
     def reset(self):
         self._ripple_thresh_states = {}
@@ -120,15 +115,20 @@ class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
         # Log timing
         self.record_timing(timestamp=timestamp, ntrode_id=ntrode_id,
                            datatype=datatypes.Datatypes.LFP, label='stim_rip_state')
-        self.write_record(realtime_base.RecordIDs.STIM_STATE, timestamp, ntrode_id, threshold_state)
+
         if self._enabled:
+
             self._ripple_thresh_states[ntrode_id] = threshold_state
             num_above = 0
             for state in self._ripple_thresh_states.values():
                 num_above += state
 
+            # only write state if state changed
+            if self._ripple_thresh_states[ntrode_id] != threshold_state:
+                self.write_record(realtime_base.RecordIDs.STIM_STATE, timestamp, ntrode_id, threshold_state)
+
             if num_above >= self._ripple_n_above_thresh:
-                self._send_manager.start_stimulation()
+                self._send_interface.start_stimulation()
 
 
 class StimDeciderMPIRecvInterface(realtime_base.RealtimeMPIClass):
