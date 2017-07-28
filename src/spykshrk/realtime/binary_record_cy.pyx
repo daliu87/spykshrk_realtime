@@ -44,6 +44,8 @@ class BinaryRecordsFileReader:
         self._extract_json_header()
         self._header = json.loads(self._header_bytes.decode('utf-8'))
 
+    def getsize(self):
+        return os.path.getsize(self._file_path)
 
     @staticmethod
     def format_full_path(save_dir, file_prefix, mpi_rank, manager_label, file_postfix):
