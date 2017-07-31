@@ -112,15 +112,13 @@ class BinaryRecordsFileReader:
     def _read_record(self):
         # Assuming file_handle pointer is aligned to the beginning of a message
         # read header
-        #cdef unsigned long rec_ind
-        #cdef unsigned char rec_type_id
+        cpdef unsigned long long rec_ind
+        cpdef unsigned char rec_type_id
         rec_head_bytes = self._file_handle.read(struct.calcsize('=QB'))
         if not rec_head_bytes:
             return None
 
         try:
-            cpdef long long rec_ind
-            cpdef char rec_type_id
             rec_ind, rec_type_id = struct.unpack('=QB', rec_head_bytes)
 
             rec_fmt = self._header['rec_formats'][str(rec_type_id)]
