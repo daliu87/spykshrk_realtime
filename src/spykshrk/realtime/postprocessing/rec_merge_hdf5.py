@@ -8,8 +8,8 @@ import multiprocessing as mp
 import multiprocessing.sharedctypes
 import pandas as pd
 import pickle
-import uuid
 import cProfile
+import time
 
 shared_mem = None
 shared_view = None
@@ -25,9 +25,6 @@ def binrec_to_pandas(binrec: bin_rec_cy.BinaryRecordsFileReader):
 
     binrec.start_record_reading()
     panda_dict = binrec.convert_pandas()
-    #filename = os.path.join('/tmp', str(uuid.uuid4()))
-    #file = open(filename, 'wb')
-    #pickle.dump(panda_dict, file=file)
 
     return panda_dict
 
@@ -48,12 +45,6 @@ def merge_pandas(byte_range):
 
     shared_view[byte_range[0]:(byte_range[0] + merged_bytes_size)] = merged_bytes
 
-    # output_filename = os.path.join('/tmp', str(uuid.uuid4()))
-    # output_file = open(output_filename, 'wb')
-    # pickle.dump((rec_id, merged), output_file)
-
-    # return output_filename
-
     return byte_range[0], (byte_range[0] + merged_bytes_size)
 
 
@@ -73,6 +64,8 @@ def main(argv):
 
     config = json.load(open(config_filename, 'r'))
 
+    logging.info("Initializing BinaryRecordsFileReaders.")
+
     bin_list = []
     total_bin_size = 0
     for rec_mpi_rank in config['rank_settings']['enable_rec']:
@@ -89,19 +82,22 @@ def main(argv):
             logging.warning('Binary record file not found, skipping: {}'.format(ex.filename))
 
     # Increase size for panda tables
-    total_bin_size *= 2
+    total_bin_size = int(total_bin_size * 1.2)
 
     shared_arr = mp.sharedctypes.RawArray('B', total_bin_size)
     shared_arr_view = memoryview(shared_arr).cast('B')
 
     p = mp.Pool(20, initializer=init_shared_mem, initargs=[shared_arr])
     logging.info("Converting binary record files into panda dataframes.")
+    start_time = time.time()
     pandas_list = p.map(binrec_to_pandas, bin_list)
+    end_time = time.time()
+    logging.info("Done converting record files into dataframes"
+                 ", took {:.01f} seconds ({:.02f} minutes).".format(end_time - start_time,
+                                                                    (end_time - start_time)/60.))
 
-    # pandas_list = []
-    # for filename in pickled_file_list:
-    #     file = open(filename, 'rb')
-    #     pandas_list.append(pickle.load(file))
+    logging.info("Collecting individual record types and putting into shared memory.")
+    start_time = time.time()
 
     pandas_dict = {rec_id: [] for rec_id in pandas_list[0].keys()}
     for rec_pandas in pandas_list:
@@ -116,27 +112,29 @@ def main(argv):
 
         shared_arr_view[start_byte:(start_byte+pickled_pan_size)] = pickled_pan_item
         byte_ranges.append((start_byte, start_byte + pickled_pan_size))
-        start_byte += int(1.1*pickled_pan_size)
+        # Set small gap between lists
+        start_byte += int(1.005*pickled_pan_size)
 
-    # merge_filename_list = []
-    # for pan_item in pandas_dict.items():
-    #     filename = os.path.join('/tmp', str(uuid.uuid4()))
-    #     file = open(filename, 'wb')
-    #     pickle.dump(pan_item, file)
-    #     merge_filename_list.append(filename)
+    end_time = time.time()
+    logging.info("Done collecting and putting dataframes into "
+                 "shared memory, {:.01f} seconds ({:.02f} minutes).".format(end_time - start_time,
+                                                                            (end_time - start_time)/60.))
 
     logging.info("Merging and sorting each record type's dataframe.")
+    start_time = time.time()
     pandas_merged_address_ranges = p.map(merge_pandas, byte_ranges)
+    end_time = time.time()
+    logging.info("Done merging and sorting all records,"
+                 " {:.01f} seconds ({:.02f} minutes).".format(end_time - start_time,
+                                                              (end_time - start_time)/60.))
+
+    logging.info("Collecting dataframes and writing to HDF5 file.")
+    start_time = time.time()
 
     pandas_merged = []
     for byte_range in pandas_merged_address_ranges:
         df = pickle.loads(shared_arr_view[byte_range[0]:byte_range[1]])
         pandas_merged.append(df)
-
-    # pandas_merged = []
-    # for filename in pandas_merged_filenames:
-    #     file = open(filename, 'rb')
-    #     pandas_merged.append(pickle.load(file))
 
     hdf_store = pd.HDFStore(os.path.join(config['files']['output_dir'],
                                          '{}.rec_merged.h5'.format(config['files']['prefix'])))
@@ -146,6 +144,12 @@ def main(argv):
 
     hdf_store.close()
 
+    end_time = time.time()
+    logging.info("Done writing to HDF5 files, "
+                 "{:.01f} seconds ({:.02f} minutes).".format(end_time - start_time,
+                                                             (end_time - start_time)/60.))
 
 if __name__ == '__main__':
     cProfile.runctx('main(sys.argv[1:])', globals=globals(), locals=locals(), filename='pstats')
+
+

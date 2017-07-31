@@ -7,6 +7,7 @@ import os
 import pandas as pd
 import numpy as np
 import errno
+import sys
 
 
 class BinaryRecordsError(Exception):
@@ -118,6 +119,8 @@ class BinaryRecordsFileReader:
             return None
 
         try:
+            cpdef long long rec_ind
+            cpdef char rec_type_id
             rec_ind, rec_type_id = struct.unpack('=QB', rec_head_bytes)
 
             rec_fmt = self._header['rec_formats'][str(rec_type_id)]
