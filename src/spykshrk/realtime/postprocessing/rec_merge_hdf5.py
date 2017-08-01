@@ -14,18 +14,12 @@ import time
 
 run_config = None
 hdf5_lock = None
-shared_mem = None
-shared_view = None
 
 
-def init_shared_mem(config, arr, hdf5_lock_local):
+def init_shared_mem(config, hdf5_lock_local):
     global run_config
-    global shared_mem
-    global shared_view
     global hdf5_lock
     run_config = config
-    shared_mem = arr
-    shared_view = memoryview(arr).cast('B')
     hdf5_lock = hdf5_lock_local
 
 
@@ -34,13 +28,28 @@ def binrec_to_pandas(binrec: bin_rec_cy.BinaryRecordsFileReader):
     binrec.start_record_reading()
     panda_dict = binrec.convert_pandas()
 
-    return panda_dict
+    hdf5_temp_filename = os.path.join('/tmp', str(uuid.uuid4()) + '.h5')
+    with pd.HDFStore(hdf5_temp_filename, 'w') as hdf5_store:
+        filename_dict = {}
+        for rec_id, df in panda_dict.items():
+            if df.size > 0:
+                filename_dict[rec_id] = hdf5_temp_filename
+                hdf5_store['rec_'+str(rec_id)] = df
+
+    return filename_dict
 
 
-def merge_pandas(byte_range):
-    pandas_item = pickle.loads(shared_view[byte_range[0]:byte_range[1]])
-    rec_id = pandas_item[0]
-    pandas = pandas_item[1]
+def merge_pandas(filename_items):
+
+    rec_id = filename_items[0]
+    filenames = filename_items[1]
+
+    pandas = []
+
+    for filename in filenames:
+        store = pd.HDFStore(filename)
+        pandas.append(store['rec_'+str(rec_id)])
+
     merged = pd.concat(pandas, ignore_index=True)
     merged = merged.apply(pd.to_numeric, errors='ignore')
 
@@ -57,13 +66,6 @@ def merge_pandas(byte_range):
         hdf_store['rec_{}'.format(rec_id)] = merged
 
     hdf5_lock.release()
-
-    # merged_bytes = pickle.dumps((rec_id, merged))
-    # merged_bytes_size = len(merged_bytes)
-
-    # shared_view[byte_range[0]:(byte_range[0] + merged_bytes_size)] = merged_bytes
-
-    # return byte_range[0], (byte_range[0] + merged_bytes_size)
 
 
 def main(argv):
@@ -100,54 +102,35 @@ def main(argv):
             logging.warning('Binary record file not found, skipping: {}'.format(ex.filename))
 
     # Increase size for panda tables
-    total_bin_size = int(total_bin_size * 1.25)
+    # total_bin_size = int(total_bin_size * 1.25)
 
-    shared_arr = mp.sharedctypes.RawArray('B', total_bin_size)
-    shared_arr_view = memoryview(shared_arr).cast('B')
+    # shared_arr = mp.sharedctypes.RawArray('B', total_bin_size)
+    # shared_arr_view = memoryview(shared_arr).cast('B')
 
     hdf5_lock_local = mp.Lock()
 
-    p = mp.Pool(20, initializer=init_shared_mem, initargs=[config, shared_arr, hdf5_lock_local], maxtasksperchild=1)
+    p = mp.Pool(20, initializer=init_shared_mem, initargs=[config, hdf5_lock_local], maxtasksperchild=1)
     logging.info("Converting binary record files into panda dataframes.")
     start_time = time.time()
-    pandas_list = p.map(binrec_to_pandas, bin_list)
+    file_list = p.map(binrec_to_pandas, bin_list)
     end_time = time.time()
     logging.info("Done converting record files into dataframes"
                  ", took {:.01f} seconds ({:.02f} minutes).".format(end_time - start_time,
                                                                     (end_time - start_time)/60.))
 
-    logging.info("Collecting individual record types and putting into shared memory.")
-    start_time = time.time()
-
-    pandas_dict = {rec_id: [] for rec_id in pandas_list[0].keys()}
-    for rec_pandas in pandas_list:
-        for rec_id, df in rec_pandas.items():
-            pandas_dict[rec_id].append(df)
-
-    start_byte = 0
-    byte_ranges = []
-    for pan_item in pandas_dict.items():
-        pickled_pan_item = pickle.dumps(pan_item)
-        pickled_pan_size = len(pickled_pan_item)
-        shared_arr_view[start_byte:(start_byte+pickled_pan_size)] = pickled_pan_item
-        byte_ranges.append((start_byte, start_byte + pickled_pan_size))
-        # Set small gap between lists
-        start_byte += int(1.005*pickled_pan_size)
-
-    end_time = time.time()
-    logging.info("Done collecting and putting dataframes into "
-                 "shared memory, {:.01f} seconds ({:.02f} minutes).".format(end_time - start_time,
-                                                                            (end_time - start_time)/60.))
+    remapped_dict = {}
+    for rec_files in file_list:
+        for rec_id, filename in rec_files.items():
+            rec_list = remapped_dict.setdefault(rec_id, [])
+            rec_list.append(filename)
 
     logging.info("Merging, sorting and saving each record type's dataframe.")
     start_time = time.time()
-    p.map(merge_pandas, byte_ranges)
-    #pandas_merged_address_ranges = p.map(merge_pandas, byte_ranges)
+    p.map(merge_pandas, remapped_dict.items())
     end_time = time.time()
     logging.info("Done merging and sorting and saving all records,"
                  " {:.01f} seconds ({:.02f} minutes).".format(end_time - start_time,
                                                               (end_time - start_time)/60.))
-
 
 
 if __name__ == '__main__':
