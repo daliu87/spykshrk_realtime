@@ -81,6 +81,10 @@ def main(argv):
 
     # Make sure output directory exists
     os.makedirs(os.path.join(config['files']['output_dir']), exist_ok=True)
+    # Save config to output
+
+    output_config = open(os.path.join(config['files']['output_dir'], config['files']['prefix'] + '.config.json'), 'w')
+    json.dump(config, output_config, indent=4)
 
     # MPI node management
 

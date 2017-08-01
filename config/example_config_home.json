@@ -74,7 +74,9 @@
             "lower": 0,
             "upper": 450,
             "bins": 150
-        }
+        },
+        "vel": 0.0,
+        "spk_amp": 60
     },
 
     "decoder": {

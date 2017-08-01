@@ -62,7 +62,7 @@ def merge_pandas(filename_items):
     hdf5_filename = os.path.join(run_config['files']['output_dir'],
                                  '{}.rec_merged.h5'.format(run_config['files']['prefix']))
 
-    with pd.HDFStore(hdf5_filename, 'w') as hdf_store:
+    with pd.HDFStore(hdf5_filename) as hdf_store:
         hdf_store['rec_{}'.format(rec_id)] = merged
 
     hdf5_lock.release()

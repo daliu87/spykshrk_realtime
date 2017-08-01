@@ -166,7 +166,7 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                                                                                ntrode_id=query_result.ntrode_id,
                                                                                pos_hist=query_result.query_hist))
 
-                    if abs(self.current_vel) > self.config['encoder']['vel']:
+                    if abs(self.current_vel) >= self.config['encoder']['vel']:
 
                         self.encoders[datapoint.ntrode_id].new_mark(amp_marks)
 
