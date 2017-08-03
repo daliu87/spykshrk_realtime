@@ -78,7 +78,8 @@ class RSTKernelEncoder:
 
         self.tree = RST.RSTPython(filename.encode('utf-8'), new_tree, param.kernel)
         self.covariate = 0
-        self.pos_hist = np.zeros(param.pos_hist_struct.num_bins)
+        # initialize to one's to prevent divide by zero when normalizing my occupancy
+        self.pos_hist = np.ones(param.pos_hist_struct.num_bins)
 
     def update_covariate(self, covariate):
         self.covariate = covariate
@@ -117,7 +118,14 @@ class RSTKernelEncoder:
         query_hist, query_hist_edges = np.histogram(
             a=query_positions, bins=self.param.pos_hist_struct.pos_bin_edges,
             weights=query_weights, normed=False)
-        query_hist = query_hist / (self.pos_hist + 0.001)
+
+        # Offset from zero
+        query_hist += 0.0000001
+
+        # occupancy normalize
+        query_hist = query_hist / (self.pos_hist)
+
+        # normalized PDF
         query_hist = query_hist / (np.sum(query_hist) * self.param.pos_hist_struct.pos_bin_delta)
 
         return RSTKernelEncoderQuery(query_time=time,

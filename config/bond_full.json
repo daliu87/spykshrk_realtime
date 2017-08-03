@@ -24,7 +24,7 @@
     },
 
     "files": {
-        "output_dir": "/opt/data36/daliu/realtime/spykshrk/bond_param/01",
+        "output_dir": "/opt/data36/daliu/realtime/spykshrk/bond_param/06",
         "prefix": "bond",
         "rec_postfix": "bin_rec",
         "profile_postfix": "pstats",
@@ -83,8 +83,8 @@
             "upper": 450,
             "bins": 150
         },
-        "vel": 0.0,
-        "spk_amp": 60
+        "vel": 4.0,
+        "spk_amp": 100
     },
 
     "decoder": {
