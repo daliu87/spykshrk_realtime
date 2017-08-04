@@ -141,6 +141,9 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
             datapoint = msgs[0]
             timing_msg = msgs[1]
             if isinstance(datapoint, SpikePoint):
+                self.record_timing(timestamp=datapoint.timestamp, ntrode_id=datapoint.ntrode_id,
+                                   datatype=datatypes.Datatypes.SPIKES, label='enc_recv')
+
                 self.spk_counter += 1
                 amp_marks = [max(x) for x in datapoint.data]
 
@@ -162,6 +165,9 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                                       self.current_pos,
                                       *query_result.query_hist)
 
+                    self.record_timing(timestamp=datapoint.timestamp, ntrode_id=datapoint.ntrode_id,
+                                       datatype=datatypes.Datatypes.SPIKES, label='spk_dec')
+
                     self.mpi_send.send_decoded_spike(SpikeDecodeResultsMessage(timestamp=query_result.query_time,
                                                                                ntrode_id=query_result.ntrode_id,
                                                                                pos_hist=query_result.query_hist))
@@ -169,6 +175,9 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                     if abs(self.current_vel) >= self.config['encoder']['vel']:
 
                         self.encoders[datapoint.ntrode_id].new_mark(amp_marks)
+
+                        self.record_timing(timestamp=datapoint.timestamp, ntrode_id=datapoint.ntrode_id,
+                                           datatype=datatypes.Datatypes.SPIKES, label='spk_enc')
 
                 if self.spk_counter % 10000 == 0:
                     self.class_log.debug('Received {} spikes.'.format(self.spk_counter))

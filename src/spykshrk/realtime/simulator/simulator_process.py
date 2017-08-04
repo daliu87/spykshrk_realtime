@@ -134,6 +134,12 @@ class SimulatorSendInterface(realtime_base.RealtimeMPIClass):
     def __init__(self, comm: MPI.Comm, rank, config):
         super().__init__(comm=comm, rank=rank, config=config)
 
+    def send_record_register_messages(self, record_register_messages):
+        self.class_log.debug("Sending binary record registration messages.")
+        for message in record_register_messages:
+            self.comm.send(obj=message, dest=self.config['rank']['supervisor'],
+                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+
     def send_terminate_error(self, msg):
         self.comm.send(realtime_base.TerminateErrorMessage(msg),
                        dest=self.config['rank']['supervisor'],
@@ -174,6 +180,9 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
                                      exc_info=err)
             self.mpi_send.send_terminate_error("For SimulatorThread, nspike_animal_info config did "
                                                "not match nspike_data.AnimalInfo arguments.")
+
+        # Send binary record register message
+        self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
         # Pause to make sure other ranks have started
         time.sleep(1.)
@@ -226,6 +235,10 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
         try:
             data_to_send = self.data_itr.__next__()
             if isinstance(data_to_send, datatypes.LFPPoint):
+
+                self.record_timing(timestamp=data_to_send.timestamp, ntrode_id=data_to_send.ntrode_id,
+                                   datatype=datatypes.Datatypes.LFP, label='sim_send')
+
                 try:
                     bytes_to_send = data_to_send.pack()
 
@@ -238,6 +251,9 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
                                              format(data_to_send.ntrode_index, self.lfp_chan_req_dict), exc_info=err)
 
             elif isinstance(data_to_send, datatypes.SpikePoint):
+
+                self.record_timing(timestamp=data_to_send.timestamp, ntrode_id=data_to_send.ntrode_id,
+                                   datatype=datatypes.Datatypes.SPIKES, label='sim_send')
                 try:
                     bytes_to_send = data_to_send.pack()
 
@@ -251,7 +267,8 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
                                              format(data_to_send.ntrode_id, self.spk_chan_req_dict), exc_info=err)
 
             elif isinstance(data_to_send, datatypes.LinearPosPoint):
-                #self.class_log.debug("LinearPosPoints {}".format(self.pos_chan_req))
+                self.record_timing(timestamp=data_to_send.timestamp, ntrode_id=-1,
+                                   datatype=datatypes.Datatypes.LINEAR_POSITION, label='sim_send')
                 bytes_to_send = data_to_send.pack()
 
                 for dest_rank in self.pos_chan_req:
@@ -325,6 +342,18 @@ class SimulatorRecvInterface(realtime_base.RealtimeProcess):
 
         elif isinstance(message, PauseAllStreamMessages):
             self.sim.pause_datastream()
+
+        elif isinstance(message, binary_record.BinaryRecordCreateMessage):
+            self.sim.set_record_writer_from_message(message)
+
+        elif isinstance(message, realtime_base.StartRecordMessage):
+            self.sim.start_record_writing()
+
+        elif isinstance(message, realtime_base.StopRecordMessage):
+            self.sim.stop_record_writing()
+
+        elif isinstance(message, realtime_base.CloseRecordMessage):
+            self.sim.close_record()
 
         elif isinstance(message, realtime_base.TerminateMessage):
             raise StopIteration()

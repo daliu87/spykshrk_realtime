@@ -47,6 +47,7 @@ class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         self.mpi_send = send_interface
         self.spike_interface = spike_decode_interface
 
+        # Send binary record register message
         self.mpi_send.send_record_register_messages(self.get_record_register_messages())
         self.msg_counter = 0
 
@@ -58,6 +59,9 @@ class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         spike_dec_msg = self.spike_interface.__next__()
 
         if spike_dec_msg is not None:
+
+            self.record_timing(timestamp=spike_dec_msg.timestamp, ntrode_id=spike_dec_msg.ntrode_id,
+                               datatype=datatypes.Datatypes.SPIKES, label='dec_recv')
 
             if self.current_time_bin == 0:
                 self.current_time_bin = math.floor(spike_dec_msg.timestamp/self.config['decoder']['bin_size'])
@@ -76,7 +80,7 @@ class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
                 self.write_record(realtime_base.RecordIDs.DECODER_OUTPUT,
                                   self.current_time_bin*self.config['decoder']['bin_size'],
                                   *self.current_est_pos_hist)
-                self.current_spike_count = 0
+                self.current_spike_count = 1
                 self.current_est_pos_hist = spike_dec_msg.pos_hist
                 self.current_time_bin = spike_time_bin
 
