@@ -60,7 +60,10 @@ class RemoteBinaryRecordsManager:
 
     def create_register_rec_type_message(self, rec_id, rec_labels, rec_struct_fmt):
         if self._local_files is not None:
-            raise BinaryRecordsError('Cannot add more record types after remote manager has created a file!')
+            raise BinaryRecordsError('Cannot add more record types after remote manager has created a file: '
+                                     'rec_id {}, rec_label {}, rec_struct_fmt {}.'.format(rec_id,
+                                                                                          rec_labels,
+                                                                                          rec_struct_fmt))
         else:
             return BinaryRecordTypeMessage(manager_label=self._manager_label,
                                            rec_id=rec_id,

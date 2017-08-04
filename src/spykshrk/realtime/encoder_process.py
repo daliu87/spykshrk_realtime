@@ -86,6 +86,8 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
         self.spike_interface = spike_interface
         self.pos_interface = pos_interface
 
+        self.mpi_send.send_record_register_messages(self.get_record_register_messages())
+
         kernel = RST.kernel_param(mean=config['encoder']['kernel']['mean'],
                                   stddev=config['encoder']['kernel']['std'],
                                   min_val=config['encoder']['kernel']['lower'],
@@ -106,8 +108,6 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
 
         self.current_pos = 0
         self.current_vel = 0
-
-        self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
     def set_num_trodes(self, message: realtime_base.NumTrodesMessage):
         self.num_ntrodes = message.num_ntrodes
