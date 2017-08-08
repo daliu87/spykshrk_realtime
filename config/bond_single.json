@@ -5,7 +5,7 @@
             "base_dir": "/opt/data/daliu/other/mkarlsso/",
             "name": "bond",
             "days": [4],
-            "epochs": [1, 3], 
+            "epochs": [1], 
             "tetrodes": [5, 11, 12, 13, 14, 17, 19, 29]
         }
     }, 
