@@ -1,6 +1,6 @@
 #!/bin/bash
 
-python setup.py install
+python setup.py develop
 
 echo ''
 
