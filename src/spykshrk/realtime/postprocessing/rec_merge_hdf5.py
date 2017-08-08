@@ -11,15 +11,16 @@ import uuid
 import pickle
 import cProfile
 import time
+import subprocess
 
-run_config = None
+hdf5_filename = None
 hdf5_lock = None
 
 
-def init_shared_mem(config, hdf5_lock_local):
-    global run_config
+def init_shared(hdf5_filename_l, hdf5_lock_local):
+    global hdf5_filename
     global hdf5_lock
-    run_config = config
+    hdf5_filename = hdf5_filename_l
     hdf5_lock = hdf5_lock_local
 
 
@@ -59,9 +60,6 @@ def merge_pandas(filename_items):
 
     hdf5_lock.acquire()
 
-    hdf5_filename = os.path.join(run_config['files']['output_dir'],
-                                 '{}.rec_merged.h5'.format(run_config['files']['prefix']))
-
     with pd.HDFStore(hdf5_filename) as hdf_store:
         hdf_store['rec_{}'.format(rec_id)] = merged
 
@@ -83,6 +81,9 @@ def main(argv):
             config_filename = arg
 
     config = json.load(open(config_filename, 'r'))
+
+    hdf5_filename_l = os.path.join(config['files']['output_dir'],
+                                   '{}.rec_merged.h5'.format(config['files']['prefix']))
 
     logging.info("Initializing BinaryRecordsFileReaders.")
 
@@ -109,7 +110,7 @@ def main(argv):
 
     hdf5_lock_local = mp.Lock()
 
-    p = mp.Pool(20, initializer=init_shared_mem, initargs=[config, hdf5_lock_local], maxtasksperchild=1)
+    p = mp.Pool(20, initializer=init_shared, initargs=[hdf5_filename_l, hdf5_lock_local], maxtasksperchild=1)
     logging.info("Converting binary record files into panda dataframes.")
     start_time = time.time()
     file_list = p.map(binrec_to_pandas, bin_list)
@@ -132,6 +133,15 @@ def main(argv):
                  " {:.01f} seconds ({:.02f} minutes).".format(end_time - start_time,
                                                               (end_time - start_time)/60.))
 
+    logging.info("RSyncing hdf5 file to backup location.")
+    start_time = time.time()
+    p.map(merge_pandas, remapped_dict.items())
+    end_time = time.time()
+    logging.info("Done merging and sorting and saving all records,"
+                 " {:.01f} seconds ({:.02f} minutes).".format(end_time - start_time,
+                                                              (end_time - start_time)/60.))
+
+    subprocess.check_output(['rsync', '-vah', '--progress', hdf5_filename_l, config['file']['backup_dir']])
 
 if __name__ == '__main__':
     cProfile.runctx('main(sys.argv[1:])', globals=globals(), locals=locals(), filename='pstats')
