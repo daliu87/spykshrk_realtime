@@ -3,6 +3,7 @@ import sys
 import os
 import logging
 import json
+import glob
 import spykshrk.realtime.binary_record_cy as bin_rec_cy
 import multiprocessing as mp
 import multiprocessing.sharedctypes
@@ -135,14 +136,19 @@ def main(argv):
 
     logging.info("RSyncing hdf5, pstat, and config file to backup location.")
     start_time = time.time()
-    subprocess.check_output(['rsync', '-vah', '--progress', os.path.join(config['file']['backup_dir'], '*.h5'),
-                             config['file']['backup_dir']])
-    subprocess.check_output(['rsync', '-vah', '--progress', os.path.join(config['file']['backup_dir'], '*.json'),
-                             config['file']['backup_dir']])
-    subprocess.check_output(['rsync', '-vah', '--progress', os.path.join(config['file']['backup_dir'], '*.pstats'),
-                             config['file']['backup_dir']])
+
+    rsync_filenames = []
+    rsync_filenames.extend(glob.glob(os.path.join(config['files']['output_dir'], '*.json')))
+    rsync_filenames.extend(glob.glob(os.path.join(config['files']['output_dir'], '*.pstats')))
+    rsync_filenames.extend(glob.glob(os.path.join(config['files']['output_dir'], '*.h5')))
+
+    rsync_command = ['rsync', '-vah', '--progress']
+    rsync_command.extend(rsync_filenames)
+    rsync_command.append(config['files']['backup_dir'])
+
+    subprocess.check_output(rsync_command)
     end_time = time.time()
-    logging.info("Done merging and sorting and saving all records,"
+    logging.info("Done RSyncing,"
                  " {:.01f} seconds ({:.02f} minutes).".format(end_time - start_time,
                                                               (end_time - start_time)/60.))
 
