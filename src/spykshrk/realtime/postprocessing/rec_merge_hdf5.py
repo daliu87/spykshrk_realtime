@@ -133,15 +133,19 @@ def main(argv):
                  " {:.01f} seconds ({:.02f} minutes).".format(end_time - start_time,
                                                               (end_time - start_time)/60.))
 
-    logging.info("RSyncing hdf5 file to backup location.")
+    logging.info("RSyncing hdf5, pstat, and config file to backup location.")
     start_time = time.time()
-    p.map(merge_pandas, remapped_dict.items())
+    subprocess.check_output(['rsync', '-vah', '--progress', os.path.join(config['file']['backup_dir'], '*.h5'),
+                             config['file']['backup_dir']])
+    subprocess.check_output(['rsync', '-vah', '--progress', os.path.join(config['file']['backup_dir'], '*.json'),
+                             config['file']['backup_dir']])
+    subprocess.check_output(['rsync', '-vah', '--progress', os.path.join(config['file']['backup_dir'], '*.pstats'),
+                             config['file']['backup_dir']])
     end_time = time.time()
     logging.info("Done merging and sorting and saving all records,"
                  " {:.01f} seconds ({:.02f} minutes).".format(end_time - start_time,
                                                               (end_time - start_time)/60.))
 
-    subprocess.check_output(['rsync', '-vah', '--progress', hdf5_filename_l, config['file']['backup_dir']])
 
 if __name__ == '__main__':
     cProfile.runctx('main(sys.argv[1:])', globals=globals(), locals=locals(), filename='pstats')
