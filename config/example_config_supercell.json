@@ -2,7 +2,7 @@
     "datasource": "simulator",
     "simulator": {
         "nspike_animal_info": {
-            "base_dir": "/opt/data36/daliu/other/mkarlsso/",
+            "base_dir": "/opt/data/daliu/other/mkarlsso/",
             "name": "test",
             "days": [2],
             "epochs": [1], 
@@ -24,7 +24,7 @@
     },
 
     "files": {
-        "output_dir": "/opt/data36/daliu/realtime/spykshrk/test",
+        "output_dir": "/opt/data/daliu/realtime/spykshrk/test",
         "prefix": "test_animal",
         "rec_postfix": "bin_rec",
         "profile_postfix": "pstats",
