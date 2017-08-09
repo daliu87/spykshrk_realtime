@@ -34,9 +34,10 @@ class SpikeDecodeRecvInterface(realtime_base.RealtimeMPIClass):
 
 
 class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
-    def __init__(self, rank, config, local_rec_manager, send_interface: DecoderMPISendInterface,
+    def __init__(self, rank, config, offset_time, local_rec_manager, send_interface: DecoderMPISendInterface,
                  spike_decode_interface: SpikeDecodeRecvInterface):
-        super(BayesianDecodeManager, self).__init__(rank=rank, local_rec_manager=local_rec_manager,
+        super(BayesianDecodeManager, self).__init__(rank=rank, offset_time=offset_time,
+                                                    local_rec_manager=local_rec_manager,
                                                     rec_ids=[realtime_base.RecordIDs.DECODER_OUTPUT],
                                                     rec_labels=[['timestamp'] +
                                                                 ['x'+str(x) for x in
@@ -139,6 +140,7 @@ class DecoderProcess(realtime_base.RealtimeProcess):
         self.mpi_send = DecoderMPISendInterface(comm=comm, rank=rank, config=config)
         self.spike_decode_interface = SpikeDecodeRecvInterface(comm=comm, rank=rank, config=config)
         self.dec_man = BayesianDecodeManager(rank=rank, config=config,
+                                             offset_time=self.offset_time,
                                              local_rec_manager=self.local_rec_manager,
                                              send_interface=self.mpi_send,
                                              spike_decode_interface=self.spike_decode_interface)

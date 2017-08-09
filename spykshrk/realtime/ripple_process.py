@@ -325,9 +325,10 @@ class RippleMPISendInterface(realtime_base.RealtimeMPIClass):
 
 
 class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.LoggingClass):
-    def __init__(self, rank, local_rec_manager, send_interface: RippleMPISendInterface,
+    def __init__(self, rank, offset_time, local_rec_manager, send_interface: RippleMPISendInterface,
                  data_interface: simulator_process.SimulatorRemoteReceiver):
         super().__init__(rank=rank,
+                         offset_time=offset_time,
                          local_rec_manager=local_rec_manager,
                          rec_ids=[realtime_base.RecordIDs.RIPPLE_STATE],
                          rec_labels=[['timestamp',
@@ -521,12 +522,12 @@ class RippleMPIRecvInterface(realtime_base.RealtimeMPIClass):
 class RippleProcess(realtime_base.RealtimeProcess):
 
     def __init__(self, comm: MPI.Comm, rank, config):
+        super().__init__(comm, rank, config)
+
         self.local_rec_manager = binary_record.RemoteBinaryRecordsManager(manager_label='state', local_rank=rank,
                                                                           manager_rank=config['rank']['supervisor'])
 
         self.mpi_send = RippleMPISendInterface(comm, rank, config)
-
-        super().__init__(comm, rank, config)
 
         if self.config['datasource'] == 'simulator':
             data_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
@@ -535,6 +536,7 @@ class RippleProcess(realtime_base.RealtimeProcess):
                                                                        datatype=datatypes.Datatypes.LFP)
 
             self.rip_man = RippleManager(rank=rank,
+                                         offset_time=self.offset_time,
                                          local_rec_manager=self.local_rec_manager,
                                          send_interface=self.mpi_send,
                                          data_interface=data_interface)

@@ -61,11 +61,12 @@ class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
 
 class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_logging.LoggingClass):
 
-    def __init__(self, rank, config, local_rec_manager, send_interface: EncoderMPISendInterface,
+    def __init__(self, rank, config, offset_time, local_rec_manager, send_interface: EncoderMPISendInterface,
                  spike_interface: simulator_process.SimulatorRemoteReceiver,
                  pos_interface: simulator_process.SimulatorRemoteReceiver):
 
         super(RStarEncoderManager, self).__init__(rank=rank,
+                                                  offset_time=offset_time,
                                                   local_rec_manager=local_rec_manager,
                                                   rec_ids=[realtime_base.RecordIDs.ENCODER_QUERY,
                                                            realtime_base.RecordIDs.ENCODER_OUTPUT],
@@ -268,6 +269,7 @@ class EncoderProcess(realtime_base.RealtimeProcess):
 
         self.enc_man = RStarEncoderManager(rank=rank,
                                            config=config,
+                                           offset_time=self.offset_time,
                                            local_rec_manager=self.local_rec_manager,
                                            send_interface=self.mpi_send,
                                            spike_interface=spike_interface,

@@ -35,8 +35,10 @@ class MainProcess(realtime_base.RealtimeProcess):
 
         super().__init__(comm=comm, rank=rank, config=config)
 
-        self.stim_decider = StimDecider(rank=rank, config=config, send_interface=
-                                        StimDeciderMPISendInterface(comm=comm, rank=rank, config=config))
+        self.stim_decider = StimDecider(rank=rank, config=config, offset_time=self.offset_time,
+                                        send_interface=StimDeciderMPISendInterface(comm=comm,
+                                                                                   rank=rank,
+                                                                                   config=config))
         self.data_recv = StimDeciderMPIRecvInterface(comm=comm, rank=rank, config=config,
                                                      stim_decider=self.stim_decider)
 
@@ -77,9 +79,11 @@ class StimDeciderMPISendInterface(realtime_base.RealtimeMPIClass):
 
 
 class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
-    def __init__(self, rank, config, send_interface: StimDeciderMPISendInterface, ripple_n_above_thresh=sys.maxsize):
+    def __init__(self, rank, config, offset_time,
+                 send_interface: StimDeciderMPISendInterface, ripple_n_above_thresh=sys.maxsize):
 
         super().__init__(rank=rank,
+                         offset_time = offset_time,
                          local_rec_manager=binary_record.RemoteBinaryRecordsManager(manager_label='state',
                                                                                     local_rank=rank,
                                                                                     manager_rank=

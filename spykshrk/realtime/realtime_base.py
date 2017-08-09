@@ -214,6 +214,8 @@ class BinaryRecordBaseWithTiming(BinaryRecordBase):
     def __init__(self, *args, **kwds):
         super(BinaryRecordBaseWithTiming, self).__init__(*args, **kwds)
 
+        self.offset_time = kwds['offset_time']
+
         self.rec_ids.append(RecordIDs.TIMING)
         self.rec_labels.append(['timestamp', 'ntrode_id', 'label', 'datatype', 'wtime'])
         self.rec_formats.append('qh20shd')
@@ -223,7 +225,8 @@ class BinaryRecordBaseWithTiming(BinaryRecordBase):
             raise binary_record.BinaryRecordsError("Timing label {} too long, must be "
                                                    "10 characters or less.".format(label))
 
-        self.write_record(RecordIDs.TIMING, timestamp, ntrode_id, label.encode('utf-8'), datatype, MPI.Wtime())
+        self.write_record(RecordIDs.TIMING, timestamp, ntrode_id, label.encode('utf-8'), datatype,
+                          MPI.Wtime() - self.offset_time)
 
 
 class ExceptionLoggerWrapperMeta(type):
@@ -312,6 +315,14 @@ class RealtimeProcess(RealtimeMPIClass, metaclass=RealtimeMeta):
                                               format(config['files']['prefix'],
                                                      rank,
                                                      config['files']['profile_postfix']))
+
+        time_list = []
+        for _ in range(10):
+            comm.Barrier()
+            time_list.append(MPI.Wtime())
+
+        self.offset_time = sum(time_list)/len(time_list)
+        self.class_log.debug('Time offset for rank set to: {}'.format(self.offset_time))
 
     def main_loop(self):
         pass

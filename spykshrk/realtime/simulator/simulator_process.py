@@ -156,8 +156,9 @@ class SimulatorSendInterface(realtime_base.RealtimeMPIClass):
 
 
 class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.RealtimeMPIClass):
-    def __init__(self, comm, rank, config, mpi_send: SimulatorSendInterface, local_rec_manager):
-        super().__init__(comm=comm, rank=rank, config=config, local_rec_manager=local_rec_manager)
+    def __init__(self, comm, rank, config, offset_time, mpi_send: SimulatorSendInterface, local_rec_manager):
+        super().__init__(comm=comm, rank=rank, config=config, offset_time=offset_time,
+                         local_rec_manager=local_rec_manager)
         self.mpi_send = mpi_send
 
         self._stop_next = False
@@ -291,7 +292,8 @@ class SimulatorProcess(realtime_base.RealtimeProcess):
 
         self.mpi_send = SimulatorSendInterface(comm=comm, rank=rank, config=config)
 
-        self.sim = Simulator(comm=comm, rank=rank, config=config, mpi_send=self.mpi_send,
+        self.sim = Simulator(comm=comm, rank=rank, config=config, offset_time=self.offset_time,
+                             mpi_send=self.mpi_send,
                              local_rec_manager=self.local_rec_manager)
 
         self.mpi_recv = SimulatorRecvInterface(comm=comm, rank=rank, config=config, simulator=self.sim)
@@ -309,7 +311,7 @@ class SimulatorProcess(realtime_base.RealtimeProcess):
             self.class_log.info("Simulator Process Main reached end, exiting.")
 
 
-class SimulatorRecvInterface(realtime_base.RealtimeProcess):
+class SimulatorRecvInterface(realtime_base.RealtimeMPIClass):
 
     def __init__(self, comm: MPI.Comm, rank, config, simulator: Simulator):
         super(SimulatorRecvInterface, self).__init__(comm=comm, rank=rank, config=config)
