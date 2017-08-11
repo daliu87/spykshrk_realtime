@@ -29,7 +29,7 @@
         "rec_postfix": "bin_rec",
         "profile_postfix": "pstats",
         "timing_postfix": "timing",
-        "backup_dir": "/opt/data36/daliu/realtime/spykshrk/test"
+        "backup_dir": "/opt/data36/daliu/realtime/spykshrk/timing"
     },
 
     "ripple": {
