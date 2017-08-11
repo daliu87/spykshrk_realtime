@@ -218,16 +218,17 @@ class BinaryRecordBaseWithTiming(BinaryRecordBase):
         self.rank = kwds['rank']
 
         self.rec_ids.append(RecordIDs.TIMING)
-        self.rec_labels.append(['timestamp', 'ntrode_id', 'rank', 'label', 'datatype', 'wtime'])
-        self.rec_formats.append('qhb20shd')
+        self.rec_labels.append(['timestamp', 'ntrode_id', 'rank', 'label', 'datatype', 'wtime_raw', 'wtime_adj'])
+        self.rec_formats.append('qhb20shdd')
 
     def record_timing(self, timestamp, ntrode_id, datatype, label):
         if len(label) > 20:
             raise binary_record.BinaryRecordsError("Timing label {} too long, must be "
                                                    "10 characters or less.".format(label))
 
+        time = MPI.Wtime()
         self.write_record(RecordIDs.TIMING, timestamp, ntrode_id, self.rank, label.encode('utf-8'), datatype,
-                          MPI.Wtime() + self.offset_time)
+                          time, time + self.offset_time)
 
     def update_offset(self, offset_time):
         self.class_log.debug("Updating time offset to {}".format(offset_time))

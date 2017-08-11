@@ -53,6 +53,7 @@ class MainProcess(realtime_base.RealtimeProcess):
 
         self.mpi_status = MPI.Status()
 
+
     def trigger_termination(self):
         self.terminate = True
 
@@ -64,7 +65,7 @@ class MainProcess(realtime_base.RealtimeProcess):
         while not self.terminate:
             current_time_bin = int(time.time())
 
-            if current_time_bin > last_time_bin:
+            if current_time_bin > last_time_bin+10:
                 self.manager.synchronize_time()
                 last_time_bin = current_time_bin
 
@@ -291,6 +292,11 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         self.send_interface.send_time_sync_offset(rank, offset_time)
 
     def handle_ntrode_list(self, trode_list):
+
+        # First Barrier to finish setting up nodes, waiting for Simulator to send ntrode list.
+        # The main loop must be active to receive binary record registration messages, so the
+        # first Barrier is placed here.
+        self.send_interface.all_barrier()
 
         self.class_log.debug("Received ntrode list from simulator {:}.".format(trode_list))
         for rip_rank in self.config['rank']['ripples']:

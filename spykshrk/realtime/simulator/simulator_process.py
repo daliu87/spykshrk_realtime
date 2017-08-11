@@ -159,6 +159,7 @@ class SimulatorSendInterface(realtime_base.RealtimeMPIClass):
         self.comm.Barrier()
 
     def send_terminate(self):
+        self.class_log.debug("Terminate all other ranks.")
         self.comm.send(obj=realtime_base.TerminateMessage(), dest=self.config['rank']['supervisor'],
                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
@@ -249,8 +250,12 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
         # Distribute tetrode list to nodes in 3 sec
         current_time = time.time()
         if not self.ntrode_list_sent and (current_time - self.start_time < 3.0):
+            # First Barrier to finish setting up nodes, right before simulator starts by sending ntrode list
+            self.comm.Barrier()
+
             self.send_ntrode_list()
             self.ntrode_list_sent = True
+
 
         if not self.running:
             return None
@@ -319,6 +324,7 @@ class SimulatorProcess(realtime_base.RealtimeProcess):
                              local_rec_manager=self.local_rec_manager)
 
         self.mpi_recv = SimulatorRecvInterface(comm=comm, rank=rank, config=config, simulator=self.sim)
+
 
     def trigger_termination(self):
         self.terminate = True
