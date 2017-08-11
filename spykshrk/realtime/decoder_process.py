@@ -67,8 +67,10 @@ class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         self.current_spike_count = 0
 
     def begin_time_sync(self):
+        self.class_log.debug("Begin time sync barrier ({}).".format(self.rank))
         self.mpi_send.all_barrier()
         self.mpi_send.send_time_sync_report(MPI.Wtime())
+        self.class_log.debug("Report post barrier time ({}).".format(self.rank))
 
     def process_next_data(self):
         spike_dec_msg = self.spike_interface.__next__()

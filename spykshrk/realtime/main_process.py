@@ -280,8 +280,10 @@ class MainSimulatorManager(rt_logging.LoggingClass):
             self.send_interface.send_ripple_baseline_std(rank=rip_rank, std_dict=rip_std_base_dict)
 
     def synchronize_time(self):
+        self.class_log.debug("Sending time sync messages to all nodes.")
         self.send_interface.send_time_sync_init()
         self.send_interface.all_barrier()
+        self.class_log.debug("Post barrier time set as master.")
         self.master_time = MPI.Wtime()
 
     def send_calc_offset_time(self, rank, remote_time):
