@@ -184,6 +184,7 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
             self.pos_chan_req = []
             self.data_itr = self.databuffer()
 
+
         except TypeError as err:
             self.class_log.exception("TypeError: nspike_animal_info does not match nspike_data.AnimalInfo arguments.",
                                      exc_info=err)
@@ -193,14 +194,14 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
         # Send binary record register message
         self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
-        # Pause to make sure other ranks have started
-        time.sleep(1.)
+        self.start_time = time.time()
+        self.ntrode_list_sent = False
+        self.running = False
 
+    def send_ntrode_list(self):
         # Send ntrode configuration.  This automatically triggers a cascade of messages to start the simulation
         # and receiving ranks
         self.mpi_send.send_ntrode_list(self.config['simulator']['nspike_animal_info']['tetrodes'])
-
-        self.running = False
 
     def update_cont_chan_req(self, dest_rank, lfp_chan):
         if lfp_chan not in self.nspike_anim.tetrodes:
@@ -231,8 +232,10 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
         self.pos_chan_req.append(dest_rank)
 
     def begin_time_sync(self):
+        self.class_log.debug("Begin time sync barrier ({}).".format(self.rank))
         self.mpi_send.all_barrier()
         self.mpi_send.send_time_sync_report(MPI.Wtime())
+        self.class_log.debug("Report post barrier time ({}).".format(self.rank))
 
     def start_datastream(self):
         self.class_log.debug("Start datastream.")
@@ -242,6 +245,13 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
         self.running = False
 
     def send_next_data(self):
+
+        # Distribute tetrode list to nodes in 3 sec
+        current_time = time.time()
+        if not self.ntrode_list_sent and (current_time - self.start_time < 3.0):
+            self.send_ntrode_list()
+            self.ntrode_list_sent = True
+
         if not self.running:
             return None
 
@@ -314,9 +324,9 @@ class SimulatorProcess(realtime_base.RealtimeProcess):
         self.terminate = True
 
     def main_loop(self):
-
         try:
             while not self.terminate:
+
                 self.mpi_recv.__next__()
                 self.sim.send_next_data()
         except StopIteration as err:
@@ -370,6 +380,7 @@ class SimulatorRecvInterface(realtime_base.RealtimeMPIClass):
             self.sim.close_record()
 
         elif isinstance(message, realtime_base.TimeSyncInit):
+            self.class_log.debug('Received TimeSyncInit.')
             self.sim.begin_time_sync()
 
         elif isinstance(message, realtime_base.TimeSyncSetOffset):

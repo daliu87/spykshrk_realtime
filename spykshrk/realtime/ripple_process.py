@@ -420,8 +420,10 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
         return status_list
 
     def begin_time_sync(self):
+        self.class_log.debug("Begin time sync barrier ({}).".format(self.rank))
         self.mpi_send.all_barrier()
         self.mpi_send.send_time_sync_report(MPI.Wtime())
+        self.class_log.debug("Report post barrier time ({}).".format(self.rank))
 
     def trigger_termination(self):
         self.data_interface.stop_iterator()

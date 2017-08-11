@@ -136,8 +136,10 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
         self.pos_interface.start_all_streams()
 
     def begin_time_sync(self):
+        self.class_log.debug("Begin time sync barrier ({}).".format(self.rank))
         self.mpi_send.all_barrier()
         self.mpi_send.send_time_sync_report(MPI.Wtime())
+        self.class_log.debug("Report post barrier time ({}).".format(self.rank))
 
     def trigger_termination(self):
         self.spike_interface.stop_iterator()
