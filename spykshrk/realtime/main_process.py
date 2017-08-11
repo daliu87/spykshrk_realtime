@@ -214,10 +214,9 @@ class MainMPISendInterface(realtime_base.RealtimeMPIClass):
         self.comm.send(obj=ripple_process.CustomRippleBaselineStdMessage(std_dict=std_dict), dest=rank,
                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
-    def send_time_sync_init(self):
-        for rank in range(self.comm.size):
-            self.comm.send(obj=realtime_base.TimeSyncInit(), dest=rank,
-                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+    def send_time_sync_simulator(self):
+        self.comm.send(obj=realtime_base.TimeSyncInit(), dest=self.config['rank']['simulator'],
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
     def all_barrier(self):
         self.comm.Barrier()
@@ -281,8 +280,8 @@ class MainSimulatorManager(rt_logging.LoggingClass):
             self.send_interface.send_ripple_baseline_std(rank=rip_rank, std_dict=rip_std_base_dict)
 
     def synchronize_time(self):
-        self.class_log.debug("Sending time sync messages to all nodes.")
-        self.send_interface.send_time_sync_init()
+        self.class_log.debug("Sending time sync messages to simulator node.")
+        self.send_interface.send_time_sync_simulator()
         self.send_interface.all_barrier()
         self.class_log.debug("Post barrier time set as master.")
         self.master_time = MPI.Wtime()

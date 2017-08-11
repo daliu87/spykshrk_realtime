@@ -150,6 +150,14 @@ class SimulatorSendInterface(realtime_base.RealtimeMPIClass):
                        dest=self.config['rank']['supervisor'],
                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
+    def send_time_sync_other(self):
+        rank_list = list(range(self.comm.size))
+        rank_list.remove(self.rank)
+        rank_list.remove(self.config['rank']['supervisor'])
+        for rank in rank_list:
+            self.comm.send(obj=realtime_base.TimeSyncInit(), dest=rank,
+                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+
     def send_time_sync_report(self, time):
         self.comm.send(obj=realtime_base.TimeSyncReport(time),
                        dest=self.config['rank']['supervisor'],
@@ -233,6 +241,8 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
         self.pos_chan_req.append(dest_rank)
 
     def begin_time_sync(self):
+        self.class_log.debug("Sending sync message to remaining nodes ({}).".format(self.rank))
+        self.mpi_send.send_time_sync_other()
         self.class_log.debug("Begin time sync barrier ({}).".format(self.rank))
         self.mpi_send.all_barrier()
         self.mpi_send.send_time_sync_report(MPI.Wtime())
