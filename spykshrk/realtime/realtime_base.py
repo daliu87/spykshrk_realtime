@@ -139,6 +139,7 @@ class BinaryRecordBase(LoggingClass):
         super().__init__(*args, **kwds)
         self.rank = kwds['rank']
         self.local_rec_manager = kwds['local_rec_manager']
+        self.send_interface = kwds['send_interface']
         try:
             self.rec_ids = kwds['rec_ids']
         except KeyError:
@@ -160,6 +161,9 @@ class BinaryRecordBase(LoggingClass):
 
         self.rec_writer = None    # type: binary_record.BinaryRecordsFileWriter
         self.rec_writer_enabled = False
+
+        # Send binary record register message
+        self.send_interface.send_record_register_messages(self.get_record_register_messages())
 
     def get_record_register_messages(self):
 
@@ -212,14 +216,18 @@ class BinaryRecordBase(LoggingClass):
 
 class BinaryRecordBaseWithTiming(BinaryRecordBase):
     def __init__(self, *args, **kwds):
-        super(BinaryRecordBaseWithTiming, self).__init__(*args, **kwds)
 
-        self.offset_time = 0
-        self.rank = kwds['rank']
+        self.rec_ids = kwds.setdefault('rec_ids', [])
+        self.rec_labels = kwds.setdefault('rec_labels', [])
+        self.rec_formats = kwds.setdefault('rec_formats', [])
 
         self.rec_ids.append(RecordIDs.TIMING)
         self.rec_labels.append(['timestamp', 'ntrode_id', 'rank', 'label', 'datatype', 'wtime_raw', 'wtime_adj'])
         self.rec_formats.append('qhb20shdd')
+
+        self.offset_time = 0
+
+        super(BinaryRecordBaseWithTiming, self).__init__(*args, **kwds)
 
     def record_timing(self, timestamp, ntrode_id, datatype, label):
         if len(label) > 20:
@@ -229,6 +237,12 @@ class BinaryRecordBaseWithTiming(BinaryRecordBase):
         time = MPI.Wtime()
         self.write_record(RecordIDs.TIMING, timestamp, ntrode_id, self.rank, label.encode('utf-8'), datatype,
                           time, time + self.offset_time)
+
+    def sync_time(self):
+        self.class_log.debug("Begin time sync barrier ({}).".format(self.rank))
+        self.send_interface.all_barrier()
+        self.send_interface.send_time_sync_report(MPI.Wtime())
+        self.class_log.debug("Report post barrier time ({}).".format(self.rank))
 
     def update_offset(self, offset_time):
         self.class_log.debug("Updating time offset to {}".format(offset_time))

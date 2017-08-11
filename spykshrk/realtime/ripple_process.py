@@ -337,6 +337,7 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
                  data_interface: simulator_process.SimulatorRemoteReceiver):
         super().__init__(rank=rank,
                          local_rec_manager=local_rec_manager,
+                         send_interface=send_interface,
                          rec_ids=[realtime_base.RecordIDs.RIPPLE_STATE],
                          rec_labels=[['timestamp',
                                      'ntrode_id',
@@ -359,7 +360,7 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
         self.custom_baseline_std_dict = {}
         self.data_packet_counter = 0
 
-        self.mpi_send.send_record_register_messages(self.get_record_register_messages())
+        # self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
     def set_num_trodes(self, message: realtime_base.NumTrodesMessage):
         self.num_ntrodes = message.num_ntrodes
@@ -418,12 +419,6 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
             if status_dict:
                 status_list.append(rip_filter.get_status_dict())
         return status_list
-
-    def begin_time_sync(self):
-        self.class_log.debug("Begin time sync barrier ({}).".format(self.rank))
-        self.mpi_send.all_barrier()
-        self.mpi_send.send_time_sync_report(MPI.Wtime())
-        self.class_log.debug("Report post barrier time ({}).".format(self.rank))
 
     def trigger_termination(self):
         self.data_interface.stop_iterator()
@@ -532,7 +527,7 @@ class RippleMPIRecvInterface(realtime_base.RealtimeMPIClass):
             self.rip_man.reset_filters()
 
         elif isinstance(message, realtime_base.TimeSyncInit):
-            self.rip_man.begin_time_sync()
+            self.rip_man.sync_time()
 
         elif isinstance(message, realtime_base.TimeSyncSetOffset):
             self.rip_man.update_offset(message.offset_time)

@@ -47,6 +47,7 @@ class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
                  spike_decode_interface: SpikeDecodeRecvInterface):
         super(BayesianDecodeManager, self).__init__(rank=rank,
                                                     local_rec_manager=local_rec_manager,
+                                                    send_interface=send_interface,
                                                     rec_ids=[realtime_base.RecordIDs.DECODER_OUTPUT],
                                                     rec_labels=[['timestamp'] +
                                                                 ['x'+str(x) for x in
@@ -58,19 +59,13 @@ class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         self.spike_interface = spike_decode_interface
 
         # Send binary record register message
-        self.mpi_send.send_record_register_messages(self.get_record_register_messages())
+        # self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
         self.msg_counter = 0
 
         self.current_time_bin = 0
         self.current_est_pos_hist = np.ones(self.config['encoder']['position']['bins'])
         self.current_spike_count = 0
-
-    def begin_time_sync(self):
-        self.class_log.debug("Begin time sync barrier ({}).".format(self.rank))
-        self.mpi_send.all_barrier()
-        self.mpi_send.send_time_sync_report(MPI.Wtime())
-        self.class_log.debug("Report post barrier time ({}).".format(self.rank))
 
     def process_next_data(self):
         spike_dec_msg = self.spike_interface.__next__()
@@ -139,7 +134,7 @@ class DecoderRecvInterface(realtime_base.RealtimeMPIClass):
 
         elif isinstance(message, realtime_base.TimeSyncInit):
             self.class_log.debug("Received TimeSyncInit.")
-            self.dec_man.begin_time_sync()
+            self.dec_man.sync_time()
 
         elif isinstance(message, realtime_base.TimeSyncSetOffset):
             self.dec_man.update_offset(message.offset_time)

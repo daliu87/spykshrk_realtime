@@ -175,7 +175,7 @@ class SimulatorSendInterface(realtime_base.RealtimeMPIClass):
 class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.RealtimeMPIClass):
     def __init__(self, comm, rank, config, mpi_send: SimulatorSendInterface, local_rec_manager):
         super().__init__(comm=comm, rank=rank, config=config,
-                         local_rec_manager=local_rec_manager)
+                         local_rec_manager=local_rec_manager, send_interface=mpi_send)
         self.mpi_send = mpi_send
 
         self._stop_next = False
@@ -199,9 +199,6 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
                                      exc_info=err)
             self.mpi_send.send_terminate_error("For SimulatorThread, nspike_animal_info config did "
                                                "not match nspike_data.AnimalInfo arguments.")
-
-        # Send binary record register message
-        self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
         self.start_time = time.time()
         self.ntrode_list_sent = False
@@ -240,13 +237,11 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
         self.class_log.debug("Linear position registered by rank {:}".format(dest_rank))
         self.pos_chan_req.append(dest_rank)
 
-    def begin_time_sync(self):
+    def sync_time(self):
+        """Override normal sync time so Simulator will trigger the sync barrier of its consumers."""
         self.class_log.debug("Sending sync message to remaining nodes ({}).".format(self.rank))
         self.mpi_send.send_time_sync_other()
-        self.class_log.debug("Begin time sync barrier ({}).".format(self.rank))
-        self.mpi_send.all_barrier()
-        self.mpi_send.send_time_sync_report(MPI.Wtime())
-        self.class_log.debug("Report post barrier time ({}).".format(self.rank))
+        super().sync_time()
 
     def start_datastream(self):
         self.class_log.debug("Start datastream.")
@@ -397,7 +392,7 @@ class SimulatorRecvInterface(realtime_base.RealtimeMPIClass):
 
         elif isinstance(message, realtime_base.TimeSyncInit):
             self.class_log.debug('Received TimeSyncInit.')
-            self.sim.begin_time_sync()
+            self.sim.sync_time()
 
         elif isinstance(message, realtime_base.TimeSyncSetOffset):
             self.sim.update_offset(message.offset_time)

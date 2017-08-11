@@ -75,6 +75,7 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
 
         super(RStarEncoderManager, self).__init__(rank=rank,
                                                   local_rec_manager=local_rec_manager,
+                                                  send_interface=send_interface,
                                                   rec_ids=[realtime_base.RecordIDs.ENCODER_QUERY,
                                                            realtime_base.RecordIDs.ENCODER_OUTPUT],
                                                   rec_labels=[['timestamp',
@@ -94,7 +95,7 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
         self.spike_interface = spike_interface
         self.pos_interface = pos_interface
 
-        self.mpi_send.send_record_register_messages(self.get_record_register_messages())
+        # self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
         kernel = RST.kernel_param(mean=config['encoder']['kernel']['mean'],
                                   stddev=config['encoder']['kernel']['std'],
@@ -134,12 +135,6 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
         self.class_log.info("Turn on datastreams.")
         self.spike_interface.start_all_streams()
         self.pos_interface.start_all_streams()
-
-    def begin_time_sync(self):
-        self.class_log.debug("Begin time sync barrier ({}).".format(self.rank))
-        self.mpi_send.all_barrier()
-        self.mpi_send.send_time_sync_report(MPI.Wtime())
-        self.class_log.debug("Report post barrier time ({}).".format(self.rank))
 
     def trigger_termination(self):
         self.spike_interface.stop_iterator()
@@ -253,7 +248,7 @@ class EncoderMPIRecvInterface(realtime_base.RealtimeMPIClass):
             self.enc_man.set_record_writer_from_message(message)
 
         elif isinstance(message, realtime_base.TimeSyncInit):
-            self.enc_man.begin_time_sync()
+            self.enc_man.sync_time()
 
         elif isinstance(message, realtime_base.TimeSyncSetOffset):
             self.enc_man.update_offset(message.offset_time)

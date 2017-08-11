@@ -85,6 +85,12 @@ class StimDeciderMPISendInterface(realtime_base.RealtimeMPIClass):
     def start_stimulation(self):
         pass
 
+    def send_record_register_messages(self, record_register_messages):
+        self.class_log.debug("Sending binary record registration messages.")
+        for message in record_register_messages:
+            self.comm.send(obj=message, dest=self.config['rank']['supervisor'],
+                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+
 
 class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
     def __init__(self, rank, config,
@@ -95,6 +101,7 @@ class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
                                                                                     local_rank=rank,
                                                                                     manager_rank=
                                                                                     config['rank']['supervisor']),
+                         send_interface=send_interface,
                          rec_ids=[realtime_base.RecordIDs.STIM_STATE],
                          rec_labels=[['timestamp', 'ntrode_id', 'threshold_state']], rec_formats=['Iii'])
         self.rank = rank
@@ -256,8 +263,8 @@ class MainSimulatorManager(rt_logging.LoggingClass):
                                            file_postfix=self.config['files']['timing_postfix'])
 
         # bypass the normal record registration message sending
-        for message in stim_decider.get_record_register_messages():
-            self.rec_manager.register_rec_type_message(message)
+        # for message in stim_decider.get_record_register_messages():
+        #     self.rec_manager.register_rec_type_message(message)
 
         self.master_time = MPI.Wtime()
 
