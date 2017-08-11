@@ -8,7 +8,7 @@ import spykshrk.realtime.timing_system as timing_system
 import spykshrk.realtime.datatypes as datatypes
 
 from mpi4py import MPI
-from time import sleep
+import time
 
 import sys
 
@@ -35,7 +35,7 @@ class MainProcess(realtime_base.RealtimeProcess):
 
         super().__init__(comm=comm, rank=rank, config=config)
 
-        self.stim_decider = StimDecider(rank=rank, config=config, offset_time=self.offset_time,
+        self.stim_decider = StimDecider(rank=rank, config=config,
                                         send_interface=StimDeciderMPISendInterface(comm=comm,
                                                                                    rank=rank,
                                                                                    config=config))
@@ -59,7 +59,14 @@ class MainProcess(realtime_base.RealtimeProcess):
     def main_loop(self):
         # self.thread.start()
 
+        last_time_bin = int(time.time())
+
         while not self.terminate:
+            current_time_bin = int(time.time())
+
+            if current_time_bin > last_time_bin:
+                self.manager.synchronize_time()
+                last_time_bin = current_time_bin
 
             self.recv_interface.__next__()
             self.data_recv.__next__()
@@ -79,11 +86,10 @@ class StimDeciderMPISendInterface(realtime_base.RealtimeMPIClass):
 
 
 class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
-    def __init__(self, rank, config, offset_time,
+    def __init__(self, rank, config,
                  send_interface: StimDeciderMPISendInterface, ripple_n_above_thresh=sys.maxsize):
 
         super().__init__(rank=rank,
-                         offset_time = offset_time,
                          local_rec_manager=binary_record.RemoteBinaryRecordsManager(manager_label='state',
                                                                                     local_rank=rank,
                                                                                     manager_rank=
@@ -178,41 +184,53 @@ class MainMPISendInterface(realtime_base.RealtimeMPIClass):
     def send_num_ntrode(self, rank, num_ntrodes):
         self.class_log.debug("Sending number of ntrodes to rank {:}".format(rank))
         self.comm.send(realtime_base.NumTrodesMessage(num_ntrodes), dest=rank,
-                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
     def send_channel_selection(self, rank, channel_selects):
         self.comm.send(obj=spykshrk.realtime.realtime_base.ChannelSelection(channel_selects), dest=rank,
-                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
     def send_new_writer_message(self, rank, new_writer_message):
         self.comm.send(obj=new_writer_message, dest=rank,
-                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
     def send_start_rec_message(self, rank):
         self.comm.send(obj=realtime_base.StartRecordMessage(), dest=rank,
-                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
     def send_turn_on_datastreams(self, rank):
         self.comm.send(obj=spykshrk.realtime.realtime_base.TurnOnDataStream(), dest=rank,
-                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
     def send_ripple_parameter(self, rank, param_message):
-        self.comm.send(obj=param_message, dest=rank, tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+        self.comm.send(obj=param_message, dest=rank, tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
     def send_ripple_baseline_mean(self, rank, mean_dict):
         self.comm.send(obj=ripple_process.CustomRippleBaselineMeanMessage(mean_dict=mean_dict), dest=rank,
-                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
     def send_ripple_baseline_std(self, rank, std_dict):
         self.comm.send(obj=ripple_process.CustomRippleBaselineStdMessage(std_dict=std_dict), dest=rank,
-                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+
+    def send_time_sync_init(self):
+        for rank in range(self.comm.size):
+            self.comm.send(obj=realtime_base.TimeSyncInit(), dest=rank,
+                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+
+    def all_barrier(self):
+        self.comm.Barrier()
+
+    def send_time_sync_offset(self, rank, offset_time):
+        self.comm.send(obj=realtime_base.TimeSyncSetOffset(offset_time), dest=rank,
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
     def terminate_all(self):
         terminate_ranks = list(range(self.comm.size))
         terminate_ranks.remove(self.rank)
         for rank in terminate_ranks:
             self.comm.send(obj=realtime_base.TerminateMessage(), dest=rank,
-                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+                           tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
 
 class MainSimulatorManager(rt_logging.LoggingClass):
@@ -241,6 +259,8 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         for message in stim_decider.get_record_register_messages():
             self.rec_manager.register_rec_type_message(message)
 
+        self.master_time = MPI.Wtime()
+
         super().__init__()
 
         for rip_rank in self.config['rank']['ripples']:
@@ -259,13 +279,22 @@ class MainSimulatorManager(rt_logging.LoggingClass):
                                          self.config['ripple']['CustomRippleBaselineStdMessage'].items()))
             self.send_interface.send_ripple_baseline_std(rank=rip_rank, std_dict=rip_std_base_dict)
 
+    def synchronize_time(self):
+        self.send_interface.send_time_sync_init()
+        self.send_interface.all_barrier()
+        self.master_time = MPI.Wtime()
+
+    def send_calc_offset_time(self, rank, remote_time):
+        offset_time = self.master_time - remote_time
+        self.send_interface.send_time_sync_offset(rank, offset_time)
+
     def handle_ntrode_list(self, trode_list):
+
         self.class_log.debug("Received ntrode list from simulator {:}.".format(trode_list))
         for rip_rank in self.config['rank']['ripples']:
             self.send_interface.send_num_ntrode(rank=rip_rank, num_ntrodes=len(trode_list))
         for enc_rank in self.config['rank']['encoders']:
             self.send_interface.send_num_ntrode(rank=enc_rank, num_ntrodes=len(trode_list))
-
 
         # Round robin allocation of channels to ripple
         enable_count = 0
@@ -302,7 +331,7 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         self.stim_decider.set_record_writer_from_message(self.rec_manager.new_writer_message())
         self.stim_decider.start_record_writing()
 
-        sleep(0.5)
+        time.sleep(0.5)
         # Then turn on data streaming to ripple ranks
         for rank in self.config['rank']['ripples']:
             self.send_interface.send_turn_on_datastreams(rank)
@@ -351,6 +380,9 @@ class MainSimulatorMPIRecvInterface(realtime_base.RealtimeMPIClass):
             self.class_log.debug("BinaryRecordTypeMessage received for rec id {} from rank {}".
                                  format(message.rec_id, self.mpi_status.source))
             self.main_manager.register_rec_type_message(message)
+
+        elif isinstance(message, realtime_base.TimeSyncReport):
+            self.main_manager.send_calc_offset_time(self.mpi_status.source, message.time)
 
         elif isinstance(message, realtime_base.TerminateMessage):
             self.class_log.info('Received TerminateMessage from rank {:}, now terminating all.'.

@@ -323,12 +323,19 @@ class RippleMPISendInterface(realtime_base.RealtimeMPIClass):
                        dest=self.config['rank']['supervisor'],
                        tag=realtime_base.MPIMessageTag.TIMING_MESSAGE.value)
 
+    def send_time_sync_report(self, time):
+        self.comm.send(obj=realtime_base.TimeSyncReport(time),
+                       dest=self.config['rank']['supervisor'],
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+
+    def all_barrier(self):
+        self.comm.Barrier()
+
 
 class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.LoggingClass):
-    def __init__(self, rank, offset_time, local_rec_manager, send_interface: RippleMPISendInterface,
+    def __init__(self, rank, local_rec_manager, send_interface: RippleMPISendInterface,
                  data_interface: simulator_process.SimulatorRemoteReceiver):
         super().__init__(rank=rank,
-                         offset_time=offset_time,
                          local_rec_manager=local_rec_manager,
                          rec_ids=[realtime_base.RecordIDs.RIPPLE_STATE],
                          rec_labels=[['timestamp',
@@ -411,6 +418,10 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
             if status_dict:
                 status_list.append(rip_filter.get_status_dict())
         return status_list
+
+    def begin_time_sync(self):
+        self.mpi_send.all_barrier()
+        self.mpi_send.send_time_sync_report(MPI.Wtime())
 
     def trigger_termination(self):
         self.data_interface.stop_iterator()
@@ -518,6 +529,12 @@ class RippleMPIRecvInterface(realtime_base.RealtimeMPIClass):
         elif isinstance(message, realtime_base.ResetFilterMessage):
             self.rip_man.reset_filters()
 
+        elif isinstance(message, realtime_base.TimeSyncInit):
+            self.rip_man.begin_time_sync()
+
+        elif isinstance(message, realtime_base.TimeSyncSetOffset):
+            self.rip_man.update_offset(message.offset_time)
+
 
 class RippleProcess(realtime_base.RealtimeProcess):
 
@@ -536,7 +553,6 @@ class RippleProcess(realtime_base.RealtimeProcess):
                                                                        datatype=datatypes.Datatypes.LFP)
 
             self.rip_man = RippleManager(rank=rank,
-                                         offset_time=self.offset_time,
                                          local_rec_manager=self.local_rec_manager,
                                          send_interface=self.mpi_send,
                                          data_interface=data_interface)
