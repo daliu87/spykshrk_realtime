@@ -168,6 +168,9 @@ class DecoderProcess(realtime_base.RealtimeProcess):
                                              spike_decode_interface=self.spike_decode_interface)
         self.mpi_recv = DecoderRecvInterface(comm=comm, rank=rank, config=config, decode_manager=self.dec_man)
 
+        # First Barrier to finish setting up nodes
+        self.comm.Barrier()
+
     def trigger_termination(self):
         self.terminate = True
 

@@ -297,6 +297,9 @@ class EncoderProcess(realtime_base.RealtimeProcess):
 
         self.terminate = False
 
+        # First Barrier to finish setting up nodes
+        self.comm.Barrier()
+
     def trigger_termination(self):
         self.terminate = True
 
