@@ -58,15 +58,22 @@ class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
         self.comm.Send(buf=query_result_message.pack(), dest=self.config['rank']['decoder'],
                        tag=realtime_base.MPIMessageTag.SPIKE_DECODE_DATA)
 
+    def send_time_sync_report(self, time):
+        self.comm.send(obj=realtime_base.TimeSyncReport(time),
+                       dest=self.config['rank']['supervisor'],
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+
+    def all_barrier(self):
+        self.comm.Barrier()
+
 
 class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_logging.LoggingClass):
 
-    def __init__(self, rank, config, offset_time, local_rec_manager, send_interface: EncoderMPISendInterface,
+    def __init__(self, rank, config, local_rec_manager, send_interface: EncoderMPISendInterface,
                  spike_interface: simulator_process.SimulatorRemoteReceiver,
                  pos_interface: simulator_process.SimulatorRemoteReceiver):
 
         super(RStarEncoderManager, self).__init__(rank=rank,
-                                                  offset_time=offset_time,
                                                   local_rec_manager=local_rec_manager,
                                                   rec_ids=[realtime_base.RecordIDs.ENCODER_QUERY,
                                                            realtime_base.RecordIDs.ENCODER_OUTPUT],
@@ -127,6 +134,10 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
         self.class_log.info("Turn on datastreams.")
         self.spike_interface.start_all_streams()
         self.pos_interface.start_all_streams()
+
+    def begin_time_sync(self):
+        self.mpi_send.all_barrier()
+        self.mpi_send.send_time_sync_report(MPI.Wtime())
 
     def trigger_termination(self):
         self.spike_interface.stop_iterator()
@@ -239,6 +250,12 @@ class EncoderMPIRecvInterface(realtime_base.RealtimeMPIClass):
         elif isinstance(message, binary_record.BinaryRecordCreateMessage):
             self.enc_man.set_record_writer_from_message(message)
 
+        elif isinstance(message, realtime_base.TimeSyncInit):
+            self.enc_man.begin_time_sync()
+
+        elif isinstance(message, realtime_base.TimeSyncSetOffset):
+            self.enc_man.update_offset(message.offset_time)
+
         elif isinstance(message, realtime_base.StartRecordMessage):
             self.enc_man.start_record_writing()
 
@@ -269,7 +286,6 @@ class EncoderProcess(realtime_base.RealtimeProcess):
 
         self.enc_man = RStarEncoderManager(rank=rank,
                                            config=config,
-                                           offset_time=self.offset_time,
                                            local_rec_manager=self.local_rec_manager,
                                            send_interface=self.mpi_send,
                                            spike_interface=spike_interface,

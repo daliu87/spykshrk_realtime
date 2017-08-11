@@ -214,19 +214,24 @@ class BinaryRecordBaseWithTiming(BinaryRecordBase):
     def __init__(self, *args, **kwds):
         super(BinaryRecordBaseWithTiming, self).__init__(*args, **kwds)
 
-        self.offset_time = kwds['offset_time']
+        self.offset_time = 0
+        self.rank = kwds['rank']
 
         self.rec_ids.append(RecordIDs.TIMING)
-        self.rec_labels.append(['timestamp', 'ntrode_id', 'label', 'datatype', 'wtime'])
-        self.rec_formats.append('qh20shd')
+        self.rec_labels.append(['timestamp', 'ntrode_id', 'rank', 'label', 'datatype', 'wtime'])
+        self.rec_formats.append('qhb20shd')
 
     def record_timing(self, timestamp, ntrode_id, datatype, label):
         if len(label) > 20:
             raise binary_record.BinaryRecordsError("Timing label {} too long, must be "
                                                    "10 characters or less.".format(label))
 
-        self.write_record(RecordIDs.TIMING, timestamp, ntrode_id, label.encode('utf-8'), datatype,
-                          MPI.Wtime() - self.offset_time)
+        self.write_record(RecordIDs.TIMING, timestamp, ntrode_id, self.rank, label.encode('utf-8'), datatype,
+                          MPI.Wtime() + self.offset_time)
+
+    def update_offset(self, offset_time):
+        self.class_log.debug("Updating time offset to {}".format(offset_time))
+        self.offset_time = offset_time
 
 
 class ExceptionLoggerWrapperMeta(type):
@@ -316,14 +321,6 @@ class RealtimeProcess(RealtimeMPIClass, metaclass=RealtimeMeta):
                                                      rank,
                                                      config['files']['profile_postfix']))
 
-        time_list = []
-        for _ in range(10):
-            comm.Barrier()
-            time_list.append(MPI.Wtime())
-
-        self.offset_time = sum(time_list)/len(time_list)
-        self.class_log.debug('Time offset for rank set to: {}'.format(self.offset_time))
-
     def main_loop(self):
         pass
 
@@ -353,6 +350,23 @@ class DataStreamIterator(LoggingClass, metaclass=ABCMeta):
 
     @abstractmethod
     def __next__(self):
+        pass
+
+
+class TimeSyncInit(PrintableMessage):
+    def __init__(self):
+        pass
+
+
+class TimeSyncReport(PrintableMessage):
+    def __init__(self, time):
+        self.time = time
+        pass
+
+
+class TimeSyncSetOffset(PrintableMessage):
+    def __init__(self, offset_time):
+        self.offset_time = offset_time
         pass
 
 

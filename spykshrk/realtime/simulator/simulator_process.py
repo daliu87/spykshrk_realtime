@@ -150,14 +150,22 @@ class SimulatorSendInterface(realtime_base.RealtimeMPIClass):
                        dest=self.config['rank']['supervisor'],
                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
+    def send_time_sync_report(self, time):
+        self.comm.send(obj=realtime_base.TimeSyncReport(time),
+                       dest=self.config['rank']['supervisor'],
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+
+    def all_barrier(self):
+        self.comm.Barrier()
+
     def send_terminate(self):
         self.comm.send(obj=realtime_base.TerminateMessage(), dest=self.config['rank']['supervisor'],
                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
 
 class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.RealtimeMPIClass):
-    def __init__(self, comm, rank, config, offset_time, mpi_send: SimulatorSendInterface, local_rec_manager):
-        super().__init__(comm=comm, rank=rank, config=config, offset_time=offset_time,
+    def __init__(self, comm, rank, config, mpi_send: SimulatorSendInterface, local_rec_manager):
+        super().__init__(comm=comm, rank=rank, config=config,
                          local_rec_manager=local_rec_manager)
         self.mpi_send = mpi_send
 
@@ -221,6 +229,10 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
 
         self.class_log.debug("Linear position registered by rank {:}".format(dest_rank))
         self.pos_chan_req.append(dest_rank)
+
+    def begin_time_sync(self):
+        self.mpi_send.all_barrier()
+        self.mpi_send.send_time_sync_report(MPI.Wtime())
 
     def start_datastream(self):
         self.class_log.debug("Start datastream.")
@@ -292,7 +304,7 @@ class SimulatorProcess(realtime_base.RealtimeProcess):
 
         self.mpi_send = SimulatorSendInterface(comm=comm, rank=rank, config=config)
 
-        self.sim = Simulator(comm=comm, rank=rank, config=config, offset_time=self.offset_time,
+        self.sim = Simulator(comm=comm, rank=rank, config=config,
                              mpi_send=self.mpi_send,
                              local_rec_manager=self.local_rec_manager)
 
@@ -356,6 +368,12 @@ class SimulatorRecvInterface(realtime_base.RealtimeMPIClass):
 
         elif isinstance(message, realtime_base.CloseRecordMessage):
             self.sim.close_record()
+
+        elif isinstance(message, realtime_base.TimeSyncInit):
+            self.sim.begin_time_sync()
+
+        elif isinstance(message, realtime_base.TimeSyncSetOffset):
+            self.sim.update_offset(message.offset_time)
 
         elif isinstance(message, realtime_base.TerminateMessage):
             raise StopIteration()

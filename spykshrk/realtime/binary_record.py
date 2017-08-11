@@ -136,7 +136,8 @@ class BinaryRecordsManager:
 
     def register_rec_type(self, rec_id, rec_labels, rec_struct_fmt):
         if self._next_file_index >= 2:
-            raise BinaryRecordsError('Cannot add more record types after manager has created a file!')
+            raise BinaryRecordsError('Cannot add more record types after manager has created a file. '
+                                     'Tried to add {} {} {}'.format(rec_id, rec_labels, rec_struct_fmt))
         else:
             if rec_id in self._rec_format_dict:
                 if (rec_labels != self._rec_label_dict[rec_id]) or (rec_struct_fmt != self._rec_format_dict[rec_id]):
