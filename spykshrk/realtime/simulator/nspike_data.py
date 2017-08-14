@@ -427,6 +427,8 @@ class EEGDataStream:
                         # test to make sure value is not NaN, this is a computationally efficient shortcut way.
                         if tet_val == tet_val:
                             tet_id = day_data.columns[col_ind]
+
+                            # Hardcoded timestamp conversion to sample rate (10kHz to 30kHz)
                             yield LFPPoint(timestamp=int(timestamp * 3), ntrode_index=int(col_ind),
                                            ntrode_id=int(tet_id), data=int(tet_val))
 

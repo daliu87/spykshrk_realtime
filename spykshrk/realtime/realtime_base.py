@@ -134,6 +134,37 @@ class TimingSystemBase(LoggingClass):
             self.class_log.warning('Tried writing timing message before timing file created.')
 
 
+class NoneRecordBase(LoggingClass):
+    """
+    A dummy class for record writing that does nothing.  Can be used to replace BinaryRecordBase
+    when record writing needs to be disabled.
+    """
+
+    def __init__(self, *args, **kwds):
+        super().__init__(*args, **kwds)
+
+    def get_record_register_messages(self):
+        return []
+
+    def set_record_writer_from_message(self, create_message):
+        pass
+
+    def set_record_writer(self, rec_writer):
+        pass
+
+    def start_record_writing(self):
+        pass
+
+    def stop_record_writing(self):
+        pass
+
+    def close_record(self):
+        pass
+
+    def write_record(self, rec_id, *args):
+        pass
+
+
 class BinaryRecordBase(LoggingClass):
     def __init__(self, *args, **kwds):
         super().__init__(*args, **kwds)

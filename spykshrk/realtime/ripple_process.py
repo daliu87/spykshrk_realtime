@@ -215,9 +215,9 @@ class RippleFilter(rt_logging.LoggingClass):
         self.last_val.append(d)
         return mn
 
-    def process_data(self, data_point: LFPPoint):
+    def process_data(self, timestamp, data):
 
-        self.current_time = data_point.timestamp
+        self.current_time = timestamp
 
         if self.current_time - self.last_stim_time < self.param.lockout_time:
             self.in_lockout = True
@@ -226,13 +226,13 @@ class RippleFilter(rt_logging.LoggingClass):
 
         if self.in_lockout:
             rd = self.update_filter(((self.current_time - self.last_stim_time) / self.param.lockout_time)
-                                    * data_point.data)
+                                    * data)
             self.current_val = self.ripple_mean
             self.thresh_crossed = False
 
         else:
 
-            rd = self.update_filter(data_point.data)
+            rd = self.update_filter(data)
 
             y = abs(rd)
 
@@ -272,7 +272,7 @@ class RippleFilter(rt_logging.LoggingClass):
         # rec_format='Ii??dd',
         self.rec_base.write_record(realtime_base.RecordIDs.RIPPLE_STATE,
                                    self.current_time, self.ntrode_id, self.thresh_crossed,
-                                   self.in_lockout, int(data_point.data), rd, self.current_val)
+                                   self.in_lockout, int(data), rd, self.current_val)
 
         return self.thresh_crossed
 
@@ -437,7 +437,8 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
                 self.record_timing(timestamp=datapoint.timestamp, ntrode_id=datapoint.ntrode_id,
                                    datatype=datatypes.Datatypes.LFP, label='rip_recv')
 
-                filter_state = self.ripple_filters[datapoint.ntrode_id].process_data(data_point=datapoint)
+                filter_state = self.ripple_filters[datapoint.ntrode_id].process_data(timestamp=datapoint.timestamp,
+                                                                                     data=datapoint.data)
 
                 self.record_timing(timestamp=datapoint.timestamp, ntrode_id=datapoint.ntrode_id,
                                    datatype=datatypes.Datatypes.LFP, label='rip_send')
