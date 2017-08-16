@@ -33,6 +33,7 @@ class RecordIDs(IntEnum):
     DECODER_OUTPUT = 4
 
     STIM_STATE = 10
+    STIM_LOCKOUT = 11
 
     TIMING = 100
 

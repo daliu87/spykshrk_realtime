@@ -103,8 +103,12 @@ class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
                                                                                     manager_rank=
                                                                                     config['rank']['supervisor']),
                          send_interface=send_interface,
-                         rec_ids=[realtime_base.RecordIDs.STIM_STATE],
-                         rec_labels=[['timestamp', 'ntrode_id', 'threshold_state']], rec_formats=['Iii'])
+                         rec_ids=[realtime_base.RecordIDs.STIM_STATE,
+                                  realtime_base.RecordIDs.STIM_LOCKOUT],
+                         rec_labels=[['timestamp', 'ntrode_id', 'threshold_state'],
+                                     ['timestamp', 'lockout_num', 'lockout_state']],
+                         rec_formats=['Iii',
+                                      'Iii'])
         self.rank = rank
         self._send_interface = send_interface
         self._ripple_n_above_thresh = ripple_n_above_thresh
@@ -112,7 +116,9 @@ class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
         self._ripple_thresh_states = {}
         self._enabled = False
 
-        self.last_lockout_timestamp = 0
+        self._last_lockout_timestamp = 0
+        self._lockout_count = 0
+        self._in_lockout = False
 
         # Setup bin rec file
         # main_manager.rec_manager.register_rec_type_message(rec_type_message=self.get_record_register_message())
@@ -153,8 +159,20 @@ class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
             for state in self._ripple_thresh_states.values():
                 num_above += state
 
-            if num_above >= self._ripple_n_above_thresh:
-                self.class_log.debug("Stim passed threshold {}.".format(self._ripple_thresh_states))
+            if self._in_lockout and (timestamp > self._last_lockout_timestamp + self._lockout_time):
+                # End lockout
+                self._in_lockout = False
+                self.write_record(realtime_base.RecordIDs.STIM_LOCKOUT,
+                                  timestamp, self._lockout_count, self._in_lockout)
+                self._lockout_count += 1
+
+            if (num_above >= self._ripple_n_above_thresh) and not self._in_lockout:
+                self._in_lockout = True
+                self._last_lockout_timestamp = timestamp
+                self.class_log.debug("Ripple threshold detected {}.".format(self._ripple_thresh_states))
+                self.write_record(realtime_base.RecordIDs.STIM_LOCKOUT,
+                                  timestamp, self._lockout_count, self._in_lockout)
+
                 self._send_interface.start_stimulation()
 
 
