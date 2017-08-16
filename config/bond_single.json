@@ -36,7 +36,7 @@
         "RippleParameterMessage": {
             "rip_coeff1": 1.2,
             "rip_coeff2": 0.2,
-            "ripple_threshold": 5,
+            "ripple_threshold": 4,
             "samp_divisor": 10000,
             "n_above_thresh": 2,
             "lockout_time": 7500,
