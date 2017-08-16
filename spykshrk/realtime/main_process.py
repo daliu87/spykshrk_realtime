@@ -94,7 +94,8 @@ class StimDeciderMPISendInterface(realtime_base.RealtimeMPIClass):
 
 class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
     def __init__(self, rank, config,
-                 send_interface: StimDeciderMPISendInterface, ripple_n_above_thresh=sys.maxsize):
+                 send_interface: StimDeciderMPISendInterface, ripple_n_above_thresh=sys.maxsize,
+                 lockout_time=0):
 
         super().__init__(rank=rank,
                          local_rec_manager=binary_record.RemoteBinaryRecordsManager(manager_label='state',
@@ -107,8 +108,11 @@ class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
         self.rank = rank
         self._send_interface = send_interface
         self._ripple_n_above_thresh = ripple_n_above_thresh
+        self._lockout_time = lockout_time
         self._ripple_thresh_states = {}
         self._enabled = False
+
+        self.last_lockout_timestamp = 0
 
         # Setup bin rec file
         # main_manager.rec_manager.register_rec_type_message(rec_type_message=self.get_record_register_message())
@@ -129,6 +133,9 @@ class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
     def update_n_threshold(self, ripple_n_above_thresh):
         self._ripple_n_above_thresh = ripple_n_above_thresh
 
+    def update_lockout_time(self, lockout_time):
+        self._lockout_time = lockout_time
+
     def update_ripple_threshold_state(self, timestamp, ntrode_id, threshold_state):
         # Log timing
         self.record_timing(timestamp=timestamp, ntrode_id=ntrode_id,
@@ -136,16 +143,18 @@ class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
 
         if self._enabled:
 
+            self._ripple_thresh_states.setdefault(ntrode_id, 0)
+            # only write state if state changed
+            if self._ripple_thresh_states[ntrode_id] != threshold_state:
+                self.write_record(realtime_base.RecordIDs.STIM_STATE, timestamp, ntrode_id, threshold_state)
+
             self._ripple_thresh_states[ntrode_id] = threshold_state
             num_above = 0
             for state in self._ripple_thresh_states.values():
                 num_above += state
 
-            # only write state if state changed
-            if self._ripple_thresh_states[ntrode_id] != threshold_state:
-                self.write_record(realtime_base.RecordIDs.STIM_STATE, timestamp, ntrode_id, threshold_state)
-
             if num_above >= self._ripple_n_above_thresh:
+                self.class_log.debug("Stim passed threshold {}.".format(self._ripple_thresh_states))
                 self._send_interface.start_stimulation()
 
 
@@ -262,13 +271,39 @@ class MainSimulatorManager(rt_logging.LoggingClass):
                                            mpi_rank=self.rank,
                                            file_postfix=self.config['files']['timing_postfix'])
 
-        # bypass the normal record registration message sending
-        # for message in stim_decider.get_record_register_messages():
-        #     self.rec_manager.register_rec_type_message(message)
+        # stim decider bypass the normal record registration message sending
+        for message in stim_decider.get_record_register_messages():
+            self.rec_manager.register_rec_type_message(message)
 
         self.master_time = MPI.Wtime()
 
         super().__init__()
+
+    def synchronize_time(self):
+        self.class_log.debug("Sending time sync messages to simulator node.")
+        self.send_interface.send_time_sync_simulator()
+        self.send_interface.all_barrier()
+        self.class_log.debug("Post barrier time set as master.")
+        self.master_time = MPI.Wtime()
+
+    def send_calc_offset_time(self, rank, remote_time):
+        offset_time = self.master_time - remote_time
+        self.send_interface.send_time_sync_offset(rank, offset_time)
+
+    def _ripple_ranks_startup(self, trode_list):
+        for rip_rank in self.config['rank']['ripples']:
+            self.send_interface.send_num_ntrode(rank=rip_rank, num_ntrodes=len(trode_list))
+
+        # Round robin allocation of channels to ripple
+        enable_count = 0
+        all_ripple_process_enable = [[] for _ in self.config['rank']['ripples']]
+        for chan_ind, chan_id in enumerate(trode_list):
+            all_ripple_process_enable[enable_count % len(self.config['rank']['ripples'])].append(chan_id)
+            enable_count += 1
+
+        # Set channel assignments for all ripple ranks
+        for rank_ind, rank in enumerate(self.config['rank']['ripples']):
+            self.send_interface.send_channel_selection(rank, all_ripple_process_enable[rank_ind])
 
         for rip_rank in self.config['rank']['ripples']:
 
@@ -286,40 +321,22 @@ class MainSimulatorManager(rt_logging.LoggingClass):
                                          self.config['ripple']['CustomRippleBaselineStdMessage'].items()))
             self.send_interface.send_ripple_baseline_std(rank=rip_rank, std_dict=rip_std_base_dict)
 
-    def synchronize_time(self):
-        self.class_log.debug("Sending time sync messages to simulator node.")
-        self.send_interface.send_time_sync_simulator()
-        self.send_interface.all_barrier()
-        self.class_log.debug("Post barrier time set as master.")
-        self.master_time = MPI.Wtime()
+    def _stim_decider_startup(self):
+        # Convert JSON Ripple Parameter config into message
+        rip_param_message = ripple_process.RippleParameterMessage(**self.config['ripple']['RippleParameterMessage'])
 
-    def send_calc_offset_time(self, rank, remote_time):
-        offset_time = self.master_time - remote_time
-        self.send_interface.send_time_sync_offset(rank, offset_time)
+        # Update stim decider's ripple parameters
+        self.stim_decider.update_n_threshold(rip_param_message.n_above_thresh)
+        self.stim_decider.update_lockout_time(rip_param_message.lockout_time)
+        if rip_param_message.enabled:
+            self.stim_decider.enable()
+        else:
+            self.stim_decider.disable()
 
-    def handle_ntrode_list(self, trode_list):
+    def _encoder_rank_startup(self, trode_list):
 
-        # First Barrier to finish setting up nodes, waiting for Simulator to send ntrode list.
-        # The main loop must be active to receive binary record registration messages, so the
-        # first Barrier is placed here.
-        self.send_interface.all_barrier()
-
-        self.class_log.debug("Received ntrode list from simulator {:}.".format(trode_list))
-        for rip_rank in self.config['rank']['ripples']:
-            self.send_interface.send_num_ntrode(rank=rip_rank, num_ntrodes=len(trode_list))
         for enc_rank in self.config['rank']['encoders']:
             self.send_interface.send_num_ntrode(rank=enc_rank, num_ntrodes=len(trode_list))
-
-        # Round robin allocation of channels to ripple
-        enable_count = 0
-        all_ripple_process_enable = [[] for _ in self.config['rank']['ripples']]
-        for chan_ind, chan_id in enumerate(trode_list):
-            all_ripple_process_enable[enable_count % len(self.config['rank']['ripples'])].append(chan_id)
-            enable_count += 1
-
-        # Set channel assignments for all ripple ranks
-        for rank_ind, rank in enumerate(self.config['rank']['ripples']):
-            self.send_interface.send_channel_selection(rank, all_ripple_process_enable[rank_ind])
 
         # Round robin allocation of channels to encoders
         enable_count = 0
@@ -332,6 +349,7 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         for rank_ind, rank in enumerate(self.config['rank']['encoders']):
             self.send_interface.send_channel_selection(rank, all_encoder_process_enable[rank_ind])
 
+    def _writer_startup(self):
         # Update binary_record file writers before starting datastream
         for rec_rank in self.config['rank_settings']['enable_rec']:
             if rec_rank is not self.rank:
@@ -345,7 +363,7 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         self.stim_decider.set_record_writer_from_message(self.rec_manager.new_writer_message())
         self.stim_decider.start_record_writing()
 
-        time.sleep(0.5)
+    def _turn_on_datastreams(self):
         # Then turn on data streaming to ripple ranks
         for rank in self.config['rank']['ripples']:
             self.send_interface.send_turn_on_datastreams(rank)
@@ -353,6 +371,24 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         # Turn on data streaming to encoder
         for rank in self.config['rank']['encoders']:
             self.send_interface.send_turn_on_datastreams(rank)
+
+    def handle_ntrode_list(self, trode_list):
+
+        self.class_log.debug("Received ntrode list from simulator {:}.".format(trode_list))
+
+        # First Barrier to finish setting up nodes, waiting for Simulator to send ntrode list.
+        # The main loop must be active to receive binary record registration messages, so the
+        # first Barrier is placed here.
+        self.send_interface.all_barrier()
+
+        self._ripple_ranks_startup(trode_list)
+        self._encoder_rank_startup(trode_list)
+        self._stim_decider_startup()
+        self._writer_startup()
+
+        time.sleep(0.5)
+
+        self._turn_on_datastreams()
 
     def register_rec_type_message(self, message):
         self.rec_manager.register_rec_type_message(message)

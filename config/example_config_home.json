@@ -48,16 +48,16 @@
             "update_custom_baseline": false
         },
         "CustomRippleBaselineMeanMessage": {
-            "5":  0,
-            "11": 0,
-            "12": 0,
-            "13": 0
+            "5":  12.769,
+            "11": 13.067,
+            "12": 10.125,
+            "13": 10.767
         },
         "CustomRippleBaselineStdMessage": {
-            "5":  1,
-            "11": 1,
-            "12": 1,
-            "13": 1
+            "5":  8.034,
+            "11": 8.143,
+            "12": 6.396,
+            "13": 6.809
         }
     }, 
 

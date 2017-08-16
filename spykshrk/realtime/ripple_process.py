@@ -147,6 +147,7 @@ class RippleFilter(rt_logging.LoggingClass):
 
     @custom_baseline_mean.setter
     def custom_baseline_mean(self, value):
+        self.class_log.debug("Custom Baseline Mean for {}, {}".format(self.ntrode_id, value))
         if value:
             self._custom_baseline_mean = value
         else:
@@ -158,6 +159,7 @@ class RippleFilter(rt_logging.LoggingClass):
 
     @custom_baseline_std.setter
     def custom_baseline_std(self, value):
+        self.class_log.debug("Custom Baseline Std for {}, {}".format(self.ntrode_id, value))
         if value:
             self._custom_baseline_std = value
         else:
@@ -243,8 +245,8 @@ class RippleFilter(rt_logging.LoggingClass):
                     self.current_thresh = self.ripple_mean + self.ripple_std * self.param.ripple_threshold
                     # print('ntrode', crf.nTrodeId, 'mean', crf.rippleMean)
 
-            if self.current_time % 30000 == 0:
-                self.class_log.info((self.stim_enabled, self.ripple_mean, self.ripple_std))
+            #if self.current_time % 30000 == 0:
+            #    self.class_log.info((self.stim_enabled, self.ripple_mean, self.ripple_std))
 
             # track the rising and falling of the signal
             df = y - self.current_val
@@ -272,7 +274,8 @@ class RippleFilter(rt_logging.LoggingClass):
         # rec_format='Ii??dd',
         self.rec_base.write_record(realtime_base.RecordIDs.RIPPLE_STATE,
                                    self.current_time, self.ntrode_id, self.thresh_crossed,
-                                   self.in_lockout, int(data), rd, self.current_val)
+                                   self.in_lockout, self._custom_baseline_mean, self._custom_baseline_std,
+                                   int(data), rd, self.current_val)
 
         return self.thresh_crossed
 
@@ -340,13 +343,15 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
                          send_interface=send_interface,
                          rec_ids=[realtime_base.RecordIDs.RIPPLE_STATE],
                          rec_labels=[['timestamp',
-                                     'ntrode_id',
-                                     'thresh_crossed',
-                                     'lockout',
-                                     'lfp_data',
-                                     'rd',
-                                     'current_val']],
-                         rec_formats=['Ii??ddd'])
+                                      'ntrode_id',
+                                      'thresh_crossed',
+                                      'lockout',
+                                      'custom_mean',
+                                      'custom_std',
+                                      'lfp_data',
+                                      'rd',
+                                      'current_val']],
+                         rec_formats=['Ii??ddddd'])
 
         self.rank = rank
         self.mpi_send = send_interface
