@@ -83,7 +83,7 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                                                                'weight',
                                                                'position'],
                                                               ['timestamp',
-                                                               'trode_id',
+                                                               'ntrode_id',
                                                                'position'] +
                                                               ['x'+str(x) for x in
                                                                range(config['encoder']['position']['bins'])]],

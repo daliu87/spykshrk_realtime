@@ -82,9 +82,9 @@
         "position": {
             "lower": 0,
             "upper": 450,
-            "bins": 150
+            "bins": 450
         },
-        "vel": 2.0,
+        "vel": 0,
         "spk_amp": 100
     },
 
