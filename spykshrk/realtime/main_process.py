@@ -390,6 +390,9 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         for rank in self.config['rank']['encoders']:
             self.send_interface.send_turn_on_datastreams(rank)
 
+        # Turn on data streaming to decoder
+        self.send_interface.send_turn_on_datastreams(self.config['rank']['decoder'])
+
     def handle_ntrode_list(self, trode_list):
 
         self.class_log.debug("Received ntrode list from simulator {:}.".format(trode_list))

@@ -2,7 +2,7 @@ from mpi4py import MPI
 import math
 import numpy as np
 from spykshrk.realtime import realtime_base, realtime_logging, binary_record, datatypes, encoder_process
-
+from spykshrk.realtime.simulator import simulator_process
 
 class DecoderMPISendInterface(realtime_base.RealtimeMPIClass):
     def __init__(self, comm :MPI.Comm, rank, config):
@@ -42,6 +42,94 @@ class SpikeDecodeRecvInterface(realtime_base.RealtimeMPIClass):
             return None
 
 
+class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
+    def __init__(self, rank, config, local_rec_manager, send_interface: DecoderMPISendInterface,
+                 spike_decode_interface: SpikeDecodeRecvInterface,
+                 pos_interface: simulator_process.SimulatorRemoteReceiver):
+        super(PPDecodeManager, self).__init__(rank=rank,
+                                              local_rec_manager=local_rec_manager,
+                                              send_interface=send_interface,
+                                              rec_ids=[realtime_base.RecordIDs.DECODER_OUTPUT],
+                                              rec_labels=[['timestamp'] +
+                                                          ['x'+str(x) for x in
+                                                           range(config['encoder']['position']['bins'])]],
+                                              rec_formats=['q'+'d'*config['encoder']['position']['bins']])
+
+        self.config = config
+        self.mpi_send = send_interface
+        self.spike_dec_interface = spike_decode_interface
+        self.pos_interface = pos_interface
+
+        # Register position, right now only one position channel is supported
+        self.pos_interface.register_datatype_channel(-1)
+
+        # Send binary record register message
+        # self.mpi_send.send_record_register_messages(self.get_record_register_messages())
+
+        self.msg_counter = 0
+
+        self.current_time_bin = 0
+        self.current_est_pos_hist = np.ones(self.config['encoder']['position']['bins'])
+        self.occ = np.ones(self.config['encoder']['position']['bins'])
+
+        self.current_spike_count = 0
+
+    def turn_on_datastreams(self):
+        self.pos_interface.start_all_streams()
+
+    def process_next_data(self):
+        spike_dec_msg = self.spike_dec_interface.__next__()
+
+        if spike_dec_msg is not None:
+
+            self.record_timing(timestamp=spike_dec_msg.timestamp, ntrode_id=spike_dec_msg.ntrode_id,
+                               datatype=datatypes.Datatypes.SPIKES, label='dec_recv')
+
+            if self.current_time_bin == 0:
+                self.current_time_bin = math.floor(spike_dec_msg.timestamp/self.config['bayesian_decoder']['bin_size'])
+                spike_time_bin = self.current_time_bin
+            else:
+                spike_time_bin = math.floor(spike_dec_msg.timestamp/self.config['bayesian_decoder']['bin_size'])
+
+            if spike_time_bin == self.current_time_bin:
+                # Spike is in current time bin
+                self.current_est_pos_hist *= spike_dec_msg.pos_hist
+                self.current_est_pos_hist = self.current_est_pos_hist / np.max(self.current_est_pos_hist)
+                self.current_spike_count += 1
+
+            elif spike_time_bin > self.current_time_bin:
+                # Spike is in next time bin, advance to tracking next time bin
+                self.write_record(realtime_base.RecordIDs.DECODER_OUTPUT,
+                                  self.current_time_bin*self.config['bayesian_decoder']['bin_size'],
+                                  *self.current_est_pos_hist)
+                self.current_spike_count = 1
+                self.current_est_pos_hist = spike_dec_msg.pos_hist
+                self.current_time_bin = spike_time_bin
+
+            elif spike_time_bin < self.current_time_bin:
+                # Spike is in an old time bin, discard and mark as missed
+                self.class_log.debug('Spike was excluded from Bayesian decode calculation, arrived late.')
+                pass
+
+            self.msg_counter += 1
+            if self.msg_counter % 1000 == 0:
+                self.class_log.debug('Received {} decoded messages.'.format(self.msg_counter))
+
+            pass
+
+        pos_msg = self.pos_interface.__next__()
+
+        #if isinstance(pos_msg, datatypes.LinearPosPoint):
+        if pos_msg is not None:
+            pos_data = pos_msg[0]
+
+            # Convert position to bin index in histogram count
+            pos_ind = int((pos_data.x - self.config['encoder']['position']['lower']) /
+                          self.config['encoder']['position']['bins'])
+            self.occ[pos_ind] += 1
+            self.class_log.debug("Pos msg received.")
+
+
 class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
     def __init__(self, rank, config, local_rec_manager, send_interface: DecoderMPISendInterface,
                  spike_decode_interface: SpikeDecodeRecvInterface):
@@ -67,6 +155,10 @@ class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         self.current_est_pos_hist = np.ones(self.config['encoder']['position']['bins'])
         self.current_spike_count = 0
 
+    def turn_on_datastreams(self):
+        # Do nothing, no datastreams for this decoder
+        pass
+
     def process_next_data(self):
         spike_dec_msg = self.spike_interface.__next__()
 
@@ -76,10 +168,10 @@ class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
                                datatype=datatypes.Datatypes.SPIKES, label='dec_recv')
 
             if self.current_time_bin == 0:
-                self.current_time_bin = math.floor(spike_dec_msg.timestamp/self.config['decoder']['bin_size'])
+                self.current_time_bin = math.floor(spike_dec_msg.timestamp/self.config['bayesian_decoder']['bin_size'])
                 spike_time_bin = self.current_time_bin
             else:
-                spike_time_bin = math.floor(spike_dec_msg.timestamp/self.config['decoder']['bin_size'])
+                spike_time_bin = math.floor(spike_dec_msg.timestamp/self.config['bayesian_decoder']['bin_size'])
 
             if spike_time_bin == self.current_time_bin:
                 # Spike is in current time bin
@@ -90,7 +182,7 @@ class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
             elif spike_time_bin > self.current_time_bin:
                 # Spike is in next time bin, advance to tracking next time bin
                 self.write_record(realtime_base.RecordIDs.DECODER_OUTPUT,
-                                  self.current_time_bin*self.config['decoder']['bin_size'],
+                                  self.current_time_bin*self.config['bayesian_decoder']['bin_size'],
                                   *self.current_est_pos_hist)
                 self.current_spike_count = 1
                 self.current_est_pos_hist = spike_dec_msg.pos_hist
@@ -136,6 +228,10 @@ class DecoderRecvInterface(realtime_base.RealtimeMPIClass):
             self.class_log.debug("Received TimeSyncInit.")
             self.dec_man.sync_time()
 
+        elif isinstance(message, realtime_base.TurnOnDataStream):
+            self.class_log.debug("Turn on data stream")
+            self.dec_man.turn_on_datastreams()
+
         elif isinstance(message, realtime_base.TimeSyncSetOffset):
             self.dec_man.update_offset(message.offset_time)
 
@@ -157,10 +253,23 @@ class DecoderProcess(realtime_base.RealtimeProcess):
 
         self.mpi_send = DecoderMPISendInterface(comm=comm, rank=rank, config=config)
         self.spike_decode_interface = SpikeDecodeRecvInterface(comm=comm, rank=rank, config=config)
-        self.dec_man = BayesianDecodeManager(rank=rank, config=config,
-                                             local_rec_manager=self.local_rec_manager,
-                                             send_interface=self.mpi_send,
-                                             spike_decode_interface=self.spike_decode_interface)
+        self.pos_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
+                                                                       rank=self.rank,
+                                                                       config=self.config,
+                                                                       datatype=datatypes.Datatypes.LINEAR_POSITION)
+
+        if config['decoder'] == 'bayesian_decoder':
+            self.dec_man = BayesianDecodeManager(rank=rank, config=config,
+                                                 local_rec_manager=self.local_rec_manager,
+                                                 send_interface=self.mpi_send,
+                                                 spike_decode_interface=self.spike_decode_interface)
+        elif config['decoder'] == 'pp_decoder':
+            self.dec_man = PPDecodeManager(rank=rank, config=config,
+                                           local_rec_manager=self.local_rec_manager,
+                                           send_interface=self.mpi_send,
+                                           spike_decode_interface=self.spike_decode_interface,
+                                           pos_interface=self.pos_interface)
+
         self.mpi_recv = DecoderRecvInterface(comm=comm, rank=rank, config=config, decode_manager=self.dec_man)
 
         # First Barrier to finish setting up nodes

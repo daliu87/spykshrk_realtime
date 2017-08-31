@@ -91,6 +91,7 @@ class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
                        dest=self.config['rank']['simulator'],
                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
+    # This should be called after all initialization has been done and the first barrier has passed
     def start_all_streams(self):
         self.comm.send(StartAllStreamMessage(), dest=self.config['rank']['simulator'],
                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)

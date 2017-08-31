@@ -13,12 +13,13 @@ import spykshrk.realtime.rst.RSTPython as RST
 
 class SpikeDecodeResultsMessage(realtime_logging.PrintableMessage):
 
-    _header_byte_fmt = '=qii'
+    _header_byte_fmt = '=qidi'
     _header_byte_len = struct.calcsize(_header_byte_fmt)
 
-    def __init__(self, timestamp, ntrode_id, pos_hist):
+    def __init__(self, timestamp, ntrode_id, current_pos, pos_hist):
         self.timestamp = timestamp
         self.ntrode_id = ntrode_id
+        self.current_pos = current_pos
         self.pos_hist = pos_hist
 
     def pack(self):
@@ -28,6 +29,7 @@ class SpikeDecodeResultsMessage(realtime_logging.PrintableMessage):
         message_bytes = struct.pack(self._header_byte_fmt,
                                     self.timestamp,
                                     self.ntrode_id,
+                                    self.current_pos,
                                     pos_hist_byte_len)
 
         message_bytes = message_bytes + self.pos_hist.tobytes()
@@ -36,12 +38,12 @@ class SpikeDecodeResultsMessage(realtime_logging.PrintableMessage):
 
     @classmethod
     def unpack(cls, message_bytes):
-        timestamp, ntrode_id, pos_hist_len = struct.unpack(cls._header_byte_fmt,
-                                                           message_bytes[0:cls._header_byte_len])
+        timestamp, ntrode_id, current_pos, pos_hist_len = struct.unpack(cls._header_byte_fmt,
+                                                                        message_bytes[0:cls._header_byte_len])
 
         pos_hist = np.frombuffer(message_bytes[cls._header_byte_len:cls._header_byte_len+pos_hist_len])
 
-        return cls(timestamp=timestamp, ntrode_id=ntrode_id, pos_hist=pos_hist)
+        return cls(timestamp=timestamp, ntrode_id=ntrode_id, current_pos=current_pos, pos_hist=pos_hist)
 
 
 class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
@@ -179,6 +181,7 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
 
                     self.mpi_send.send_decoded_spike(SpikeDecodeResultsMessage(timestamp=query_result.query_time,
                                                                                ntrode_id=query_result.ntrode_id,
+                                                                               current_pos=self.current_pos,
                                                                                pos_hist=query_result.query_hist))
 
                     if abs(self.current_vel) >= self.config['encoder']['vel']:

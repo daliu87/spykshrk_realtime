@@ -82,14 +82,20 @@
         "position": {
             "lower": 0,
             "upper": 450,
-            "bins": 150
+            "bins": 450
         },
         "vel": 0.0,
         "spk_amp": 60
     },
 
-    "decoder": {
+    "decoder": "bayesian_decoder",
+
+    "bayesian_decoder": {
         "bin_size": 30000
+    },
+
+    "pp_decoder": {
+        "bin_size": 3000
     }
 
 }
