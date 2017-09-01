@@ -67,15 +67,25 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         # self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
         self.msg_counter = 0
+        self.ntrode_list = []
 
         self.current_time_bin = 0
         self.current_est_pos_hist = np.ones(self.config['encoder']['position']['bins'])
         self.occ = np.ones(self.config['encoder']['position']['bins'])
+        self.firing_rate = {}
+        self.cur_pos_ind = 0
+        self.pos_delta = (self.config['encoder']['position']['upper'] -
+                          self.config['encoder']['position']['lower']) / self.config['encoder']['position']['bins']
 
         self.current_spike_count = 0
 
     def turn_on_datastreams(self):
         self.pos_interface.start_all_streams()
+
+    def select_ntrodes(self, ntrode_list):
+        self.ntrode_list = ntrode_list
+        self.firing_rate = {ntrode_id: np.ones(self.config['encoder']['position']['bins'])
+                            for ntrode_id in self.ntrode_list}
 
     def process_next_data(self):
         spike_dec_msg = self.spike_dec_interface.__next__()
@@ -85,11 +95,14 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
             self.record_timing(timestamp=spike_dec_msg.timestamp, ntrode_id=spike_dec_msg.ntrode_id,
                                datatype=datatypes.Datatypes.SPIKES, label='dec_recv')
 
+            # Update firing rate
+            self.firing_rate[spike_dec_msg.ntrode_id][self.cur_pos_ind] += 1
+
             if self.current_time_bin == 0:
-                self.current_time_bin = math.floor(spike_dec_msg.timestamp/self.config['bayesian_decoder']['bin_size'])
+                self.current_time_bin = math.floor(spike_dec_msg.timestamp/self.config['pp_decoder']['bin_size'])
                 spike_time_bin = self.current_time_bin
             else:
-                spike_time_bin = math.floor(spike_dec_msg.timestamp/self.config['bayesian_decoder']['bin_size'])
+                spike_time_bin = math.floor(spike_dec_msg.timestamp/self.config['pp_decoder']['bin_size'])
 
             if spike_time_bin == self.current_time_bin:
                 # Spike is in current time bin
@@ -100,7 +113,7 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
             elif spike_time_bin > self.current_time_bin:
                 # Spike is in next time bin, advance to tracking next time bin
                 self.write_record(realtime_base.RecordIDs.DECODER_OUTPUT,
-                                  self.current_time_bin*self.config['bayesian_decoder']['bin_size'],
+                                  self.current_time_bin*self.config['pp_decoder']['bin_size'],
                                   *self.current_est_pos_hist)
                 self.current_spike_count = 1
                 self.current_est_pos_hist = spike_dec_msg.pos_hist
@@ -108,7 +121,7 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
 
             elif spike_time_bin < self.current_time_bin:
                 # Spike is in an old time bin, discard and mark as missed
-                self.class_log.debug('Spike was excluded from Bayesian decode calculation, arrived late.')
+                self.class_log.debug('Spike was excluded from PP decode calculation, arrived late.')
                 pass
 
             self.msg_counter += 1
@@ -124,10 +137,10 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
             pos_data = pos_msg[0]
 
             # Convert position to bin index in histogram count
-            pos_ind = int((pos_data.x - self.config['encoder']['position']['lower']) /
-                          self.config['encoder']['position']['bins'])
-            self.occ[pos_ind] += 1
-            self.class_log.debug("Pos msg received.")
+            self.cur_pos_ind = int((pos_data.x - self.config['encoder']['position']['lower']) /
+                                   self.pos_delta)
+            self.occ[self.cur_pos_ind] += 1
+            # self.class_log.debug("Pos msg received.")
 
 
 class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
@@ -154,10 +167,14 @@ class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         self.current_time_bin = 0
         self.current_est_pos_hist = np.ones(self.config['encoder']['position']['bins'])
         self.current_spike_count = 0
+        self.ntrode_list = []
 
     def turn_on_datastreams(self):
         # Do nothing, no datastreams for this decoder
         pass
+
+    def select_ntrodes(self, ntrode_list):
+        self.ntrode_list = ntrode_list
 
     def process_next_data(self):
         spike_dec_msg = self.spike_interface.__next__()
@@ -223,6 +240,10 @@ class DecoderRecvInterface(realtime_base.RealtimeMPIClass):
 
         elif isinstance(message, binary_record.BinaryRecordCreateMessage):
             self.dec_man.set_record_writer_from_message(message)
+
+        elif isinstance(message, realtime_base.ChannelSelection):
+            self.class_log.debug("Received NTrode channel selection {:}.".format(message.ntrode_list))
+            self.dec_man.select_ntrodes(message.ntrode_list)
 
         elif isinstance(message, realtime_base.TimeSyncInit):
             self.class_log.debug("Received TimeSyncInit.")

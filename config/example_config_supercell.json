@@ -88,7 +88,7 @@
         "spk_amp": 60
     },
 
-    "decoder": "bayesian_decoder",
+    "decoder": "pp_decoder",
 
     "bayesian_decoder": {
         "bin_size": 30000

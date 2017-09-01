@@ -367,6 +367,10 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         for rank_ind, rank in enumerate(self.config['rank']['encoders']):
             self.send_interface.send_channel_selection(rank, all_encoder_process_enable[rank_ind])
 
+    def _decoder_rank_startup(self, trode_list):
+        rank = self.config['rank']['decoder']
+        self.send_interface.send_channel_selection(rank, trode_list)
+
     def _writer_startup(self):
         # Update binary_record file writers before starting datastream
         for rec_rank in self.config['rank_settings']['enable_rec']:
@@ -404,6 +408,7 @@ class MainSimulatorManager(rt_logging.LoggingClass):
 
         self._ripple_ranks_startup(trode_list)
         self._encoder_rank_startup(trode_list)
+        self._decoder_rank_startup(trode_list)
         self._stim_decider_startup()
         self._writer_startup()
 
