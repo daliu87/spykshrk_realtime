@@ -70,14 +70,17 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         self.ntrode_list = []
 
         self.current_time_bin = 0
-        self.observation = np.ones(self.config['encoder']['position']['bins'])
-        self.occ = np.ones(self.config['encoder']['position']['bins'])
-        self.posterior = np.ones(self.config['encoder']['position']['bins'])
-        self.firing_rate = {}
         self.cur_pos_ind = 0
         self.pos_delta = (self.config['encoder']['position']['upper'] -
                           self.config['encoder']['position']['lower']) / self.config['encoder']['position']['bins']
 
+        # Initialize major PP variables
+        self.observation = np.ones(self.config['encoder']['position']['bins'])
+        self.occ = np.ones(self.config['encoder']['position']['bins'])
+        self.likelihood = np.ones(self.config['encoder']['position']['bins'])
+        self.posterior = np.ones(self.config['encoder']['position']['bins'])
+        self.prev_posterior = np.ones(self.config['encoder']['position']['bins'])
+        self.firing_rate = {}
         self.transition_mat = PPDecodeManager._create_transition_matrix(self.pos_delta,
                                                                         self.config['encoder']['position']['bins'])
 
@@ -111,7 +114,6 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
 
         return transition_mat
 
-
     def turn_on_datastreams(self):
         self.pos_interface.start_all_streams()
 
@@ -132,10 +134,10 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
             self.firing_rate[spike_dec_msg.ntrode_id][self.cur_pos_ind] += 1
 
             if self.current_time_bin == 0:
-                self.current_time_bin = math.floor(spike_dec_msg.timestamp/self.config['pp_decoder']['bin_size'])
+                self.current_time_bin = int(math.floor(spike_dec_msg.timestamp/self.config['pp_decoder']['bin_size']))
                 spike_time_bin = self.current_time_bin
             else:
-                spike_time_bin = math.floor(spike_dec_msg.timestamp/self.config['pp_decoder']['bin_size'])
+                spike_time_bin = int(math.floor(spike_dec_msg.timestamp/self.config['pp_decoder']['bin_size']))
 
             if spike_time_bin == self.current_time_bin:
                 # Spike is in current time bin
@@ -144,7 +146,57 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
                 self.current_spike_count += 1
 
             elif spike_time_bin > self.current_time_bin:
-                # Spike is in next time bin, advance to tracking next time bin
+                # Spike is in next time bin, compute posterior based on observations, advance to tracking next time bin
+
+                # Compute conditional intensity function (probability of no spike)
+                prob_no_spike = {}
+                global_prob_no = np.ones(self.config['encoder']['position']['bins'])
+                for tet_id, tet_fr in self.firing_rate.items():
+                    # Normalize firing rate
+                    tet_fr_norm = tet_fr / tet_fr.sum()
+                    prob_no_spike[tet_id] = np.exp(-self.config['pp_decoder']['bin_size']/30000 *
+                                                   tet_fr_norm / self.occ)
+
+                    global_prob_no *= prob_no_spike[tet_id]
+                global_prob_no /= global_prob_no.sum()
+
+                # Update last posterior
+                self.prev_posterior = self.posterior
+
+                # Compute likelihood for previous bin with spikes
+                self.likelihood = self.observation * global_prob_no
+
+                # Compute posterior
+                self.posterior = self.likelihood * (self.transition_mat * self.prev_posterior).sum(axis=1)
+                # Normalize
+                self.posterior = self.posterior / self.posterior.sum()
+
+                # Save resulting posterior
+                self.write_record(realtime_base.RecordIDs.DECODER_OUTPUT,
+                                  self.current_time_bin * self.config['pp_decoder']['bin_size'],
+                                  *self.posterior)
+
+                # Compute likelihood for all previous 0 spike bins
+                for empty_bin_ii in range(spike_time_bin - self.current_time_bin - 1):
+                    # update last posterior
+                    self.prev_posterior = self.posterior
+
+                    # Compute no spike likelihood
+                    #for prob_no in prob_no_spike.values():
+                    #    self.likelihood *= prob_no
+                    self.likelihood = global_prob_no
+
+                    # Compute posterior for no spike
+                    self.posterior = self.likelihood * (self.transition_mat * self.prev_posterior).sum(axis=1)
+                    # Normalize
+                    self.posterior = self.posterior / self.posterior.sum()
+
+                    # Save resulting posterior
+                    self.write_record(realtime_base.RecordIDs.DECODER_OUTPUT,
+                                      self.current_time_bin * self.config['pp_decoder']['bin_size'],
+                                      *self.posterior)
+
+
                 self.write_record(realtime_base.RecordIDs.DECODER_OUTPUT,
                                   self.current_time_bin * self.config['pp_decoder']['bin_size'],
                                   *self.observation)
