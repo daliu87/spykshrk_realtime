@@ -70,14 +70,47 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         self.ntrode_list = []
 
         self.current_time_bin = 0
-        self.current_est_pos_hist = np.ones(self.config['encoder']['position']['bins'])
+        self.observation = np.ones(self.config['encoder']['position']['bins'])
         self.occ = np.ones(self.config['encoder']['position']['bins'])
+        self.posterior = np.ones(self.config['encoder']['position']['bins'])
         self.firing_rate = {}
         self.cur_pos_ind = 0
         self.pos_delta = (self.config['encoder']['position']['upper'] -
                           self.config['encoder']['position']['lower']) / self.config['encoder']['position']['bins']
 
+        self.transition_mat = PPDecodeManager._create_transition_matrix(self.pos_delta,
+                                                                        self.config['encoder']['position']['bins'])
+
         self.current_spike_count = 0
+
+    @staticmethod
+    def _create_transition_matrix(pos_delta, num_bins):
+
+        def gaussian(x, mu, sig):
+            return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
+
+    # Setup transition matrix
+        x_bins = np.linspace(0, pos_delta*(num_bins-1), num_bins)
+
+        transition_mat = np.ones([num_bins, num_bins])
+        for bin_ii in range(num_bins):
+            transition_mat[bin_ii, :] = gaussian(x_bins, x_bins[bin_ii], 3)
+
+        # uniform offset
+        uniform_gain = 0.01
+        uniform_dist = np.ones(transition_mat.shape)
+
+        # normalize transition matrix
+        transition_mat = transition_mat/( transition_mat.sum(axis=0)[None,:])
+
+        # normalize uniform offset
+        uniform_dist = uniform_dist/( uniform_dist.sum(axis=0)[None,:])
+
+        # apply uniform offset
+        transition_mat = transition_mat * (1 - uniform_gain) + uniform_dist * uniform_gain
+
+        return transition_mat
+
 
     def turn_on_datastreams(self):
         self.pos_interface.start_all_streams()
@@ -106,17 +139,17 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
 
             if spike_time_bin == self.current_time_bin:
                 # Spike is in current time bin
-                self.current_est_pos_hist *= spike_dec_msg.pos_hist
-                self.current_est_pos_hist = self.current_est_pos_hist / np.max(self.current_est_pos_hist)
+                self.observation *= spike_dec_msg.pos_hist
+                self.observation = self.observation / np.max(self.observation)
                 self.current_spike_count += 1
 
             elif spike_time_bin > self.current_time_bin:
                 # Spike is in next time bin, advance to tracking next time bin
                 self.write_record(realtime_base.RecordIDs.DECODER_OUTPUT,
-                                  self.current_time_bin*self.config['pp_decoder']['bin_size'],
-                                  *self.current_est_pos_hist)
+                                  self.current_time_bin * self.config['pp_decoder']['bin_size'],
+                                  *self.observation)
                 self.current_spike_count = 1
-                self.current_est_pos_hist = spike_dec_msg.pos_hist
+                self.observation = spike_dec_msg.pos_hist
                 self.current_time_bin = spike_time_bin
 
             elif spike_time_bin < self.current_time_bin:
