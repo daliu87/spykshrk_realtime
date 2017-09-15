@@ -51,6 +51,8 @@ class PointProcessDecoder(realtime_logging.LoggingClass):
 
         self.ntrode_list = []
 
+        self.cur_pos_time = -1
+        self.cur_pos = -1
         self.cur_pos_ind = 0
         self.pos_delta = (self.pos_range[1] - self.pos_range[0]) / self.pos_bins
 
@@ -99,16 +101,18 @@ class PointProcessDecoder(realtime_logging.LoggingClass):
         self.firing_rate = {ntrode_id: np.ones(self.pos_bins)
                             for ntrode_id in self.ntrode_list}
 
-    def add_observation(self, spike_dec_msg):
-        self.firing_rate[spike_dec_msg.ntrode_id][self.cur_pos_ind] += 1
+    def add_observation(self, spk_ntrode_id, spk_pos_hist):
+        self.firing_rate[spk_ntrode_id][self.cur_pos_ind] += 1
 
-        self.observation *= spike_dec_msg.pos_hist
+        self.observation *= spk_pos_hist
         self.observation = self.observation / np.max(self.observation)
         self.current_spike_count += 1
 
-    def update_position(self, pos_data):
+    def update_position(self, pos_timestamp, pos_data):
         # Convert position to bin index in histogram count
-        self.cur_pos_ind = int((pos_data.x - self.pos_range[0]) /
+        self.cur_pos_time = pos_timestamp
+        self.cur_pos = pos_data
+        self.cur_pos_ind = int((self.cur_pos - self.pos_range[0]) /
                                self.pos_delta)
         self.occ[self.cur_pos_ind] += 1
 
@@ -140,11 +144,6 @@ class PointProcessDecoder(realtime_logging.LoggingClass):
         self.posterior = self.posterior / self.posterior.sum()
 
         return self.posterior
-
-            # Save resulting posterior
-            # self.record.write_record(realtime_base.RecordIDs.DECODER_OUTPUT,
-            #                          self.current_time_bin * self.time_bin_size,
-            #                          *self.posterior)
 
     def increment_bin(self):
 
@@ -190,10 +189,10 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
                                               local_rec_manager=local_rec_manager,
                                               send_interface=send_interface,
                                               rec_ids=[realtime_base.RecordIDs.DECODER_OUTPUT],
-                                              rec_labels=[['timestamp'] +
+                                              rec_labels=[['timestamp', 'real_pos_time', 'real_pos'] +
                                                           ['x'+str(x) for x in
                                                            range(config['encoder']['position']['bins'])]],
-                                              rec_formats=['q'+'d'*config['encoder']['position']['bins']])
+                                              rec_formats=['qqd'+'d'*config['encoder']['position']['bins']])
 
         self.config = config
         self.mpi_send = send_interface
@@ -242,7 +241,8 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
 
             if spike_time_bin == self.current_time_bin:
                 # Spike is in current time bin
-                self.pp_decoder.add_observation(spike_dec_msg=spike_dec_msg)
+                self.pp_decoder.add_observation(spk_ntrode_id=spike_dec_msg.ntrode_id,
+                                                spk_pos_hist=spike_dec_msg.pos_hist)
                 pass
 
             elif spike_time_bin > self.current_time_bin:
@@ -252,6 +252,8 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
                 posterior = self.pp_decoder.increment_bin()
                 self.write_record(realtime_base.RecordIDs.DECODER_OUTPUT,
                                   self.current_time_bin * self.time_bin_size,
+                                  self.pp_decoder.cur_pos_time,
+                                  self.pp_decoder.cur_pos,
                                   *posterior)
 
                 self.current_time_bin += 1
@@ -260,10 +262,13 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
                     posterior = self.pp_decoder.increment_no_spike_bin()
                     self.write_record(realtime_base.RecordIDs.DECODER_OUTPUT,
                                       self.current_time_bin * self.time_bin_size,
+                                      self.pp_decoder.cur_pos_time,
+                                      self.pp_decoder.cur_pos,
                                       *posterior)
                     self.current_time_bin += 1
 
-                self.pp_decoder.add_observation(spike_dec_msg=spike_dec_msg)
+                self.pp_decoder.add_observation(spk_ntrode_id=spike_dec_msg.ntrode_id,
+                                                spk_pos_hist=spike_dec_msg.pos_hist)
 
                 # Increment current time bin to latest spike
                 self.current_time_bin = spike_time_bin
@@ -284,7 +289,7 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
 
         if pos_msg is not None:
             pos_data = pos_msg[0]
-            self.pp_decoder.update_position(pos_data=pos_data)
+            self.pp_decoder.update_position(pos_timestamp=pos_data.timestamp, pos_data=pos_data.x)
             # self.class_log.debug("Pos msg received.")
 
 
