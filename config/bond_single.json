@@ -84,6 +84,9 @@
             "upper": 450,
             "bins": 450
         },
+        "position_kernel": {
+            "std": 3
+        },
         "vel": 0,
         "spk_amp": 60
     },

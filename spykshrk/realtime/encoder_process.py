@@ -108,7 +108,8 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
         pos_bin_struct = kernel_encoder.PosBinStruct([config['encoder']['position']['lower'],
                                                       config['encoder']['position']['upper']],
                                                      config['encoder']['position']['bins'])
-        self.rst_param = kernel_encoder.RSTParameter(kernel, pos_bin_struct)
+        self.rst_param = kernel_encoder.RSTParameter(kernel, pos_bin_struct,
+                                                     config['encoder']['position_kernel']['std'])
         self.encoders = {}
 
         # Register position, right now only one position channel is supported

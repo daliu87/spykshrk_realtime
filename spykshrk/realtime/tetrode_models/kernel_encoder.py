@@ -4,6 +4,10 @@ from spykshrk.realtime.realtime_logging import PrintableMessage
 import numpy as np
 
 
+def gaussian(x, mu, sig):
+    return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
+
+
 class PosBinStruct:
     def __init__(self, pos_range, num_bins):
         self.pos_range = pos_range
@@ -17,9 +21,10 @@ class PosBinStruct:
 
 
 class RSTParameter:
-    def __init__(self, kernel, pos_hist_struct):
+    def __init__(self, kernel, pos_hist_struct, pos_kernel_std):
         self.kernel = kernel
         self.pos_hist_struct = pos_hist_struct
+        self.pos_kernel_std = pos_kernel_std
 
 
 class RSTKernelEncoderQuery(PrintableMessage):
@@ -81,6 +86,11 @@ class RSTKernelEncoder:
         # initialize to one's to prevent divide by zero when normalizing my occupancy
         self.pos_hist = np.ones(param.pos_hist_struct.num_bins)
 
+        pos_bin_center_tmp = self.param.pos_hist_struct.pos_bin_center
+        self.pos_kernel = gaussian(pos_bin_center_tmp,
+                                   pos_bin_center_tmp[int(len(pos_bin_center_tmp)/2)],
+                                   self.param.pos_kernel_std)
+
     def update_covariate(self, covariate):
         self.covariate = covariate
         # bin_idx = np.nonzero((self.param.pos_hist_struct.pos_bin_edges - covariate) > 0)[0][0] - 1
@@ -124,6 +134,8 @@ class RSTKernelEncoder:
 
         # occupancy normalize
         query_hist = query_hist / (self.pos_hist)
+
+        query_hist = np.convolve(query_hist, self.pos_kernel, mode='same')
 
         # normalized PDF
         query_hist = query_hist / (np.sum(query_hist) * self.param.pos_hist_struct.pos_bin_delta)
