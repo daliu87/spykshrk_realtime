@@ -24,12 +24,12 @@
     },
 
     "files": {
-        "output_dir": "/opt/data/daliu/realtime/spykshrk/ripple_dec",
+        "output_dir": "/opt/data/daliu/realtime/spykshrk/dec_60uv",
         "prefix": "bond",
         "rec_postfix": "bin_rec",
         "profile_postfix": "pstats",
         "timing_postfix": "timing",
-        "backup_dir": "/opt/data36/daliu/realtime/spykshrk/ripple_dec"
+        "backup_dir": "/opt/data36/daliu/realtime/spykshrk/dec_60uv"
     },
 
     "ripple": {
@@ -85,7 +85,7 @@
             "bins": 450
         },
         "vel": 0,
-        "spk_amp": 100
+        "spk_amp": 60
     },
 
     "decoder": "pp_decoder",
