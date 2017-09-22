@@ -77,12 +77,11 @@ def calc_simple_trans_mat(x_bins):
 
 
 # Loop through each bin and generate the observation distribution from spikes in bin
-def calc_observation_intensity(spike_decode, dec_bins, x_bins, pos_kernel, x_no_anim_bounds):
+def calc_observation_intensity(spike_decode, dec_bin_size, x_bins, pos_kernel, x_no_anim_bounds):
     pos_num_bins = len(x_bins)
     pos_bin_delta = x_bins[1] - x_bins[0]
 
-    dec_bin_ids = np.unique(dec_bins)
-    dec_est = np.zeros([dec_bin_ids[-1] + 1, pos_num_bins])
+    dec_est = np.zeros([int(spike_decode.iloc[-1]['dec_bin']) + 1, pos_num_bins])
 
     # initialize conditional intensity function
     firing_rate = {ntrode_id: np.zeros(pos_num_bins) for ntrode_id in spike_decode['ntrode_id'].unique()}
@@ -100,8 +99,7 @@ def calc_observation_intensity(spike_decode, dec_bins, x_bins, pos_kernel, x_no_
             firing_rate[ntrode_id][np.searchsorted(x_bins, pos, side='right') - 1] += 1
 
         for dec_ii, dec in enumerate(spikes_in_bin.loc[:, 'x0':'x{:d}'.format(pos_num_bins - 1)].values):
-            smooth_dec = np.convolve(dec, pos_kernel, mode='same')
-            dec_in_bin = dec_in_bin * smooth_dec
+            dec_in_bin = dec_in_bin * dec
             dec_in_bin = dec_in_bin / (np.sum(dec_in_bin) * pos_bin_delta)
 
         dec_est[bin_id, :] = dec_in_bin
@@ -114,7 +112,28 @@ def calc_observation_intensity(spike_decode, dec_bins, x_bins, pos_kernel, x_no_
 
         firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * pos_bin_delta)
 
-    return dec_est, bin_num_spikes, firing_rate
+    start_bin_time = np.floor(spike_decode['timestamp'][0] / dec_bin_size) * dec_bin_size
+    dec_bin_times = np.arange(start_bin_time, start_bin_time + dec_bin_size * len(dec_est), dec_bin_size)
+
+    return dec_bin_times, dec_est, bin_num_spikes, firing_rate
+
+
+def calc_occupancy(linpos_flat, x_bin_edges, pos_kernel):
+
+    occupancy, occ_bin_edges = np.histogram(linpos_flat, bins=x_bin_edges, normed=True)
+
+    occupancy = np.convolve(occupancy, pos_kernel, mode='same')
+
+    return occupancy
+
+
+def calc_prob_no_spike(firing_rate, dec_bin_size, occupancy):
+
+    prob_no_spike = {}
+    for tet_id, tet_fr in firing_rate.items():
+        prob_no_spike[tet_id] = np.exp(-dec_bin_size/30000 * tet_fr / occupancy)
+
+    return prob_no_spike
 
 
 # Compute the likelihood of each bin
