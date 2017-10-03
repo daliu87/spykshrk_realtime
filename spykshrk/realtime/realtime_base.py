@@ -195,6 +195,14 @@ class BinaryRecordBase(LoggingClass):
         self.rec_writer_enabled = False
 
         # Send binary record register message
+        #self.send_interface.send_record_register_messages(self.get_record_register_messages())
+
+    def setup_mpi(self):
+        self.send_record_register_message()
+
+    def send_record_register_message(self):
+
+        # Send binary record register message
         self.send_interface.send_record_register_messages(self.get_record_register_messages())
 
     def get_record_register_messages(self):

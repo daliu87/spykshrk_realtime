@@ -169,9 +169,10 @@ def calc_posterior(likelihoods, transition_mat, pos_num_bins, pos_bin_delta):
     return posteriors
 
 
-def plot_decode_2d(dec_est, dec_bin_times, stim_lockout_ranges, linpos_flat, plt_range):
+def plot_decode_2d(dec_est, dec_bin_times, stim_lockout_ranges, linpos_flat, plt_range, x_tick=1.0):
     stim_lockout_ranges_sec = stim_lockout_ranges/30000
-    stim_lockout_range_sec_sub = stim_lockout_ranges_sec[(stim_lockout_ranges_sec[1] > plt_range[0]) & (stim_lockout_ranges_sec[0] < plt_range[1])]
+    stim_lockout_range_sec_sub = stim_lockout_ranges_sec[(stim_lockout_ranges_sec[1] > plt_range[0]) &
+                                                         (stim_lockout_ranges_sec[0] < plt_range[1])]
 
     plt.imshow(dec_est[(dec_bin_times > plt_range[0]*30000) & (dec_bin_times < plt_range[1]*30000)].transpose(),
                extent=[plt_range[0], plt_range[1], 0, 450], origin='lower', aspect='auto', cmap='hot', zorder=0)
@@ -195,3 +196,6 @@ def plot_decode_2d(dec_est, dec_bin_times, stim_lockout_ranges, linpos_flat, plt
     plt.plot(plt_range, [256, 256], '--', color='gray')
     plt.plot(plt_range, [298, 298], '--', color='gray')
     plt.plot(plt_range, [407, 407], '--', color='gray')
+
+    plt.xticks(np.arange(plt_range[0], plt_range[1], x_tick))
+

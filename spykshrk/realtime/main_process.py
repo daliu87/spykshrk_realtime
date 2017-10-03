@@ -53,6 +53,13 @@ class MainProcess(realtime_base.RealtimeProcess):
 
         self.mpi_status = MPI.Status()
 
+        # First Barrier to finish setting up nodes, waiting for Simulator to send ntrode list.
+        # The main loop must be active to receive binary record registration messages, so the
+        # first Barrier is placed here.
+        self.class_log.debug("First Barrier")
+        self.send_interface.all_barrier()
+        self.class_log.debug("Past First Barrier")
+
 
     def trigger_termination(self):
         self.terminate = True
@@ -60,14 +67,18 @@ class MainProcess(realtime_base.RealtimeProcess):
     def main_loop(self):
         # self.thread.start()
 
+        # Synchronize rank times immediately
         last_time_bin = int(time.time())
 
         while not self.terminate:
-            current_time_bin = int(time.time())
 
-            if current_time_bin > last_time_bin+10:
-                self.manager.synchronize_time()
-                last_time_bin = current_time_bin
+            # Synchronize rank times
+            if self.manager.time_sync_on:
+                current_time_bin = int(time.time())
+
+                if current_time_bin >= last_time_bin+10:
+                    self.manager.synchronize_time()
+                    last_time_bin = current_time_bin
 
             self.recv_interface.__next__()
             self.data_recv.__next__()
@@ -278,6 +289,8 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         self.send_interface = send_interface
         self.stim_decider = stim_decider
 
+        self.time_sync_on = False
+
         self.rec_manager = binary_record.BinaryRecordsManager(manager_label='state',
                                                               save_dir=self.config['files']['output_dir'],
                                                               file_prefix=self.config['files']['prefix'],
@@ -301,8 +314,8 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         self.class_log.debug("Sending time sync messages to simulator node.")
         self.send_interface.send_time_sync_simulator()
         self.send_interface.all_barrier()
-        self.class_log.debug("Post barrier time set as master.")
         self.master_time = MPI.Wtime()
+        self.class_log.debug("Post barrier time set as master.")
 
     def send_calc_offset_time(self, rank, remote_time):
         offset_time = self.master_time - remote_time
@@ -397,23 +410,18 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         # Turn on data streaming to decoder
         self.send_interface.send_turn_on_datastreams(self.config['rank']['decoder'])
 
+        self.time_sync_on = True
+
     def handle_ntrode_list(self, trode_list):
 
         self.class_log.debug("Received ntrode list from simulator {:}.".format(trode_list))
-
-        # First Barrier to finish setting up nodes, waiting for Simulator to send ntrode list.
-        # The main loop must be active to receive binary record registration messages, so the
-        # first Barrier is placed here.
-        self.send_interface.all_barrier()
 
         self._ripple_ranks_startup(trode_list)
         self._encoder_rank_startup(trode_list)
         self._decoder_rank_startup(trode_list)
         self._stim_decider_startup()
+
         self._writer_startup()
-
-        time.sleep(0.5)
-
         self._turn_on_datastreams()
 
     def register_rec_type_message(self, message):

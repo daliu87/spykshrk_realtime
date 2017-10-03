@@ -199,9 +199,6 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         self.spike_dec_interface = spike_decode_interface
         self.pos_interface = pos_interface
 
-        # Register position, right now only one position channel is supported
-        self.pos_interface.register_datatype_channel(-1)
-
         # Send binary record register message
         # self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
@@ -214,6 +211,12 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
                                                          self.config['encoder']['position']['upper']],
                                               pos_bins=self.config['encoder']['position']['bins'],
                                               time_bin_size=self.time_bin_size)
+
+        self.spike_count = 0
+
+    def register_pos_interface(self):
+        # Register position, right now only one position channel is supported
+        self.pos_interface.register_datatype_channel(-1)
 
     def turn_on_datastreams(self):
         self.pos_interface.start_all_streams()
@@ -282,6 +285,9 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
             self.msg_counter += 1
             if self.msg_counter % 1000 == 0:
                 self.class_log.debug('Received {} decoded messages.'.format(self.msg_counter))
+
+            self.record_timing(timestamp=spike_dec_msg.timestamp, ntrode_id=spike_dec_msg.ntrode_id,
+                               datatype=datatypes.Datatypes.SPIKES, label='dec_proc')
 
             pass
 
@@ -444,12 +450,17 @@ class DecoderProcess(realtime_base.RealtimeProcess):
         self.mpi_recv = DecoderRecvInterface(comm=comm, rank=rank, config=config, decode_manager=self.dec_man)
 
         # First Barrier to finish setting up nodes
+
+        self.class_log.debug("First Barrier")
         self.comm.Barrier()
 
     def trigger_termination(self):
         self.terminate = True
 
     def main_loop(self):
+
+        self.dec_man.setup_mpi()
+        self.dec_man.register_pos_interface()
 
         try:
             while not self.terminate:

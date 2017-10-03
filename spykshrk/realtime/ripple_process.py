@@ -567,12 +567,15 @@ class RippleProcess(realtime_base.RealtimeProcess):
         self.terminate = False
 
         # First Barrier to finish setting up nodes
+        self.class_log.debug("First Barrier")
         self.comm.Barrier()
 
     def trigger_termination(self):
         self.terminate = True
 
     def main_loop(self):
+
+        self.rip_man.setup_mpi()
 
         try:
             while not self.terminate:

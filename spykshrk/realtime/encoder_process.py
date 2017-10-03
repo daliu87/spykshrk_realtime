@@ -55,6 +55,7 @@ class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
         for message in record_register_messages:
             self.comm.send(obj=message, dest=self.config['rank']['supervisor'],
                            tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+        self.class_log.debug("Done sending binary record registration messages.")
 
     def send_decoded_spike(self, query_result_message: SpikeDecodeResultsMessage):
         self.comm.Send(buf=query_result_message.pack(), dest=self.config['rank']['decoder'],
@@ -69,7 +70,7 @@ class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
         self.comm.Barrier()
 
 
-class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_logging.LoggingClass):
+class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming):
 
     def __init__(self, rank, config, local_rec_manager, send_interface: EncoderMPISendInterface,
                  spike_interface: simulator_process.SimulatorRemoteReceiver,
@@ -91,13 +92,12 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                                                                range(config['encoder']['position']['bins'])]],
                                                   rec_formats=['qidd',
                                                                'qid'+'d'*config['encoder']['position']['bins']])
+
         self.rank = rank
         self.config = config
         self.mpi_send = send_interface
         self.spike_interface = spike_interface
         self.pos_interface = pos_interface
-
-        # self.mpi_send.send_record_register_messages(self.get_record_register_messages())
 
         kernel = RST.kernel_param(mean=config['encoder']['kernel']['mean'],
                                   stddev=config['encoder']['kernel']['std'],
@@ -112,14 +112,15 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming, realtime_log
                                                      config['encoder']['position_kernel']['std'])
         self.encoders = {}
 
-        # Register position, right now only one position channel is supported
-        self.pos_interface.register_datatype_channel(-1)
-
         self.spk_counter = 0
         self.pos_counter = 0
 
         self.current_pos = 0
         self.current_vel = 0
+
+    def register_pos_datatype(self):
+        # Register position, right now only one position channel is supported
+        self.pos_interface.register_datatype_channel(-1)
 
     def set_num_trodes(self, message: realtime_base.NumTrodesMessage):
         self.num_ntrodes = message.num_ntrodes
@@ -297,12 +298,18 @@ class EncoderProcess(realtime_base.RealtimeProcess):
         self.terminate = False
 
         # First Barrier to finish setting up nodes
+        self.class_log.debug("First Barrier")
         self.comm.Barrier()
 
     def trigger_termination(self):
         self.terminate = True
 
     def main_loop(self):
+
+        self.enc_man.setup_mpi()
+
+        # First thing register pos datatype
+        self.enc_man.register_pos_datatype()
 
         try:
             while not self.terminate:

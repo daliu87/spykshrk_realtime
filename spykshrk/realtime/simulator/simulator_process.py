@@ -257,8 +257,12 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
         current_time = time.time()
         if not self.ntrode_list_sent and (current_time - self.start_time < 3.0):
             # First Barrier to finish setting up nodes, right before simulator starts by sending ntrode list
+            self.class_log.debug("First Barrier")
             self.comm.Barrier()
 
+            # Pause to allow other MPI initialization messages to finish before sending tetrode list, which
+            # triggers the start of recording
+            time.sleep(0.5)
             self.send_ntrode_list()
             self.ntrode_list_sent = True
 
@@ -336,6 +340,9 @@ class SimulatorProcess(realtime_base.RealtimeProcess):
         self.terminate = True
 
     def main_loop(self):
+
+        self.sim.setup_mpi()
+
         try:
             while not self.terminate:
 
