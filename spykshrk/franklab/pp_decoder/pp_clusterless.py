@@ -6,7 +6,7 @@ from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_
 
 
 # Calculate State Transition Matrix
-def calc_learned_state_trans_mat(linpos_flat, x_bins, x_no_anim_bounds):
+def calc_learned_state_trans_mat(linpos_flat, x_bins, arm_coor):
     pos_num_bins = len(x_bins)
 
     # Smoothing kernel for learned pos transition matrix
@@ -28,14 +28,14 @@ def calc_learned_state_trans_mat(linpos_flat, x_bins, x_no_anim_bounds):
 
     # smooth
     learned_trans_mat = sp.signal.convolve2d(learned_trans_mat, kernel, mode='same')
-    learned_trans_mat = apply_no_anim_boundary(x_bins, x_no_anim_bounds, learned_trans_mat)
+    learned_trans_mat = apply_no_anim_boundary(x_bins, arm_coor, learned_trans_mat)
 
     # uniform offset
     uniform_gain = 0.01
     uniform_dist = np.ones(learned_trans_mat.shape)
 
     # no-animal boundary
-    uniform_dist = apply_no_anim_boundary(x_bins, x_no_anim_bounds, uniform_dist)
+    uniform_dist = apply_no_anim_boundary(x_bins, arm_coor, uniform_dist)
 
     # normalize uniform offset
     uniform_dist = uniform_dist / (uniform_dist.sum(axis=0)[None, :])
@@ -77,7 +77,7 @@ def calc_simple_trans_mat(x_bins):
 
 
 # Loop through each bin and generate the observation distribution from spikes in bin
-def calc_observation_intensity(spike_decode, dec_bin_size, x_bins, pos_kernel, x_no_anim_bounds):
+def calc_observation_intensity(spike_decode, dec_bin_size, x_bins, pos_kernel, arm_coor):
     pos_num_bins = len(x_bins)
     pos_bin_delta = x_bins[1] - x_bins[0]
 
@@ -108,7 +108,7 @@ def calc_observation_intensity(spike_decode, dec_bin_size, x_bins, pos_kernel, x
     for fr_key in firing_rate.keys():
         firing_rate[fr_key] = np.convolve(firing_rate[fr_key], pos_kernel, mode='same')
 
-        firing_rate[fr_key] = apply_no_anim_boundary(x_bins, x_no_anim_bounds, firing_rate[fr_key])
+        firing_rate[fr_key] = apply_no_anim_boundary(x_bins, arm_coor, firing_rate[fr_key])
 
         firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * pos_bin_delta)
 
