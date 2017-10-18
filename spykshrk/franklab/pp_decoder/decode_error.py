@@ -63,11 +63,11 @@ def bin_pos_data(pos_data, bin_size):
     return pos_data_bins
 
 
-def conv_arm_pos(arm_dec_est, arm_coordinates, conv_func):
+def conv_arm_pos(arm_dec_est, arm_coordinates, conv_func, relative_well_label):
     new_arm_dec_est = pd.DataFrame()
     new_arm_dec_est.loc[:, 'est_pos'] = arm_dec_est['est_pos'].map(partial(conv_func,
                                                                            arm_coord=arm_coordinates))
-    new_arm_dec_est.loc[:, 'real_pos'] = arm_dec_est['well_center']
+    new_arm_dec_est.loc[:, 'real_pos'] = arm_dec_est[relative_well_label]
 
     return new_arm_dec_est
 
@@ -97,11 +97,11 @@ def calc_error_table(dec_est_and_linpos, arm_coordinates, vel_thresh):
                                               (dec_est_and_linpos['seg_idx'] == 5)]
 
     # Apply "closest well centric" tranform to each arm's data
-    center_dec_est = conv_arm_pos(center_dec_est_merged, arm_coordinates, conv_center_pos)
+    center_dec_est = conv_arm_pos(center_dec_est_merged, arm_coordinates, conv_center_pos, 'well_center')
 
-    left_dec_est = conv_arm_pos(left_dec_est_merged, arm_coordinates, conv_left_pos)
+    left_dec_est = conv_arm_pos(left_dec_est_merged, arm_coordinates, conv_left_pos, 'well_left')
 
-    right_dec_est = conv_arm_pos(right_dec_est_merged, arm_coordinates, conv_right_pos)
+    right_dec_est = conv_arm_pos(right_dec_est_merged, arm_coordinates, conv_right_pos, 'well_right')
 
     center_dec_est = calc_error_for_plot(center_dec_est)
 
@@ -112,3 +112,23 @@ def calc_error_table(dec_est_and_linpos, arm_coordinates, vel_thresh):
     return center_dec_est, left_dec_est, right_dec_est
 
 
+def plot_arms_error(center_dec_error, left_dec_error, right_dec_error, plt_range):
+    center_plt_ind = (center_dec_error.index/30000 >= plt_range[0]) & (center_dec_error.index/30000 <= plt_range[1])
+    left_plt_ind = (left_dec_error.index/30000 >= plt_range[0]) & (left_dec_error.index/30000 <= plt_range[1])
+    right_plt_ind = (right_dec_error.index/30000 >= plt_range[0]) & (right_dec_error.index/30000 <= plt_range[1])
+
+    plt.figure(figsize=[400,10])
+    plt.errorbar(x=center_dec_error.index[center_plt_ind]/30000,
+                 y=center_dec_error['real_pos'][center_plt_ind],
+                 yerr=[center_dec_error['plt_error_up'][center_plt_ind],
+                       center_dec_error['plt_error_down'][center_plt_ind]], fmt='*')
+
+    plt.errorbar(x=left_dec_error.index[left_plt_ind]/30000,
+                 y=left_dec_error['real_pos'][left_plt_ind],
+                 yerr=[left_dec_error['plt_error_up'][left_plt_ind],
+                       left_dec_error['plt_error_down'][left_plt_ind]], fmt='*')
+
+    plt.errorbar(x=right_dec_error.index[right_plt_ind]/30000,
+                 y=right_dec_error['real_pos'][right_plt_ind],
+                 yerr=[right_dec_error['plt_error_up'][right_plt_ind],
+                       right_dec_error['plt_error_down'][right_plt_ind]], fmt='*')
