@@ -76,6 +76,18 @@ def calc_simple_trans_mat(x_bins):
     return transition_mat
 
 
+def calc_uniform_trans_mat(x_bins):
+    pos_num_bins = len(x_bins)
+
+    # Setup transition matrix
+    transition_mat = np.ones([pos_num_bins, pos_num_bins])
+
+    # normalize transition matrix
+    transition_mat = transition_mat/( transition_mat.sum(axis=0)[None,:])
+
+    return transition_mat
+
+
 # Loop through each bin and generate the observation distribution from spikes in bin
 def calc_observation_intensity(spike_decode, dec_bin_size, x_bins, pos_kernel, arm_coor):
     pos_num_bins = len(x_bins)
