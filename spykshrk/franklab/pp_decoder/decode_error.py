@@ -12,9 +12,9 @@ def conv_center_pos(pos, arm_coord):
     """
     if pos < arm_coord[0][1]:
         return pos
-    elif (pos >= arm_coord[1][0]) and (pos < arm_coord[1][1]):
+    elif (pos >= arm_coord[1][0]) and (pos <= arm_coord[1][1]):
         return arm_coord[1][1]-pos+arm_coord[0][1]
-    elif (pos >= arm_coord[2][0]) and (pos < arm_coord[2][1]):
+    elif (pos >= arm_coord[2][0]) and (pos <= arm_coord[2][1]):
         return arm_coord[2][1]-pos+arm_coord[0][1]
     else:
         raise ValueError("Position {} not valid for arm coordinate.".format(pos))
@@ -23,9 +23,9 @@ def conv_center_pos(pos, arm_coord):
 def conv_left_pos(pos, arm_coord):
     if pos < arm_coord[0][1]:
         return arm_coord[0][1]-pos+arm_coord[1][1]-arm_coord[1][0]
-    elif (pos >= arm_coord[1][0]) and (pos < arm_coord[1][1]):
+    elif (pos >= arm_coord[1][0]) and (pos <= arm_coord[1][1]):
         return pos-arm_coord[1][0]
-    elif (pos >= arm_coord[2][0]) and (pos < arm_coord[2][1]):
+    elif (pos >= arm_coord[2][0]) and (pos <= arm_coord[2][1]):
         return arm_coord[2][1]-pos+arm_coord[1][1]-arm_coord[1][0]
     else:
         raise ValueError("Position {} not valid for arm coordinate.".format(pos))
@@ -34,33 +34,25 @@ def conv_left_pos(pos, arm_coord):
 def conv_right_pos(pos, arm_coord):
     if pos < arm_coord[0][1]:
         return arm_coord[0][1]-pos+arm_coord[2][1]-arm_coord[2][0]
-    elif (pos >= arm_coord[1][0]) and (pos < arm_coord[1][1]):
+    elif (pos >= arm_coord[1][0]) and (pos <= arm_coord[1][1]):
         return arm_coord[1][1]-pos+arm_coord[2][1]-arm_coord[2][0]
-    elif (pos >= arm_coord[2][0]) and (pos < arm_coord[2][1]):
+    elif (pos >= arm_coord[2][0]) and (pos <= arm_coord[2][1]):
         return pos-arm_coord[2][0]
     else:
         raise ValueError("Position {} not valid for arm coordinate.".format(pos))
 
 
 def bin_pos_data(pos_data, bin_size):
-    pos_bin_ids = np.floor((pos_data.index - pos_data.index[0])/bin_size).astype('int')
-    pos_data['bin'] = pos_bin_ids
-    pos_bin_ids_unique = np.unique(pos_bin_ids)
 
-    start_bin_time = np.floor(pos_data.index[0] / bin_size) * bin_size
+    pos_data_new_times = np.arange(pos_data.index[0] + (bin_size - pos_data.index[0] % bin_size),
+                                   pos_data.index[-1]+1, bin_size)
+    pos_data_bin_ids = np.arange(0, len(pos_data_new_times), 1)
 
-    pos_bin_times = (pos_bin_ids_unique * bin_size + start_bin_time)
+    pos_data_binned = pos_data.reindex(pos_data_new_times, method='nearest')
 
-    pos_data_bins = pd.DataFrame()
+    pos_data_binned['bin'] = pos_data_bin_ids
 
-    for ind, bin_id in enumerate(pos_bin_ids_unique):
-        pos_in_bin = pos_data[pos_data['bin'] == bin_id]
-        pos_bin_mean = pos_in_bin.mean()
-        pos_bin_mean.name = pos_bin_times[ind]
-
-        pos_data_bins = pos_data_bins.append(pos_bin_mean)
-
-    return pos_data_bins
+    return pos_data_binned
 
 
 def conv_arm_pos(arm_dec_est, arm_coordinates, conv_func, relative_well_label):
@@ -84,7 +76,21 @@ def calc_error_for_plot(dec_est):
     return dec_est
 
 
-def calc_error_table(dec_est_and_linpos, arm_coordinates, vel_thresh):
+def calc_error_table(pos_data_bins, dec_est_pos, arm_coordinates, vel_thresh):
+    """
+    
+    Args:
+        pos_data_bins: Expects columns lin_vel_center 
+        dec_est_pos: 
+        arm_coordinates: 
+        vel_thresh: 
+
+    Returns:
+
+    """
+    # Reindex and join real position (linpos) to the decode estimated position table
+    linpos_reindexed = pos_data_bins.reindex(dec_est_pos.index, method='bfill')
+    dec_est_and_linpos = dec_est_pos.join(linpos_reindexed)
 
     # Select rows only when velocity meets criterion
     dec_est_and_linpos = dec_est_and_linpos[np.abs(dec_est_and_linpos['lin_vel_center']) >= vel_thresh]
