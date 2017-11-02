@@ -86,10 +86,10 @@ class PointProcessDecoder(realtime_logging.LoggingClass):
         uniform_dist = np.ones(transition_mat.shape)
 
         # normalize transition matrix
-        transition_mat = transition_mat/( transition_mat.sum(axis=0)[None,:])
+        transition_mat = transition_mat/(transition_mat.sum(axis=0)[None, :])
 
         # normalize uniform offset
-        uniform_dist = uniform_dist/( uniform_dist.sum(axis=0)[None,:])
+        uniform_dist = uniform_dist/(uniform_dist.sum(axis=0)[None, :])
 
         # apply uniform offset
         transition_mat = transition_mat * (1 - uniform_gain) + uniform_dist * uniform_gain

@@ -1,3 +1,4 @@
+import warnings
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,18 +7,31 @@ import os
 from functools import partial
 
 
+def convert_pos_for_notebook(pos_data):
+    pos_data_time = pos_data.loc[:, 'time']
+
+    pos_data_notebook = pos_data.loc[:,'lin_dist_well']
+    pos_data_notebook.loc[:, 'lin_vel_center'] = pos_data.loc[:,('lin_vel', 'well_center')]
+    pos_data_notebook.loc[:, 'seg_idx'] = pos_data.loc[:,('seg_idx', 0)]
+    pos_data_notebook.loc[:,'timestamps'] = pos_data_time*30000
+    pos_data_notebook = pos_data_notebook.set_index('timestamps')
+
+    return pos_data_notebook
+
+
 def conv_center_pos(pos, arm_coord):
     """
     Compute distance from center arm
     """
-    if pos < arm_coord[0][1]:
+    if (pos >= arm_coord[0][0]) and (pos <= arm_coord[0][1]):
         return pos
     elif (pos >= arm_coord[1][0]) and (pos <= arm_coord[1][1]):
         return arm_coord[1][1]-pos+arm_coord[0][1]
     elif (pos >= arm_coord[2][0]) and (pos <= arm_coord[2][1]):
         return arm_coord[2][1]-pos+arm_coord[0][1]
     else:
-        raise ValueError("Position {} not valid for arm coordinate.".format(pos))
+        warnings.warn("Position {} not valid for center arm coordinate.".format(pos))
+        return -pos
 
 
 def conv_left_pos(pos, arm_coord):
@@ -28,7 +42,8 @@ def conv_left_pos(pos, arm_coord):
     elif (pos >= arm_coord[2][0]) and (pos <= arm_coord[2][1]):
         return arm_coord[2][1]-pos+arm_coord[1][1]-arm_coord[1][0]
     else:
-        raise ValueError("Position {} not valid for arm coordinate.".format(pos))
+        warnings.warn("Position {} not valid for left arm coordinate.".format(pos))
+        return -pos
 
 
 def conv_right_pos(pos, arm_coord):
@@ -39,7 +54,8 @@ def conv_right_pos(pos, arm_coord):
     elif (pos >= arm_coord[2][0]) and (pos <= arm_coord[2][1]):
         return pos-arm_coord[2][0]
     else:
-        raise ValueError("Position {} not valid for arm coordinate.".format(pos))
+        warnings.warn("Position {} not valid for right arm coordinate.".format(pos))
+        return -pos
 
 
 def bin_pos_data(pos_data, bin_size):

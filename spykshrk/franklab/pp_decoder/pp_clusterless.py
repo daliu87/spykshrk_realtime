@@ -6,12 +6,12 @@ from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_
 
 
 # Calculate State Transition Matrix
-def calc_learned_state_trans_mat(linpos_flat, x_bins, arm_coor):
+def calc_learned_state_trans_mat(linpos_flat, x_bins, arm_coor, gauss_smooth_std, uniform_offset_gain):
     pos_num_bins = len(x_bins)
 
     # Smoothing kernel for learned pos transition matrix
     xv, yv = np.meshgrid(np.arange(-20, 21), np.arange(-20, 21))
-    kernel = normal2D(xv, yv, 1)
+    kernel = normal2D(xv, yv, gauss_smooth_std)
     kernel /= kernel.sum()
 
     linpos_state = linpos_flat
@@ -31,7 +31,7 @@ def calc_learned_state_trans_mat(linpos_flat, x_bins, arm_coor):
     learned_trans_mat = apply_no_anim_boundary(x_bins, arm_coor, learned_trans_mat)
 
     # uniform offset
-    uniform_gain = 0.01
+    uniform_gain = uniform_offset_gain
     uniform_dist = np.ones(learned_trans_mat.shape)
 
     # no-animal boundary
