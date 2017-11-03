@@ -6,7 +6,7 @@
             "name": "bond",
             "days": [4],
             "epochs": [1], 
-            "tetrodes": [5, 11, 12, 13, 14, 17, 19, 29]
+           "tetrodes": [5, 11, 12, 13, 14, 17, 19, 29]
         }
     }, 
 
@@ -98,6 +98,9 @@
     },
 
     "pp_decoder": {
-        "bin_size": 300
+        "bin_size": 300,
+        "arm_pos": [[0, 69], [150, 252], [300, 404]],
+        "trans_mat_uniform_gain": 0.001
+
     }
 }

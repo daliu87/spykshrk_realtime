@@ -4,6 +4,9 @@ import numpy as np
 from spykshrk.realtime import realtime_base, realtime_logging, binary_record, datatypes, encoder_process
 from spykshrk.realtime.simulator import simulator_process
 
+from spykshrk.franklab.pp_decoder.util import apply_no_anim_boundary
+
+
 class DecoderMPISendInterface(realtime_base.RealtimeMPIClass):
     def __init__(self, comm :MPI.Comm, rank, config):
         super(DecoderMPISendInterface, self).__init__(comm=comm, rank=rank, config=config)
@@ -44,10 +47,12 @@ class SpikeDecodeRecvInterface(realtime_base.RealtimeMPIClass):
 
 class PointProcessDecoder(realtime_logging.LoggingClass):
 
-    def __init__(self, pos_range, pos_bins, time_bin_size):
+    def __init__(self, pos_range, pos_bins, time_bin_size, arm_coor, uniform_gain=0.01):
         self.pos_range = pos_range
         self.pos_bins = pos_bins
         self.time_bin_size = time_bin_size
+        self.arm_coor = arm_coor
+        self.uniform_gain = uniform_gain
 
         self.ntrode_list = []
 
@@ -64,12 +69,14 @@ class PointProcessDecoder(realtime_logging.LoggingClass):
         self.prev_posterior = np.ones(self.pos_bins)
         self.firing_rate = {}
         self.transition_mat = PointProcessDecoder._create_transition_matrix(self.pos_delta,
-                                                                            self.pos_bins)
+                                                                            self.pos_bins,
+                                                                            self.arm_coor,
+                                                                            self.uniform_gain)
 
         self.current_spike_count = 0
 
     @staticmethod
-    def _create_transition_matrix(pos_delta, num_bins):
+    def _create_transition_matrix(pos_delta, num_bins, arm_coor, uniform_gain=0.01):
 
         def gaussian(x, mu, sig):
             return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
@@ -82,8 +89,12 @@ class PointProcessDecoder(realtime_logging.LoggingClass):
             transition_mat[bin_ii, :] = gaussian(x_bins, x_bins[bin_ii], 3)
 
         # uniform offset
-        uniform_gain = 0.01
         uniform_dist = np.ones(transition_mat.shape)
+
+        # apply no-animal boundary
+
+        transition_mat = apply_no_anim_boundary(x_bins, arm_coor, transition_mat)
+        uniform_dist = apply_no_anim_boundary(x_bins, arm_coor, uniform_dist)
 
         # normalize transition matrix
         transition_mat = transition_mat/(transition_mat.sum(axis=0)[None, :])
@@ -210,7 +221,9 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         self.pp_decoder = PointProcessDecoder(pos_range=[self.config['encoder']['position']['lower'],
                                                          self.config['encoder']['position']['upper']],
                                               pos_bins=self.config['encoder']['position']['bins'],
-                                              time_bin_size=self.time_bin_size)
+                                              time_bin_size=self.time_bin_size,
+                                              arm_coor=self.config['pp_decoder']['arm_pos'],
+                                              uniform_gain=config['pp_decoder']['trans_mat_uniform_gain'])
 
         self.spike_count = 0
 
