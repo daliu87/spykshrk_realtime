@@ -49,7 +49,7 @@ def merge_pandas(filename_items):
     pandas = []
 
     for filename in filenames:
-        store = pd.HDFStore(filename)
+        store = pd.HDFStore(filename, 'r')
         pandas.append(store['rec_'+str(rec_id)])
 
     merged = pd.concat(pandas, ignore_index=True)
@@ -61,7 +61,7 @@ def merge_pandas(filename_items):
 
     hdf5_lock.acquire()
 
-    with pd.HDFStore(hdf5_filename) as hdf_store:
+    with pd.HDFStore(hdf5_filename, 'w') as hdf_store:
         hdf_store['rec_{}'.format(rec_id)] = merged
 
     hdf5_lock.release()

@@ -31,6 +31,7 @@ class RecordIDs(IntEnum):
     ENCODER_QUERY = 2
     ENCODER_OUTPUT = 3
     DECODER_OUTPUT = 4
+    DECODER_MISSED_SPIKES = 5
 
     STIM_STATE = 10
     STIM_LOCKOUT = 11

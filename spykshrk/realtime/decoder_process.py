@@ -199,11 +199,14 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         super(PPDecodeManager, self).__init__(rank=rank,
                                               local_rec_manager=local_rec_manager,
                                               send_interface=send_interface,
-                                              rec_ids=[realtime_base.RecordIDs.DECODER_OUTPUT],
+                                              rec_ids=[realtime_base.RecordIDs.DECODER_OUTPUT,
+                                                       realtime_base.RecordIDs.DECODER_MISSED_SPIKES],
                                               rec_labels=[['timestamp', 'real_pos_time', 'real_pos'] +
                                                           ['x'+str(x) for x in
-                                                           range(config['encoder']['position']['bins'])]],
-                                              rec_formats=['qqd'+'d'*config['encoder']['position']['bins']])
+                                                           range(config['encoder']['position']['bins'])],
+                                                          ['timestamp', 'trode_id', 'real_bin', 'late_bin']],
+                                              rec_formats=['qqd'+'d'*config['encoder']['position']['bins'],
+                                                           'qiii'])
 
         self.config = config
         self.mpi_send = send_interface
@@ -291,6 +294,9 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
                 pass
 
             elif spike_time_bin < self.current_time_bin:
+                self.write_record(realtime_base.RecordIDs.DECODER_MISSED_SPIKES,
+                                  spike_dec_msg.timestamp, spike_dec_msg.ntrode_id,
+                                  spike_time_bin, self.current_time_bin)
                 # Spike is in an old time bin, discard and mark as missed
                 self.class_log.debug('Spike was excluded from PP decode calculation, arrived late.')
                 pass
