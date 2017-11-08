@@ -61,7 +61,9 @@ def merge_pandas(filename_items):
 
     hdf5_lock.acquire()
 
-    with pd.HDFStore(hdf5_filename, 'w') as hdf_store:
+    logging.debug("Saving merged rec ID {}.".format(rec_id))
+
+    with pd.HDFStore(hdf5_filename, 'a') as hdf_store:
         hdf_store['rec_{}'.format(rec_id)] = merged
 
     hdf5_lock.release()
@@ -69,7 +71,7 @@ def merge_pandas(filename_items):
 
 def main(argv):
 
-    logging.getLogger().setLevel('INFO')
+    logging.getLogger().setLevel('DEBUG')
 
     try:
         opts, args = getopt.getopt(argv, "", ["config="])
@@ -127,6 +129,12 @@ def main(argv):
             rec_list.append(filename)
 
     logging.info("Merging, sorting and saving each record type's dataframe.")
+    # delete existing hdf5 to keep merge_pandas from appending
+    try:
+        os.remove(hdf5_filename_l)
+    except FileNotFoundError:
+        pass
+
     start_time = time.time()
     p.map(merge_pandas, remapped_dict.items())
     end_time = time.time()
