@@ -14,7 +14,7 @@ def apply_no_anim_boundary(x_bins, arm_coor, image):
     
     Args:
         x_bins: the position value for each bin
-        arm_coor: the arm inclusive arm coordinates of valid animal positions
+        arm_coor: the inclusive arm coordinates of valid animal positions
         image: the image or array to apply
 
     Returns: 
@@ -36,4 +36,17 @@ def apply_no_anim_boundary(x_bins, arm_coor, image):
             image[bounds[0]:bounds[1], :] = 0
             image[:, bounds[0]:bounds[1]] = 0
     return image
+
+
+def simplify_pos_pandas(pos_data):
+    pos_data_time = pos_data.loc[:, 'time']
+
+    pos_data_notebook = pos_data.loc[:,'lin_dist_well']
+    pos_data_notebook.loc[:, 'lin_vel_center'] = pos_data.loc[:,('lin_vel', 'well_center')]
+    pos_data_notebook.loc[:, 'seg_idx'] = pos_data.loc[:,('seg_idx', 0)]
+    pos_data_notebook.loc[:,'timestamps'] = pos_data_time*30000
+    pos_data_notebook = pos_data_notebook.set_index('timestamps')
+
+    return pos_data_notebook
+
 
