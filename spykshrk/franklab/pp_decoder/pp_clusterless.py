@@ -125,6 +125,7 @@ def calc_observation_intensity(spike_decode, dec_bin_size, x_bins, pos_kernel, a
         firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * pos_bin_delta)
 
     start_bin_time = np.floor(spike_decode['timestamp'][0] / dec_bin_size) * dec_bin_size
+    zz
     dec_bin_times = np.arange(start_bin_time, start_bin_time + dec_bin_size * len(dec_est), dec_bin_size)
 
     return dec_bin_times, dec_est, bin_num_spikes, firing_rate
@@ -181,7 +182,7 @@ def calc_posterior(likelihoods, transition_mat, pos_num_bins, pos_bin_delta):
     return posteriors
 
 
-def plot_decode_2d(dec_est, dec_bin_times, stim_lockout_ranges, linpos_flat, plt_range, x_tick=1.0):
+def plot_decode_2d(dec_bin_times, dec_est, stim_lockout_ranges, linpos_flat, plt_range, x_tick=1.0):
     stim_lockout_ranges_sec = stim_lockout_ranges/30000
     stim_lockout_range_sec_sub = stim_lockout_ranges_sec[(stim_lockout_ranges_sec[1] > plt_range[0]) &
                                                          (stim_lockout_ranges_sec[0] < plt_range[1])]
