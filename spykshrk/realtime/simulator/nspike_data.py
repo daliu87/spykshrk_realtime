@@ -550,12 +550,10 @@ class PosMatDataStream:
     VELLIN_IND = 3
 
     def __init__(self, anim):
-        print('PosMatData: INIT start')
         self.anim = anim
         path_list = anim.get_posmat_paths()
         # Initialized to empty dataframe to be appended/concated to
         self.data = pd.DataFrame([])
-        print(path_list)
 
         self.days = set([])
         for path in path_list:
@@ -567,16 +565,18 @@ class PosMatDataStream:
             self.timebin_uniq = {}
             for epoch in anim.epochs:
                 postime_epoch = posdata[0, epoch]['statematrix'][0, 0]['time'][0, 0]
+                postimestamp_epoch = postime_epoch * 30000          # hardcode convert to timestamps
                 poslindist_epoch = posdata[0, epoch]['statematrix'][0, 0]['linearDistanceToWells'][0, 0]
                 possegind_epoch = posdata[0, epoch]['statematrix'][0, 0]['segmentIndex'][0, 0]
                 poslinvel_epoch = posdata[0, epoch]['statematrix'][0, 0]['linearVelocity'][0, 0]
-                posdata_all = np.hstack((postime_epoch, poslindist_epoch, possegind_epoch, poslinvel_epoch))
+                posdata_all = np.hstack((postime_epoch, postimestamp_epoch, poslindist_epoch,
+                                         possegind_epoch, poslinvel_epoch))
 
                 pos_pd_idx = pd.MultiIndex.from_product(
-                    ([day], [epoch], range(postime_epoch.size)), names=['day', 'epoch', 'idx'])
+                    ([day], [epoch], postimestamp_epoch.flatten()), names=['day', 'epoch', 'timestamp'])
 
                 pos_pd_col = pd.MultiIndex.from_tuples(
-                    [('time', 'time'), ('lin_dist_well', 'well_center'),
+                    [('time', 'time'), ('time', 'timestamp'), ('lin_dist_well', 'well_center'),
                      ('lin_dist_well', 'well_left'), ('lin_dist_well', 'well_right'),
                      ('seg_idx', 'seg_idx'), ('lin_vel', 'well_center'),
                      ('lin_vel', 'well_left'), ('lin_vel', 'well_right')])
@@ -586,8 +586,6 @@ class PosMatDataStream:
                 self.data = self.data.append(posdata_all_df)
 
         self.data = self.data.sort_values([('time', 'time')])
-        #print self.data
-        print('PosMatData: INIT done')
 
     def __call__(self):
         for day in self.days:
@@ -599,18 +597,18 @@ class PosMatDataStream:
 
                 for row_id in range(len(pos_raw)):
                     row = pos_raw[row_id]
-                    segind = row[4]     # seg_idx
-                    postimestamp = int(row[0] * 30000)    # timestamp
+                    segind = row[5]     # seg_idx
+                    postimestamp = int(row[1])    # timestamp
 
                     if segind == 1:
-                        pos_conv = row[1]          # ['lin_dist_well', 'well_center']
-                        veldata = row[5]           # ['lin_vel', 'well_center']
+                        pos_conv = row[2]          # ['lin_dist_well', 'well_center']
+                        veldata = row[6]           # ['lin_vel', 'well_center']
                     elif segind == 2 or segind == 3:
-                        pos_conv = row[2] + 150    # ['lin_dist_well', 'well_left']
-                        veldata = row[6]           # ['lin_vel', 'well_left']
+                        pos_conv = row[3] + 150    # ['lin_dist_well', 'well_left']
+                        veldata = row[7]           # ['lin_vel', 'well_left']
                     elif segind == 4 or segind == 5:
-                        pos_conv = row[3] + 300    # ['lin_dist_well', 'well_right']
-                        veldata = row[7]           # ['lin_vel', 'well_right']
+                        pos_conv = row[4] + 300    # ['lin_dist_well', 'well_right']
+                        veldata = row[8]           # ['lin_vel', 'well_right']
 
                     yield LinearPosPoint(timestamp=postimestamp, x=pos_conv, vel=veldata)
 
@@ -656,7 +654,6 @@ class PosData:
                 insert_cur += pos_sub.shape[0]
 
             # Sort the timestamps within each day
-            print('sorting day %d' % key)
             posdata = posdata[np.argsort(posdata[:, 0]), :]
             self.data.append([key, posdata])
 

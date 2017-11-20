@@ -54,6 +54,8 @@ def bin_pos_data(pos_data, bin_size):
 
     pos_data_binned = pos_data.reindex(pos_data_new_times, method='nearest')
 
+    pos_data_binned.set_index(pos_data_new_times, inplace=True)
+
     pos_data_binned['bin'] = pos_data_bin_ids
 
     return pos_data_binned
