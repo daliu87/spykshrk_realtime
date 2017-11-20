@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from itertools import product
 
+
 class LinearPositionContainer:
 
     def __init__(self, nspike_pos_data):
@@ -18,15 +19,15 @@ class LinearPositionContainer:
 
         pos_data_time = self.pos_data.loc[:, 'time']
 
-        pos_data_simple = self.pos_data.loc[:,'lin_dist_well']
+        pos_data_simple = self.pos_data.loc[:, 'lin_dist_well'].copy()
         pos_data_simple.loc[:, 'lin_vel_center'] = self.pos_data.loc[:, ('lin_vel', 'well_center')]
-        pos_data_simple.loc[:, 'seg_idx'] = self.pos_data.loc[:, ('seg_idx', 0)]
+        pos_data_simple.loc[:, 'seg_idx'] = self.pos_data.loc[:, ('seg_idx', 'seg_idx')]
         pos_data_simple.loc[:, 'timestamps'] = pos_data_time*30000
         pos_data_simple = pos_data_simple.set_index('timestamps')
 
         return pos_data_simple
 
-    def get_rebinned(self, bin_size):
+    def get_resampled(self, bin_size):
 
         def epoch_rebin_func(df):
 
@@ -47,3 +48,23 @@ class LinearPositionContainer:
 
         stuff = grp.apply(epoch_rebin_func)
         return stuff
+
+    def get_mapped_single_axis(self):
+
+        center_pos_flat = self.pos_data.query('@self.pos_data.seg_idx.seg_idx == 1').loc[:, ('lin_dist_well',
+                                                                                             'well_center')]
+        left_pos_flat = self.pos_data.query('@self.pos_data.seg_idx.seg_idx == 2 | '
+                                            '@self.pos_data.seg_idx.seg_idx == 3').loc[:, ('lin_dist_well',
+                                                                                           'well_left')]
+        right_pos_flat = self.pos_data.query('@self.pos_data.seg_idx.seg_idx == 4 | '
+                                             '@self.pos_data.seg_idx.seg_idx == 5').loc[:, ('lin_dist_well',
+                                                                                            'well_right')]
+
+        center_pos_flat.name = 'linpos_flat'
+        left_pos_flat.name = 'linpos_flat'
+        right_pos_flat.name = 'linpos_flat'
+
+        linpos_flat = pd.concat([center_pos_flat, left_pos_flat, right_pos_flat])
+        linpos_flat = linpos_flat.sort_index()
+
+        return linpos_flat

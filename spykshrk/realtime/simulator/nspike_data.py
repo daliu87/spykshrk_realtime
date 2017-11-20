@@ -201,8 +201,6 @@ class AnimalInfo:
             day_glob = os.path.join(self.base_dir, anim_prefix.title()[0:3],
                                     '%slinpos%02d.mat' % (self.name[0:3].lower(), day))
             day_path = glob(day_glob)
-            print(self.base_dir + anim_prefix.title()[0:3])
-            print(day_path)
             # directory sanity check
             if len(day_path) < 1:
                 print('WARNING: %s day %02d does not have file %slinpos%02d.mat'
@@ -582,10 +580,13 @@ class PosMatDataStream:
                      ('lin_vel', 'well_left'), ('lin_vel', 'well_right')])
 
                 posdata_all_df = pd.DataFrame(posdata_all, index=pos_pd_idx, columns=pos_pd_col)
+                posdata_all_df = posdata_all_df.sort_values([('time', 'time')])
 
                 self.data = self.data.append(posdata_all_df)
 
-        self.data = self.data.sort_values([('time', 'time')])
+
+        # make sure column multi-index is sorted for multi-slicing
+        self.data.sort_index(axis=1, inplace=True)
 
     def __call__(self):
         for day in self.days:
