@@ -43,7 +43,7 @@ def simplify_pos_pandas(pos_data):
 
     pos_data_notebook = pos_data.loc[:,'lin_dist_well']
     pos_data_notebook.loc[:, 'lin_vel_center'] = pos_data.loc[:,('lin_vel', 'well_center')]
-    pos_data_notebook.loc[:, 'seg_idx'] = pos_data.loc[:,('seg_idx', 0)]
+    pos_data_notebook.loc[:, 'seg_idx'] = pos_data.loc[:,('seg_idx', 'seg_idx')]
     pos_data_notebook.loc[:,'timestamps'] = pos_data_time*30000
     pos_data_notebook = pos_data_notebook.set_index('timestamps')
 

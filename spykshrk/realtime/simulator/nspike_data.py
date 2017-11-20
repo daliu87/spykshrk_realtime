@@ -576,16 +576,16 @@ class PosMatDataStream:
                     ([day], [epoch], range(postime_epoch.size)), names=['day', 'epoch', 'idx'])
 
                 pos_pd_col = pd.MultiIndex.from_tuples(
-                    [('time', 0), ('lin_dist_well', 'well_center'),
+                    [('time', 'time'), ('lin_dist_well', 'well_center'),
                      ('lin_dist_well', 'well_left'), ('lin_dist_well', 'well_right'),
-                     ('seg_idx', 0), ('lin_vel', 'well_center'),
+                     ('seg_idx', 'seg_idx'), ('lin_vel', 'well_center'),
                      ('lin_vel', 'well_left'), ('lin_vel', 'well_right')])
 
                 posdata_all_df = pd.DataFrame(posdata_all, index=pos_pd_idx, columns=pos_pd_col)
 
                 self.data = self.data.append(posdata_all_df)
 
-        self.data = self.data.sort_values([('time', 0)])
+        self.data = self.data.sort_values([('time', 'time')])
         #print self.data
         print('PosMatData: INIT done')
 
