@@ -46,8 +46,8 @@ class LinearPositionContainer:
 
         grp = self.pos_data.groupby(level=['day', 'epoch'])
 
-        stuff = grp.apply(epoch_rebin_func)
-        return stuff
+        pos_data_rebinned = grp.apply(epoch_rebin_func)
+        return pos_data_rebinned
 
     def get_mapped_single_axis(self):
 
@@ -68,3 +68,17 @@ class LinearPositionContainer:
         linpos_flat = linpos_flat.sort_index()
 
         return linpos_flat
+
+
+class SpikeObservation:
+
+    def __init__(self, spike_dec):
+        self.spike_dec = spike_dec
+        self.start_timestamp = self.spike_dec['timestamp'][0]
+
+    def get_observations_binned(self, dec_bin_size):
+        dec_bins = np.floor((self.spike_dec['timestamp'] -
+                             self.spike_dec['timestamp'][0])/dec_bin_size).astype('int')
+        dec_bins_start = int(self.spike_dec['timestamp'][0] / dec_bin_size) * dec_bin_size + dec_bins * dec_bin_size
+        self.spike_dec['dec_bin'] = dec_bins
+        self.spike_dec['dec_bin_start'] = dec_bins_start
