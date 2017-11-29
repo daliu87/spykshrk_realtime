@@ -227,7 +227,7 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
                                                          self.config['encoder']['position']['upper']],
                                               pos_bins=self.config['encoder']['position']['bins'],
                                               time_bin_size=self.time_bin_size,
-                                              arm_coor=self.config['pp_decoder']['arm_pos'],
+                                              arm_coor=self.config['encoder']['position']['arm_pos'],
                                               uniform_gain=config['pp_decoder']['trans_mat_uniform_gain'])
 
         self.spike_count = 0

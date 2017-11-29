@@ -82,7 +82,8 @@
         "position": {
             "lower": 0,
             "upper": 450,
-            "bins": 450
+            "bins": 450,
+            "arm_pos": [[0, 69], [150, 252], [300, 404]]
         },
         "position_kernel": {
             "std": 3
@@ -99,8 +100,8 @@
 
     "pp_decoder": {
         "bin_size": 300,
-        "arm_pos": [[0, 69], [150, 252], [300, 404]],
-        "trans_mat_uniform_gain": 0.001
+        "trans_mat_uniform_gain": 0.001,
+        "trans_mat_smoother_std": 3
 
     }
 }

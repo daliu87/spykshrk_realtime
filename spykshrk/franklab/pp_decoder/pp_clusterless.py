@@ -1,185 +1,240 @@
+import pandas as pd
 import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
 
 from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary
+from spykshrk.franklab.pp_decoder.data_containers import LinearPositionContainer, SpikeObservation, EncodeSettings, \
+    DecodeSettings
 
 
-# Calculate State Transition Matrix
-def calc_learned_state_trans_mat(linpos_flat, x_bins, arm_coor, gauss_smooth_std, uniform_offset_gain):
-    pos_num_bins = len(x_bins)
+class OfflinePPDecoder:
 
-    # Smoothing kernel for learned pos transition matrix
-    xv, yv = np.meshgrid(np.arange(-20, 21), np.arange(-20, 21))
-    kernel = normal2D(xv, yv, gauss_smooth_std)
-    kernel /= kernel.sum()
+    def __init__(self, lin_obj: LinearPositionContainer, observ_obj: SpikeObservation, encode_settings: EncodeSettings,
+                 decode_settings: DecodeSettings, which_trans_mat='learned', time_bin_size=None):
+        self.lin_obj = lin_obj
+        self.observ_obj = observ_obj
+        self.encode_settings = encode_settings
+        self.decode_settings = decode_settings
+        self.which_trans_mat = which_trans_mat
+        self.time_bin_size = time_bin_size
 
-    linpos_state = linpos_flat
-    linpos_ind = np.searchsorted(x_bins, linpos_state, side='right') - 1
+        if self.which_trans_mat == 'learned':
+            self.trans_mat = self.calc_learned_state_trans_mat(self.lin_obj.get_mapped_single_axis(),
+                                                               self.encode_settings, self.decode_settings)
+        elif self.which_trans_mat == 'simple':
+            self.trans_mat = self.calc_simple_trans_mat(self.encode_settings)
+        elif self.which_trans_mat == 'uniform':
+            self.trans_mat = self.calc_uniform_trans_mat(self.encode_settings)
 
-    # Create learned pos transition matrix
-    learned_trans_mat = np.zeros([pos_num_bins, pos_num_bins])
-    for first_pos_ind, second_pos_ind in zip(linpos_ind[:-1], linpos_ind[1:]):
-        learned_trans_mat[first_pos_ind, second_pos_ind] += 1
+    def run_decoder(self, time_bin_size=None):
+        self.binned_observ, self.firing_rate = self.calc_observation_intensity(self.observ_obj,
+                                                                               self.encode_settings,
+                                                                               self.decode_settings,
+                                                                               time_bin_size)
 
-    # normalize
-    learned_trans_mat = learned_trans_mat / (learned_trans_mat.sum(axis=0)[None, :])
-    learned_trans_mat[np.isnan(learned_trans_mat)] = 0
+        self.occupancy = self.calc_occupancy(self.lin_obj, self.encode_settings)
+        self.prob_no_spike = self.calc_prob_no_spike(self.firing_rate, self.occupancy, self.decode_settings)
+        self.likelihoods = self.calc_likelihood(self.binned_observ, self.prob_no_spike, self.encode_settings)
+        self.posteriors = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
 
-    # smooth
-    learned_trans_mat = sp.signal.convolve2d(learned_trans_mat, kernel, mode='same')
-    learned_trans_mat = apply_no_anim_boundary(x_bins, arm_coor, learned_trans_mat)
+        return self.posteriors
 
-    # uniform offset
-    uniform_gain = uniform_offset_gain
-    uniform_dist = np.ones(learned_trans_mat.shape)
+    @staticmethod
+    def calc_learned_state_trans_mat(linpos_simple, enc_settings, dec_settings):
+        pos_num_bins = len(enc_settings.pos_bins)
 
-    # no-animal boundary
-    uniform_dist = apply_no_anim_boundary(x_bins, arm_coor, uniform_dist)
+        # Smoothing kernel for learned pos transition matrix
+        xv, yv = np.meshgrid(np.arange(-20, 21), np.arange(-20, 21))
+        kernel = normal2D(xv, yv, dec_settings.trans_smooth_std)
+        kernel /= kernel.sum()
 
-    # normalize uniform offset
-    uniform_dist = uniform_dist / (uniform_dist.sum(axis=0)[None, :])
-    uniform_dist[np.isnan(uniform_dist)] = 0
+        linpos_state = linpos_simple
+        linpos_ind = np.searchsorted(enc_settings.pos_bins, linpos_state, side='right') - 1
 
-    # apply uniform offset
-    learned_trans_mat = learned_trans_mat * (1 - uniform_gain) + uniform_dist * uniform_gain
+        # Create learned pos transition matrix
+        learned_trans_mat = np.zeros([pos_num_bins, pos_num_bins])
+        for first_pos_ind, second_pos_ind in zip(linpos_ind[:-1], linpos_ind[1:]):
+            learned_trans_mat[first_pos_ind, second_pos_ind] += 1
 
-    # renormalize
-    learned_trans_mat = learned_trans_mat / (learned_trans_mat.sum(axis=0)[None, :])
-    learned_trans_mat[np.isnan(learned_trans_mat)] = 0
+        # normalize
+        learned_trans_mat = learned_trans_mat / (learned_trans_mat.sum(axis=0)[None, :])
+        learned_trans_mat[np.isnan(learned_trans_mat)] = 0
 
-    return learned_trans_mat
+        # smooth
+        learned_trans_mat = sp.signal.convolve2d(learned_trans_mat, kernel, mode='same')
+        learned_trans_mat = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates,
+                                                   learned_trans_mat)
 
+        # uniform offset
+        uniform_gain = dec_settings.trans_uniform_gain
+        uniform_dist = np.ones(learned_trans_mat.shape)
 
-# Compute artificial gaussian state transition matrix
-def calc_simple_trans_mat(x_bins):
-    pos_num_bins = len(x_bins)
+        # no-animal boundary
+        uniform_dist = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, uniform_dist)
 
-    # Setup transition matrix
-    transition_mat = np.ones([pos_num_bins, pos_num_bins])
-    for bin_ii in range(pos_num_bins):
-        transition_mat[bin_ii, :] = gaussian(x_bins, x_bins[bin_ii], 3)
+        # normalize uniform offset
+        uniform_dist = uniform_dist / (uniform_dist.sum(axis=0)[None, :])
+        uniform_dist[np.isnan(uniform_dist)] = 0
 
-    # uniform offset
-    uniform_gain = 0.01
-    uniform_dist = np.ones(transition_mat.shape)
+        # apply uniform offset
+        learned_trans_mat = learned_trans_mat * (1 - uniform_gain) + uniform_dist * uniform_gain
 
-    # normalize transition matrix
-    transition_mat = transition_mat/( transition_mat.sum(axis=0)[None,:])
+        # renormalize
+        learned_trans_mat = learned_trans_mat / (learned_trans_mat.sum(axis=0)[None, :])
+        learned_trans_mat[np.isnan(learned_trans_mat)] = 0
 
-    # normalize uniform offset
-    uniform_dist = uniform_dist/( uniform_dist.sum(axis=0)[None,:])
+        return learned_trans_mat
 
-    # apply uniform offset
-    transition_mat = transition_mat * (1 - uniform_gain) + uniform_dist * uniform_gain
+    @staticmethod
+    def calc_simple_trans_mat(enc_settings):
+        pos_num_bins = len(enc_settings.pos_bins)
 
-    return transition_mat
+        # Setup transition matrix
+        transition_mat = np.ones([pos_num_bins, pos_num_bins])
+        for bin_ii in range(pos_num_bins):
+            transition_mat[bin_ii, :] = gaussian(enc_settings.pos_bins, enc_settings.pos_bins[bin_ii], 3)
 
+        # uniform offset
+        uniform_gain = 0.01
+        uniform_dist = np.ones(transition_mat.shape)
 
-def calc_uniform_trans_mat(x_bins):
-    pos_num_bins = len(x_bins)
+        # normalize transition matrix
+        transition_mat = transition_mat/(transition_mat.sum(axis=0)[None, :])
 
-    # Setup transition matrix
-    transition_mat = np.ones([pos_num_bins, pos_num_bins])
+        # normalize uniform offset
+        uniform_dist = uniform_dist/(uniform_dist.sum(axis=0)[None, :])
 
-    # normalize transition matrix
-    transition_mat = transition_mat/( transition_mat.sum(axis=0)[None,:])
+        # apply uniform offset
+        transition_mat = transition_mat * (1 - uniform_gain) + uniform_dist * uniform_gain
 
-    return transition_mat
+        return transition_mat
 
+    @staticmethod
+    def calc_uniform_trans_mat(enc_settings):
+        pos_num_bins = len(enc_settings.pos_bins)
 
-# Loop through each bin and generate the observation distribution from spikes in bin
-def calc_observation_intensity(spike_decode, dec_bin_size, x_bins, pos_kernel, arm_coor):
-    pos_num_bins = len(x_bins)
-    pos_bin_delta = x_bins[1] - x_bins[0]
+        # Setup transition matrix
+        transition_mat = np.ones([pos_num_bins, pos_num_bins])
 
-    dec_est = np.zeros([int(spike_decode.iloc[-1]['dec_bin']) + 1, pos_num_bins])
+        # normalize transition matrix
+        transition_mat = transition_mat/( transition_mat.sum(axis=0)[None, :])
 
-    # initialize conditional intensity function
-    firing_rate = {ntrode_id: np.zeros(pos_num_bins) for ntrode_id in spike_decode['ntrode_id'].unique()}
+        return transition_mat
 
-    groups = spike_decode.groupby('dec_bin')
-    bin_num_spikes = [0] * len(dec_est)
+    @staticmethod
+    def calc_observation_intensity(observ: SpikeObservation,
+                                   enc_settings: EncodeSettings,
+                                   dec_settings: DecodeSettings,
+                                   time_bin_size=None):
 
-    for bin_id, spikes_in_bin in groups:
-        dec_in_bin = np.ones(pos_num_bins)
+        pos_num_bins = len(enc_settings.pos_bins)
+        pos_bin_delta = enc_settings.pos_bins[1] - enc_settings.pos_bins[0]
 
-        bin_num_spikes[bin_id] = len(spikes_in_bin)
-
-        # Count spikes for occupancy firing rate (conditional intensity function)
-        for ntrode_id, pos in spikes_in_bin.loc[:, ('ntrode_id', 'position')].values:
-            firing_rate[ntrode_id][np.searchsorted(x_bins, pos, side='right') - 1] += 1
-
-        for dec_ii, dec in enumerate(spikes_in_bin.loc[:, 'x0':'x{:d}'.format(pos_num_bins - 1)].values):
-            dec_in_bin = dec_in_bin * dec
-            dec_in_bin = dec_in_bin / (np.sum(dec_in_bin) * pos_bin_delta)
-
-        dec_est[bin_id, :] = dec_in_bin
-
-    # Smooth and normalize firing rate (conditional intensity function)
-    for fr_key in firing_rate.keys():
-        firing_rate[fr_key] = np.convolve(firing_rate[fr_key], pos_kernel, mode='same')
-
-        firing_rate[fr_key] = apply_no_anim_boundary(x_bins, arm_coor, firing_rate[fr_key])
-
-        firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * pos_bin_delta)
-
-    start_bin_time = np.floor(spike_decode['timestamp'][0] / dec_bin_size) * dec_bin_size
-    zz
-    dec_bin_times = np.arange(start_bin_time, start_bin_time + dec_bin_size * len(dec_est), dec_bin_size)
-
-    return dec_bin_times, dec_est, bin_num_spikes, firing_rate
-
-
-def calc_occupancy(linpos_flat, x_bin_edges, pos_kernel):
-
-    occupancy, occ_bin_edges = np.histogram(linpos_flat, bins=x_bin_edges, normed=True)
-
-    occupancy = np.convolve(occupancy, pos_kernel, mode='same')
-
-    return occupancy
-
-
-def calc_prob_no_spike(firing_rate, dec_bin_size, occupancy):
-
-    prob_no_spike = {}
-    for tet_id, tet_fr in firing_rate.items():
-        prob_no_spike[tet_id] = np.exp(-dec_bin_size/30000 * tet_fr / occupancy)
-
-    return prob_no_spike
-
-
-# Compute the likelihood of each bin
-def calc_likelihood(dec_est, bin_num_spikes, prob_no_spike, pos_bin_delta):
-    likelihoods = np.ones(dec_est.shape)
-
-    for num_spikes, (dec_ind, dec_est_bin) in zip(bin_num_spikes, enumerate(dec_est)):
-        if num_spikes > 0:
-            likelihoods[dec_ind, :] = dec_est_bin
-
-            for prob_no in prob_no_spike.values():
-                likelihoods[dec_ind, :] *= prob_no
+        if time_bin_size is not None:
+            spike_decode = observ.get_observations_bin_assigned(time_bin_size=time_bin_size)
         else:
+            time_bin_size = dec_settings.time_bin_size
+            spike_decode = observ.get_observations_bin_assigned(time_bin_size=time_bin_size)
 
-            for prob_no in prob_no_spike.values():
-                likelihoods[dec_ind, :] *= prob_no
+        dec_est = np.zeros([int(spike_decode.iloc[-1]['dec_bin']) + 1, pos_num_bins])
 
-        # Normalize
-        likelihoods[dec_ind, :] = likelihoods[dec_ind, :] / (likelihoods[dec_ind, :].sum() * pos_bin_delta)
-    return likelihoods
+        # initialize conditional intensity function
+        firing_rate = {ntrode_id: np.zeros(pos_num_bins) for ntrode_id in spike_decode['ntrode_id'].unique()}
 
+        groups = spike_decode.groupby('dec_bin')
+        bin_num_spikes = [0] * len(dec_est)
 
-def calc_posterior(likelihoods, transition_mat, pos_num_bins, pos_bin_delta):
-    last_posterior = np.ones(pos_num_bins)
+        for bin_id, spikes_in_bin in groups:
+            dec_in_bin = np.ones(pos_num_bins)
 
-    posteriors = np.zeros(likelihoods.shape)
+            bin_num_spikes[bin_id] = len(spikes_in_bin)
 
-    for like_ii, like in enumerate(likelihoods):
-        posteriors[like_ii, :] = like * (transition_mat * last_posterior).sum(axis=1)
-        posteriors[like_ii, :] = posteriors[like_ii, :] / (posteriors[like_ii, :].sum() * pos_bin_delta)
-        last_posterior = posteriors[like_ii, :]
+            # Count spikes for occupancy firing rate (conditional intensity function)
+            for ntrode_id, pos in spikes_in_bin.loc[:, ('ntrode_id', 'position')].values:
+                firing_rate[ntrode_id][np.searchsorted(enc_settings.pos_bins, pos, side='right') - 1] += 1
 
-    return posteriors
+            for dec_ii, dec in enumerate(spikes_in_bin.loc[:, 'x0':'x{:d}'.format(pos_num_bins - 1)].values):
+                dec_in_bin = dec_in_bin * dec
+                dec_in_bin = dec_in_bin / (np.sum(dec_in_bin) * pos_bin_delta)
+
+            dec_est[bin_id, :] = dec_in_bin
+
+        # Smooth and normalize firing rate (conditional intensity function)
+        for fr_key in firing_rate.keys():
+            firing_rate[fr_key] = np.convolve(firing_rate[fr_key], enc_settings.pos_kernel, mode='same')
+
+            firing_rate[fr_key] = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates,
+                                                         firing_rate[fr_key])
+
+            firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * pos_bin_delta)
+
+        start_bin_time = np.floor(spike_decode['timestamp'][0] / time_bin_size) * time_bin_size
+        dec_bin_times = np.arange(start_bin_time, start_bin_time + time_bin_size * len(dec_est), time_bin_size)
+
+        binned_observ = pd.DataFrame(data=dec_est, index=dec_bin_times,
+                                     columns=['x{}'.format(pos_ind) for pos_ind in range(enc_settings.pos_num_bins)])
+        binned_observ['num_spikes'] = bin_num_spikes
+
+        return binned_observ, firing_rate
+
+    @staticmethod
+    def calc_occupancy(lin_obj: LinearPositionContainer, enc_settings: EncodeSettings):
+
+        occupancy, occ_bin_edges = np.histogram(lin_obj.get_mapped_single_axis(), bins=enc_settings.pos_bin_edges,
+                                                normed=True)
+
+        occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
+
+        return occupancy
+
+    @staticmethod
+    def calc_prob_no_spike(firing_rate, occupancy, dec_settings: DecodeSettings):
+
+        prob_no_spike = {}
+        for tet_id, tet_fr in firing_rate.items():
+            prob_no_spike[tet_id] = np.exp(-dec_settings.time_bin_size/30000 * tet_fr / occupancy)
+
+        return prob_no_spike
+
+    @staticmethod
+    def calc_likelihood(binned_observ: pd.DataFrame, prob_no_spike, enc_settings: EncodeSettings):
+        num_spikes = binned_observ['num_spikes'].values
+        dec_est = binned_observ.loc[:, 'x0':'x{}'.format(int(enc_settings.pos_num_bins)-1)].values
+        likelihoods = np.ones(dec_est.shape)
+
+        for num_spikes, (dec_ind, dec_est_bin) in zip(num_spikes, enumerate(dec_est)):
+            if num_spikes > 0:
+                likelihoods[dec_ind, :] = dec_est_bin
+
+                for prob_no in prob_no_spike.values():
+                    likelihoods[dec_ind, :] *= prob_no
+            else:
+
+                for prob_no in prob_no_spike.values():
+                    likelihoods[dec_ind, :] *= prob_no
+
+            # Normalize
+            likelihoods[dec_ind, :] = likelihoods[dec_ind, :] / (likelihoods[dec_ind, :].sum() *
+                                                                 enc_settings.pos_bin_delta)
+
+        return pd.DataFrame(data=likelihoods, index=binned_observ.index,
+                            columns=['x{}'.format(bin_id) for bin_id in range(enc_settings.pos_num_bins)])
+
+    @staticmethod
+    def calc_posterior(likelihoods, transition_mat, enc_settings: EncodeSettings):
+        last_posterior = np.ones(enc_settings.pos_num_bins)
+
+        posteriors = np.zeros(likelihoods.shape)
+
+        for like_ii, like in enumerate(likelihoods.values):
+            posteriors[like_ii, :] = like * (transition_mat * last_posterior).sum(axis=1)
+            posteriors[like_ii, :] = posteriors[like_ii, :] / (posteriors[like_ii, :].sum() *
+                                                               enc_settings.pos_bin_delta)
+            last_posterior = posteriors[like_ii, :]
+
+        return pd.DataFrame(data=posteriors, index=likelihoods.index,
+                            columns=['x{}'.format(bin_id) for bin_id in range(enc_settings.pos_num_bins)])
 
 
 def plot_decode_2d(dec_bin_times, dec_est, stim_lockout_ranges, linpos_flat, plt_range, x_tick=1.0):
@@ -193,7 +248,10 @@ def plot_decode_2d(dec_bin_times, dec_est, stim_lockout_ranges, linpos_flat, plt
     plt.colorbar()
 
     # Plot linear position
-    linpos_index_s = linpos_flat.index / 30000
+    if isinstance(linpos_flat.index, pd.MultiIndex):
+        linpos_index_s = linpos_flat.index.get_level_values('timestamp') / 30000
+    else:
+        linpos_index_s = linpos_flat.index / 30000
     index_mask = (linpos_index_s > plt_range[0]) & (linpos_index_s < plt_range[1])
 
     plt.plot(linpos_index_s[index_mask],
