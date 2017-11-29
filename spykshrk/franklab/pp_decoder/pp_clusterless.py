@@ -9,9 +9,28 @@ from spykshrk.franklab.pp_decoder.data_containers import LinearPositionContainer
 
 
 class OfflinePPDecoder:
-
+    """
+    Implementation of Adaptive Marked Point Process Decoder [Deng, et. al. 2015].
+    
+    Requires linearized position (spykshrk.franklab.pp_decoder.LinearPositionContainer)
+    and spike observation containers (spykshrk.franklab.pp_decoder.SpikeObservation).
+    along with encoding (spykshrk.franklab.pp_decoder.EncodeSettings) 
+    and decoding settings (spykshrk.franklab.pp_decoder.DecodeSettings).
+    
+    """
     def __init__(self, lin_obj: LinearPositionContainer, observ_obj: SpikeObservation, encode_settings: EncodeSettings,
                  decode_settings: DecodeSettings, which_trans_mat='learned', time_bin_size=None):
+        """
+        Constructor for OfflinePPDecoder.
+        
+        Args:
+            lin_obj (LinearPositionContainer): Linear position of animal.
+            observ_obj (SpikeObservation): Observered position distribution for each spike.
+            encode_settings (EncodeSettings): Realtime encoder settings.
+            decode_settings (DecodeSettings): Realtime decoder settings.
+            which_trans_mat (str): Which point process transition matrix to use (learned, simple, uniform).
+            time_bin_size (float, optional): Delta time per bin to run decode, defaults to decoder_settings value.
+        """
         self.lin_obj = lin_obj
         self.observ_obj = observ_obj
         self.encode_settings = encode_settings
@@ -28,6 +47,17 @@ class OfflinePPDecoder:
             self.trans_mat = self.calc_uniform_trans_mat(self.encode_settings)
 
     def run_decoder(self, time_bin_size=None):
+        """
+        Run the decoder at a given time bin size.  Intermediate results are saved as
+        attributes to the class.
+        
+        Args:
+            time_bin_size (float, optional): Delta time per bin.
+
+        Returns (pd.DataFrame): Final decoded posteriors that estimate position.
+
+        """
+
         self.binned_observ, self.firing_rate = self.calc_observation_intensity(self.observ_obj,
                                                                                self.encode_settings,
                                                                                self.decode_settings,
@@ -42,6 +72,22 @@ class OfflinePPDecoder:
 
     @staticmethod
     def calc_learned_state_trans_mat(linpos_simple, enc_settings, dec_settings):
+        """
+        Calculate the point process transition matrix using the real behavior of the animal.
+        This is the 2D matrix that defines the possible range of transitions in the position
+        estimate.
+        
+        The learned values are smoothed with a gaussian kernel and a uniform offset is added,
+        specified by the encoding config.  The matrix is column normalized.
+        
+        Args:
+            linpos_simple (pd.DataFrame): Linear position pandas table with no MultiIndex.
+            enc_settings (EncodeSettings): Encoder settings from a realtime config.
+            dec_settings (DecodeSettings): Decoder settings from a realtime config.
+
+        Returns: Learned transition matrix.
+
+        """
         pos_num_bins = len(enc_settings.pos_bins)
 
         # Smoothing kernel for learned pos transition matrix
@@ -88,6 +134,15 @@ class OfflinePPDecoder:
 
     @staticmethod
     def calc_simple_trans_mat(enc_settings):
+        """
+        Calculate a simple point process transition matrix using a gaussian kernel.
+        
+        Args:
+            enc_settings (EncodeSettings): Encoder setting from realtime config.
+
+        Returns (np.array): Simple gaussian transition matrix.
+
+        """
         pos_num_bins = len(enc_settings.pos_bins)
 
         # Setup transition matrix
@@ -112,6 +167,16 @@ class OfflinePPDecoder:
 
     @staticmethod
     def calc_uniform_trans_mat(enc_settings):
+        """
+        Calculate a simple uniform point process transition matrix.
+        
+        Args:
+            enc_settings (EncodeSettings): Encoder setting from realtime config.
+
+        Returns (np.array): Simple uniform transition matrix.
+
+        """
+
         pos_num_bins = len(enc_settings.pos_bins)
 
         # Setup transition matrix
@@ -127,7 +192,18 @@ class OfflinePPDecoder:
                                    enc_settings: EncodeSettings,
                                    dec_settings: DecodeSettings,
                                    time_bin_size=None):
+        """
+        
+        Args:
+            observ (SpikeObservation): Object containing observation data frame, one row per spike observed.
+            enc_settings (EncodeSettings): Encoder settings from realtime config.
+            dec_settings (DecodeSettings): Decoder settings from realtime config.
+            time_bin_size (float): Delta time per bin.
 
+        Returns: (pd.DataFrame, dict[int, np.array]) DataFrame of observation per time bin in each row.
+            Dictionary of numpy arrays, one per tetrode, containing occupancy firing rate.
+
+        """
         pos_num_bins = len(enc_settings.pos_bins)
         pos_bin_delta = enc_settings.pos_bins[1] - enc_settings.pos_bins[0]
 
@@ -180,7 +256,15 @@ class OfflinePPDecoder:
 
     @staticmethod
     def calc_occupancy(lin_obj: LinearPositionContainer, enc_settings: EncodeSettings):
+        """
+        
+        Args:
+            lin_obj (LinearPositionContainer): Linear position of the animal.
+            enc_settings (EncodeSettings): Realtime encoding settings.
 
+        Returns (np.array): The occupancy of the animal
+
+        """
         occupancy, occ_bin_edges = np.histogram(lin_obj.get_mapped_single_axis(), bins=enc_settings.pos_bin_edges,
                                                 normed=True)
 
@@ -190,7 +274,16 @@ class OfflinePPDecoder:
 
     @staticmethod
     def calc_prob_no_spike(firing_rate, occupancy, dec_settings: DecodeSettings):
+        """
+        
+        Args:
+            firing_rate (pd.DataFrame): Occupancy firing rate, from calc_observation_intensity(...).
+            occupancy (np.array): The occupancy of the animal.
+            dec_settings (DecodeSettings): Realtime decoding settings.
 
+        Returns (dict[int, np.array]): Dictionary of probability that no spike occured per tetrode.
+
+        """
         prob_no_spike = {}
         for tet_id, tet_fr in firing_rate.items():
             prob_no_spike[tet_id] = np.exp(-dec_settings.time_bin_size/30000 * tet_fr / occupancy)
@@ -199,6 +292,17 @@ class OfflinePPDecoder:
 
     @staticmethod
     def calc_likelihood(binned_observ: pd.DataFrame, prob_no_spike, enc_settings: EncodeSettings):
+        """
+        
+        Args:
+            binned_observ (pd.DataFrame): Observation distribution per time bin, from calc_observation_intensity(...).
+            prob_no_spike (dict[int, np.array]): Dictionary of probability that no spike occured per tetrode, from
+                calc_prob_no_spike(...).
+            enc_settings (EncodeSettings): Realtime encoding settings.
+
+        Returns (pd.DataFrame): The evaluated likelihood function per time bin.
+
+        """
         num_spikes = binned_observ['num_spikes'].values
         dec_est = binned_observ.loc[:, 'x0':'x{}'.format(int(enc_settings.pos_num_bins)-1)].values
         likelihoods = np.ones(dec_est.shape)
@@ -223,6 +327,16 @@ class OfflinePPDecoder:
 
     @staticmethod
     def calc_posterior(likelihoods, transition_mat, enc_settings: EncodeSettings):
+        """
+        
+        Args:
+            likelihoods (pd.DataFrame): The evaluated likelihood function per time bin, from calc_likelihood(...).
+            transition_mat (np.array): The point process state transition matrix.
+            enc_settings (EncodeSettings): Realtime encoding settings.
+
+        Returns (pd.DataFrame): The decoded posteriors per time bin estimating the animal's location.
+
+        """
         last_posterior = np.ones(enc_settings.pos_num_bins)
 
         posteriors = np.zeros(likelihoods.shape)
