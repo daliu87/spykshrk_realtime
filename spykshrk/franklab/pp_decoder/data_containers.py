@@ -65,6 +65,7 @@ class LinearPositionContainer:
             enc_settings: Encoder settings, used to get the endpoints of the W track
         """
         self.pos_data = nspike_pos_data
+        self.enc_settings = enc_settings
         self.arm_coord = enc_settings.arm_coordinates
 
     def get_pd_no_multiindex(self):
@@ -94,7 +95,7 @@ class LinearPositionContainer:
         Args:
             bin_size: size of time 
 
-        Returns:
+        Returns (LinearPositionContainer): copy of self with times resampled using backfill.
 
         """
 
@@ -116,7 +117,7 @@ class LinearPositionContainer:
         grp = self.pos_data.groupby(level=['day', 'epoch'])
 
         pos_data_rebinned = grp.apply(epoch_rebin_func)
-        return pos_data_rebinned
+        return type(self)(pos_data_rebinned.copy(), self.enc_settings)
 
     def get_mapped_single_axis(self):
         """
