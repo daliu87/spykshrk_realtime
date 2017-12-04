@@ -157,13 +157,17 @@ class SpikeObservation:
     def __init__(self, spike_dec):
         self.spike_dec = spike_dec
         self.start_timestamp = self.spike_dec['timestamp'][0]
+        self.spike_dec = self.spike_dec.pivot_table(index=['timestamp'])
 
     def get_observations_bin_assigned(self, time_bin_size):
-        dec_bins = np.floor((self.spike_dec['timestamp'] -
-                             self.spike_dec['timestamp'][0]) / time_bin_size).astype('int')
-        dec_bins_start = int(self.spike_dec['timestamp'][0] / time_bin_size) * time_bin_size + dec_bins * time_bin_size
+        dec_bins = np.floor((self.spike_dec.index.get_level_values('timestamp') -
+                             self.spike_dec.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
+        dec_bins_start = (int(self.spike_dec.index.get_level_values('timestamp')[0] / time_bin_size) *
+                          time_bin_size + dec_bins * time_bin_size)
         self.spike_dec['dec_bin'] = dec_bins
         self.spike_dec['dec_bin_start'] = dec_bins_start
+
+        self.spike_dec.set_index([self.spike_dec.index.get_level_values('timestamp'), 'dec_bin'], inplace=True)
 
         return self.spike_dec
 

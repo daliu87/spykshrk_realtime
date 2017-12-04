@@ -213,7 +213,7 @@ class OfflinePPDecoder:
             time_bin_size = dec_settings.time_bin_size
             spike_decode = observ.get_observations_bin_assigned(time_bin_size=time_bin_size)
 
-        dec_est = np.zeros([int(spike_decode.iloc[-1]['dec_bin']) + 1, pos_num_bins])
+        dec_est = np.zeros([int(spike_decode.index.get_level_values('dec_bin')[-1]) + 1, pos_num_bins])
 
         # initialize conditional intensity function
         firing_rate = {ntrode_id: np.zeros(pos_num_bins) for ntrode_id in spike_decode['ntrode_id'].unique()}
@@ -230,7 +230,9 @@ class OfflinePPDecoder:
             for ntrode_id, pos in spikes_in_bin.loc[:, ('ntrode_id', 'position')].values:
                 firing_rate[ntrode_id][np.searchsorted(enc_settings.pos_bins, pos, side='right') - 1] += 1
 
-            for dec_ii, dec in enumerate(spikes_in_bin.loc[:, 'x0':'x{:d}'.format(pos_num_bins - 1)].values):
+            for dec_ii, dec in enumerate(spikes_in_bin.loc[:, ['x{:0{dig}d}'.
+                                                               format(bin_id, dig=len(str(enc_settings.pos_num_bins)))
+                                                               for bin_id in range(enc_settings.pos_num_bins)]].values):
                 dec_in_bin = dec_in_bin * dec
                 dec_in_bin = dec_in_bin / (np.sum(dec_in_bin) * pos_bin_delta)
 
@@ -245,11 +247,13 @@ class OfflinePPDecoder:
 
             firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * pos_bin_delta)
 
-        start_bin_time = np.floor(spike_decode['timestamp'][0] / time_bin_size) * time_bin_size
+        start_bin_time = np.floor(spike_decode.index.get_level_values('timestamp')[0] / time_bin_size) * time_bin_size
         dec_bin_times = np.arange(start_bin_time, start_bin_time + time_bin_size * len(dec_est), time_bin_size)
 
         binned_observ = pd.DataFrame(data=dec_est, index=dec_bin_times,
-                                     columns=['x{}'.format(pos_ind) for pos_ind in range(enc_settings.pos_num_bins)])
+                                     columns=['x{:0{dig}d}'.
+                                              format(bin_id, dig=len(str(enc_settings.pos_num_bins)))
+                                              for bin_id in range(enc_settings.pos_num_bins)])
         binned_observ['num_spikes'] = bin_num_spikes
 
         return binned_observ, firing_rate
@@ -304,7 +308,8 @@ class OfflinePPDecoder:
 
         """
         num_spikes = binned_observ['num_spikes'].values
-        dec_est = binned_observ.loc[:, 'x0':'x{}'.format(int(enc_settings.pos_num_bins)-1)].values
+        dec_est = binned_observ.loc[:, ['x{:0{dig}d}'.format(bin_id, dig=len(str(enc_settings.pos_num_bins)))
+                                        for bin_id in range(enc_settings.pos_num_bins)]].values
         likelihoods = np.ones(dec_est.shape)
 
         for num_spikes, (dec_ind, dec_est_bin) in zip(num_spikes, enumerate(dec_est)):
@@ -323,7 +328,8 @@ class OfflinePPDecoder:
                                                                  enc_settings.pos_bin_delta)
 
         return pd.DataFrame(data=likelihoods, index=binned_observ.index,
-                            columns=['x{}'.format(bin_id) for bin_id in range(enc_settings.pos_num_bins)])
+                            columns=['x{:0{dig}d}'.format(bin_id, dig=len(str(enc_settings.pos_num_bins)))
+                                     for bin_id in range(enc_settings.pos_num_bins)])
 
     @staticmethod
     def calc_posterior(likelihoods, transition_mat, enc_settings: EncodeSettings):
@@ -348,39 +354,41 @@ class OfflinePPDecoder:
             last_posterior = posteriors[like_ii, :]
 
         return pd.DataFrame(data=posteriors, index=likelihoods.index,
-                            columns=['x{}'.format(bin_id) for bin_id in range(enc_settings.pos_num_bins)])
+                            columns=['x{:0{dig}d}'.format(bin_id, dig=len(str(enc_settings.pos_num_bins)))
+                                     for bin_id in range(enc_settings.pos_num_bins)])
 
 
-def plot_decode_2d(dec_bin_times, dec_est, stim_lockout_ranges, linpos_flat, plt_range, x_tick=1.0):
-    stim_lockout_ranges_sec = stim_lockout_ranges/30000
-    stim_lockout_range_sec_sub = stim_lockout_ranges_sec[(stim_lockout_ranges_sec[1] > plt_range[0]) &
-                                                         (stim_lockout_ranges_sec[0] < plt_range[1])]
+class DecodeVisualizer:
+    def plot_decode_2d(dec_bin_times, dec_est, stim_lockout_ranges, linpos_flat, plt_range, x_tick=1.0):
+        stim_lockout_ranges_sec = stim_lockout_ranges/30000
+        stim_lockout_range_sec_sub = stim_lockout_ranges_sec[(stim_lockout_ranges_sec[1] > plt_range[0]) &
+                                                             (stim_lockout_ranges_sec[0] < plt_range[1])]
 
-    plt.imshow(dec_est[(dec_bin_times > plt_range[0]*30000) & (dec_bin_times < plt_range[1]*30000)].transpose(),
-               extent=[plt_range[0], plt_range[1], 0, 450], origin='lower', aspect='auto', cmap='hot', zorder=0)
+        plt.imshow(dec_est[(dec_bin_times > plt_range[0]*30000) & (dec_bin_times < plt_range[1]*30000)].transpose(),
+                   extent=[plt_range[0], plt_range[1], 0, 450], origin='lower', aspect='auto', cmap='hot', zorder=0)
 
-    plt.colorbar()
+        plt.colorbar()
 
-    # Plot linear position
-    if isinstance(linpos_flat.index, pd.MultiIndex):
-        linpos_index_s = linpos_flat.index.get_level_values('timestamp') / 30000
-    else:
-        linpos_index_s = linpos_flat.index / 30000
-    index_mask = (linpos_index_s > plt_range[0]) & (linpos_index_s < plt_range[1])
+        # Plot linear position
+        if isinstance(linpos_flat.index, pd.MultiIndex):
+            linpos_index_s = linpos_flat.index.get_level_values('timestamp') / 30000
+        else:
+            linpos_index_s = linpos_flat.index / 30000
+        index_mask = (linpos_index_s > plt_range[0]) & (linpos_index_s < plt_range[1])
 
-    plt.plot(linpos_index_s[index_mask],
-             linpos_flat.values[index_mask], 'c.', zorder=1, markersize=5)
+        plt.plot(linpos_index_s[index_mask],
+                 linpos_flat.values[index_mask], 'c.', zorder=1, markersize=5)
 
-    plt.plot(stim_lockout_range_sec_sub.values.transpose(), np.tile([[440], [440]], [1, len(stim_lockout_range_sec_sub)]), 'c-*' )
+        plt.plot(stim_lockout_range_sec_sub.values.transpose(), np.tile([[440], [440]], [1, len(stim_lockout_range_sec_sub)]), 'c-*' )
 
-    for stim_lockout in stim_lockout_range_sec_sub.values:
-        plt.axvspan(stim_lockout[0], stim_lockout[1], facecolor='#AAAAAA', alpha=0.3)
+        for stim_lockout in stim_lockout_range_sec_sub.values:
+            plt.axvspan(stim_lockout[0], stim_lockout[1], facecolor='#AAAAAA', alpha=0.3)
 
-    plt.plot(plt_range, [74, 74], '--', color='gray')
-    plt.plot(plt_range, [148, 148], '--', color='gray')
-    plt.plot(plt_range, [256, 256], '--', color='gray')
-    plt.plot(plt_range, [298, 298], '--', color='gray')
-    plt.plot(plt_range, [407, 407], '--', color='gray')
+        plt.plot(plt_range, [74, 74], '--', color='gray')
+        plt.plot(plt_range, [148, 148], '--', color='gray')
+        plt.plot(plt_range, [256, 256], '--', color='gray')
+        plt.plot(plt_range, [298, 298], '--', color='gray')
+        plt.plot(plt_range, [407, 407], '--', color='gray')
 
-    plt.xticks(np.arange(plt_range[0], plt_range[1], x_tick))
+        plt.xticks(np.arange(plt_range[0], plt_range[1], x_tick))
 

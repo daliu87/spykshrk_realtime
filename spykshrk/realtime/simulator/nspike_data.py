@@ -32,7 +32,7 @@ pd.set_option('display.width', 120)
 TIMESTAMP_SCALE = 10000  # factor to convert timestamp to s
 
 
-class DataReadError(Exception):
+class DataReadError(RuntimeError):
     def __init__(self, value):
         self.value = value
 
@@ -40,7 +40,15 @@ class DataReadError(Exception):
         return repr(self.value)
 
 
-class ConfigurationError(Exception):
+class DataContentError(RuntimeError):
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return repr(self.value)
+
+
+class ConfigurationError(RuntimeError):
     def __init__(self, value):
         self.value = value
 
@@ -586,7 +594,7 @@ class PosMatDataStream:
 
 
         # make sure column multi-index is sorted for multi-slicing
-        self.data.sort_index(axis=1, inplace=True)
+        # self.data.sort_index(axis=1, inplace=True)
 
     def __call__(self):
         for day in self.days:
@@ -604,12 +612,15 @@ class PosMatDataStream:
                     if segind == 1:
                         pos_conv = row[2]          # ['lin_dist_well', 'well_center']
                         veldata = row[6]           # ['lin_vel', 'well_center']
-                    elif segind == 2 or segind == 3:
+                    elif (segind == 2) or (segind == 3):
                         pos_conv = row[3] + 150    # ['lin_dist_well', 'well_left']
                         veldata = row[7]           # ['lin_vel', 'well_left']
-                    elif segind == 4 or segind == 5:
+                    elif (segind == 4) or (segind == 5):
                         pos_conv = row[4] + 300    # ['lin_dist_well', 'well_right']
                         veldata = row[8]           # ['lin_vel', 'well_right']
+                    else:
+                        raise DataContentError("Segment Index ({}) is invalid, expects 1 to 5 for W-Track.".
+                                               format(segind))
 
                     yield LinearPosPoint(timestamp=postimestamp, x=pos_conv, vel=veldata)
 

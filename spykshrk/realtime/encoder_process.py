@@ -88,8 +88,10 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming):
                                                               ['timestamp',
                                                                'ntrode_id',
                                                                'position'] +
-                                                              ['x'+str(x) for x in
-                                                               range(config['encoder']['position']['bins'])]],
+                                                              ['x{:0{dig}d}'.
+                                                               format(x, dig=len(str(config['encoder']
+                                                                                     ['position']['bins'])))
+                                                               for x in range(config['encoder']['position']['bins'])]],
                                                   rec_formats=['qidd',
                                                                'qid'+'d'*config['encoder']['position']['bins']])
 

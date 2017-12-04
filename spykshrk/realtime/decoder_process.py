@@ -204,8 +204,10 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
                                               rec_ids=[realtime_base.RecordIDs.DECODER_OUTPUT,
                                                        realtime_base.RecordIDs.DECODER_MISSED_SPIKES],
                                               rec_labels=[['timestamp', 'real_pos_time', 'real_pos'] +
-                                                          ['x'+str(x) for x in
-                                                           range(config['encoder']['position']['bins'])],
+                                                          ['x{:0{dig}d}'.
+                                                           format(x, dig=len(str(config['encoder']
+                                                                                 ['position']['bins'])))
+                                                           for x in range(config['encoder']['position']['bins'])],
                                                           ['timestamp', 'trode_id', 'real_bin', 'late_bin']],
                                               rec_formats=['qqd'+'d'*config['encoder']['position']['bins'],
                                                            'qiii'])
