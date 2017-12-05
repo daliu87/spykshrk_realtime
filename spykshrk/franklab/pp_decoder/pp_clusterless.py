@@ -71,6 +71,10 @@ class OfflinePPDecoder:
         return self.posteriors
 
     @staticmethod
+    def pos_col_format(ind, num_bins):
+        return 'x{:0{dig}d}'.format(ind, dig=len(str(num_bins)))
+
+    @staticmethod
     def calc_learned_state_trans_mat(linpos_simple, enc_settings, dec_settings):
         """
         Calculate the point process transition matrix using the real behavior of the animal.
@@ -230,8 +234,8 @@ class OfflinePPDecoder:
             for ntrode_id, pos in spikes_in_bin.loc[:, ('ntrode_id', 'position')].values:
                 firing_rate[ntrode_id][np.searchsorted(enc_settings.pos_bins, pos, side='right') - 1] += 1
 
-            for dec_ii, dec in enumerate(spikes_in_bin.loc[:, ['x{:0{dig}d}'.
-                                                               format(bin_id, dig=len(str(enc_settings.pos_num_bins)))
+            for dec_ii, dec in enumerate(spikes_in_bin.loc[:, [OfflinePPDecoder.
+                                                               pos_col_format(bin_id, enc_settings.pos_num_bins)
                                                                for bin_id in range(enc_settings.pos_num_bins)]].values):
                 dec_in_bin = dec_in_bin * dec
                 dec_in_bin = dec_in_bin / (np.sum(dec_in_bin) * pos_bin_delta)
@@ -249,10 +253,11 @@ class OfflinePPDecoder:
 
         start_bin_time = np.floor(spike_decode.index.get_level_values('timestamp')[0] / time_bin_size) * time_bin_size
         dec_bin_times = np.arange(start_bin_time, start_bin_time + time_bin_size * len(dec_est), time_bin_size)
+        dec_bin_ind = range(len(dec_est))
 
-        binned_observ = pd.DataFrame(data=dec_est, index=dec_bin_times,
-                                     columns=['x{:0{dig}d}'.
-                                              format(bin_id, dig=len(str(enc_settings.pos_num_bins)))
+        ind = pd.MultiIndex.from_arrays([dec_bin_ind, dec_bin_times], names=['bin', 'timestamp'])
+        binned_observ = pd.DataFrame(data=dec_est, index=ind,
+                                     columns=[OfflinePPDecoder.pos_col_format(bin_id, enc_settings.pos_num_bins)
                                               for bin_id in range(enc_settings.pos_num_bins)])
         binned_observ['num_spikes'] = bin_num_spikes
 
@@ -308,7 +313,7 @@ class OfflinePPDecoder:
 
         """
         num_spikes = binned_observ['num_spikes'].values
-        dec_est = binned_observ.loc[:, ['x{:0{dig}d}'.format(bin_id, dig=len(str(enc_settings.pos_num_bins)))
+        dec_est = binned_observ.loc[:, [OfflinePPDecoder.pos_col_format(bin_id, enc_settings.pos_num_bins)
                                         for bin_id in range(enc_settings.pos_num_bins)]].values
         likelihoods = np.ones(dec_est.shape)
 
@@ -327,9 +332,13 @@ class OfflinePPDecoder:
             likelihoods[dec_ind, :] = likelihoods[dec_ind, :] / (likelihoods[dec_ind, :].sum() *
                                                                  enc_settings.pos_bin_delta)
 
-        return pd.DataFrame(data=likelihoods, index=binned_observ.index,
-                            columns=['x{:0{dig}d}'.format(bin_id, dig=len(str(enc_settings.pos_num_bins)))
-                                     for bin_id in range(enc_settings.pos_num_bins)])
+        # copy observ DataFrame and replace with likelihoods, preserving other columns
+        likelihoods_df = binned_observ.copy()   # type: pd.DataFrame
+        likelihoods_df.loc[:, OfflinePPDecoder.pos_col_format(0, enc_settings.pos_num_bins):
+                           OfflinePPDecoder.pos_col_format(enc_settings.pos_num_bins-1,
+                                                           enc_settings.pos_num_bins)] = likelihoods
+
+        return likelihoods_df
 
     @staticmethod
     def calc_posterior(likelihoods, transition_mat, enc_settings: EncodeSettings):
@@ -343,19 +352,27 @@ class OfflinePPDecoder:
         Returns (pd.DataFrame): The decoded posteriors per time bin estimating the animal's location.
 
         """
+        likelihoods_pos = likelihoods.loc[:, OfflinePPDecoder.pos_col_format(0, enc_settings.pos_num_bins):
+                                          OfflinePPDecoder.pos_col_format(enc_settings.pos_num_bins-1,
+                                                                          enc_settings.pos_num_bins)]
+
         last_posterior = np.ones(enc_settings.pos_num_bins)
 
-        posteriors = np.zeros(likelihoods.shape)
+        posteriors = np.zeros(likelihoods_pos.shape)
 
-        for like_ii, like in enumerate(likelihoods.values):
+        for like_ii, like in enumerate(likelihoods_pos.values):
             posteriors[like_ii, :] = like * (transition_mat * last_posterior).sum(axis=1)
             posteriors[like_ii, :] = posteriors[like_ii, :] / (posteriors[like_ii, :].sum() *
                                                                enc_settings.pos_bin_delta)
             last_posterior = posteriors[like_ii, :]
 
-        return pd.DataFrame(data=posteriors, index=likelihoods.index,
-                            columns=['x{:0{dig}d}'.format(bin_id, dig=len(str(enc_settings.pos_num_bins)))
-                                     for bin_id in range(enc_settings.pos_num_bins)])
+        # copy observ DataFrame and replace with likelihoods, preserving other columns
+        posteriors_df = likelihoods.copy()  # type: pd.DataFrame
+        posteriors_df.loc[:, OfflinePPDecoder.pos_col_format(0, enc_settings.pos_num_bins):
+                          OfflinePPDecoder.pos_col_format(enc_settings.pos_num_bins-1,
+                                                          enc_settings.pos_num_bins)] = posteriors
+
+        return posteriors_df
 
 
 class DecodeVisualizer:

@@ -64,7 +64,7 @@ class LinearPositionContainer:
             nspike_pos_data: The position panda table from an animal info.  Expects a specific multi-index format.
             enc_settings: Encoder settings, used to get the endpoints of the W track
         """
-        self.pos_data = nspike_pos_data
+        self.data = nspike_pos_data
         self.enc_settings = enc_settings
         self.arm_coord = enc_settings.arm_coordinates
 
@@ -79,11 +79,11 @@ class LinearPositionContainer:
 
         """
 
-        pos_data_time = self.pos_data.loc[:, 'time']
+        pos_data_time = self.data.loc[:, 'time']
 
-        pos_data_simple = self.pos_data.loc[:, 'lin_dist_well'].copy()
-        pos_data_simple.loc[:, 'lin_vel_center'] = self.pos_data.loc[:, ('lin_vel', 'well_center')]
-        pos_data_simple.loc[:, 'seg_idx'] = self.pos_data.loc[:, ('seg_idx', 'seg_idx')]
+        pos_data_simple = self.data.loc[:, 'lin_dist_well'].copy()
+        pos_data_simple.loc[:, 'lin_vel_center'] = self.data.loc[:, ('lin_vel', 'well_center')]
+        pos_data_simple.loc[:, 'seg_idx'] = self.data.loc[:, ('seg_idx', 'seg_idx')]
         pos_data_simple.loc[:, 'timestamps'] = pos_data_time*30000
         pos_data_simple = pos_data_simple.set_index('timestamps')
 
@@ -114,7 +114,7 @@ class LinearPositionContainer:
 
             return pos_data_binned
 
-        grp = self.pos_data.groupby(level=['day', 'epoch'])
+        grp = self.data.groupby(level=['day', 'epoch'])
 
         pos_data_rebinned = grp.apply(epoch_rebin_func)
         return type(self)(pos_data_rebinned.copy(), self.enc_settings)
@@ -127,13 +127,13 @@ class LinearPositionContainer:
 
         """
 
-        center_pos_flat = (self.pos_data.query('@self.pos_data.seg_idx.seg_idx == 1').
+        center_pos_flat = (self.data.query('@self.data.seg_idx.seg_idx == 1').
                            loc[:, ('lin_dist_well', 'well_center')]) + self.arm_coord[0][0]
-        left_pos_flat = (self.pos_data.query('@self.pos_data.seg_idx.seg_idx == 2 | '
-                                             '@self.pos_data.seg_idx.seg_idx == 3').
+        left_pos_flat = (self.data.query('@self.data.seg_idx.seg_idx == 2 | '
+                                         '@self.data.seg_idx.seg_idx == 3').
                          loc[:, ('lin_dist_well', 'well_left')]) + self.arm_coord[1][0]
-        right_pos_flat = (self.pos_data.query('@self.pos_data.seg_idx.seg_idx == 4 | '
-                                              '@self.pos_data.seg_idx.seg_idx == 5').
+        right_pos_flat = (self.data.query('@self.data.seg_idx.seg_idx == 4 | '
+                                          '@self.data.seg_idx.seg_idx == 5').
                           loc[:, ('lin_dist_well', 'well_right')]) + self.arm_coord[2][0]
 
         center_pos_flat.name = 'linpos_flat'
@@ -155,20 +155,21 @@ class SpikeObservation:
     encoding model.
     """
     def __init__(self, spike_dec):
-        self.spike_dec = spike_dec
-        self.start_timestamp = self.spike_dec['timestamp'][0]
-        self.spike_dec = self.spike_dec.pivot_table(index=['timestamp'])
+        self.data = spike_dec
+        self.start_timestamp = self.data['timestamp'][0]
+        self.data = self.data.pivot_table(index=['timestamp'])
 
     def get_observations_bin_assigned(self, time_bin_size):
-        dec_bins = np.floor((self.spike_dec.index.get_level_values('timestamp') -
-                             self.spike_dec.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
-        dec_bins_start = (int(self.spike_dec.index.get_level_values('timestamp')[0] / time_bin_size) *
+        dec_bins = np.floor((self.data.index.get_level_values('timestamp') -
+                             self.data.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
+        dec_bins_start = (int(self.data.index.get_level_values('timestamp')[0] / time_bin_size) *
                           time_bin_size + dec_bins * time_bin_size)
-        self.spike_dec['dec_bin'] = dec_bins
-        self.spike_dec['dec_bin_start'] = dec_bins_start
+        self.data['dec_bin'] = dec_bins
+        self.data['dec_bin_start'] = dec_bins_start
 
-        self.spike_dec.set_index([self.spike_dec.index.get_level_values('timestamp'), 'dec_bin'], inplace=True)
+        self.data.set_index([self.data.index.get_level_values('timestamp'), 'dec_bin'], inplace=True)
 
-        return self.spike_dec
+        return self.data
+
 
 
