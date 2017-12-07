@@ -5,6 +5,10 @@ from itertools import product
 from spykshrk.franklab.pp_decoder.util import gaussian
 
 
+def pos_col_format(ind, num_bins):
+    return 'x{:0{dig}d}'.format(ind, dig=len(str(num_bins)))
+
+
 class EncodeSettings:
     """
     Mapping of encoding parameters from realtime configuration into class attributes for easy access.
@@ -67,6 +71,9 @@ class LinearPositionContainer:
         self.data = nspike_pos_data
         self.enc_settings = enc_settings
         self.arm_coord = enc_settings.arm_coordinates
+
+        # make sure there's a time field
+
 
     def get_pd_no_multiindex(self):
         """
@@ -172,4 +179,7 @@ class SpikeObservation:
         return self.data
 
 
+class Posteriors:
+    def __init__(self, posts):
+        self.data = posts
 

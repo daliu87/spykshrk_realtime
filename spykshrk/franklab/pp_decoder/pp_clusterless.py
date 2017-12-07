@@ -1,11 +1,10 @@
 import pandas as pd
 import numpy as np
 import scipy as sp
-import matplotlib.pyplot as plt
 
 from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary
 from spykshrk.franklab.pp_decoder.data_containers import LinearPositionContainer, SpikeObservation, EncodeSettings, \
-    DecodeSettings
+    DecodeSettings, Posteriors, pos_col_format
 
 
 class OfflinePPDecoder:
@@ -67,12 +66,9 @@ class OfflinePPDecoder:
         self.prob_no_spike = self.calc_prob_no_spike(self.firing_rate, self.occupancy, self.decode_settings)
         self.likelihoods = self.calc_likelihood(self.binned_observ, self.prob_no_spike, self.encode_settings)
         self.posteriors = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
+        self.posteriors_obj = Posteriors(self.posteriors)
 
-        return self.posteriors
-
-    @staticmethod
-    def pos_col_format(ind, num_bins):
-        return 'x{:0{dig}d}'.format(ind, dig=len(str(num_bins)))
+        return self.posteriors_obj
 
     @staticmethod
     def calc_learned_state_trans_mat(linpos_simple, enc_settings, dec_settings):
@@ -234,8 +230,7 @@ class OfflinePPDecoder:
             for ntrode_id, pos in spikes_in_bin.loc[:, ('ntrode_id', 'position')].values:
                 firing_rate[ntrode_id][np.searchsorted(enc_settings.pos_bins, pos, side='right') - 1] += 1
 
-            for dec_ii, dec in enumerate(spikes_in_bin.loc[:, [OfflinePPDecoder.
-                                                               pos_col_format(bin_id, enc_settings.pos_num_bins)
+            for dec_ii, dec in enumerate(spikes_in_bin.loc[:, [pos_col_format(bin_id, enc_settings.pos_num_bins)
                                                                for bin_id in range(enc_settings.pos_num_bins)]].values):
                 dec_in_bin = dec_in_bin * dec
                 dec_in_bin = dec_in_bin / (np.sum(dec_in_bin) * pos_bin_delta)
@@ -257,7 +252,7 @@ class OfflinePPDecoder:
 
         ind = pd.MultiIndex.from_arrays([dec_bin_ind, dec_bin_times], names=['bin', 'timestamp'])
         binned_observ = pd.DataFrame(data=dec_est, index=ind,
-                                     columns=[OfflinePPDecoder.pos_col_format(bin_id, enc_settings.pos_num_bins)
+                                     columns=[pos_col_format(bin_id, enc_settings.pos_num_bins)
                                               for bin_id in range(enc_settings.pos_num_bins)])
         binned_observ['num_spikes'] = bin_num_spikes
 
@@ -313,7 +308,7 @@ class OfflinePPDecoder:
 
         """
         num_spikes = binned_observ['num_spikes'].values
-        dec_est = binned_observ.loc[:, [OfflinePPDecoder.pos_col_format(bin_id, enc_settings.pos_num_bins)
+        dec_est = binned_observ.loc[:, [pos_col_format(bin_id, enc_settings.pos_num_bins)
                                         for bin_id in range(enc_settings.pos_num_bins)]].values
         likelihoods = np.ones(dec_est.shape)
 
@@ -334,9 +329,9 @@ class OfflinePPDecoder:
 
         # copy observ DataFrame and replace with likelihoods, preserving other columns
         likelihoods_df = binned_observ.copy()   # type: pd.DataFrame
-        likelihoods_df.loc[:, OfflinePPDecoder.pos_col_format(0, enc_settings.pos_num_bins):
-                           OfflinePPDecoder.pos_col_format(enc_settings.pos_num_bins-1,
-                                                           enc_settings.pos_num_bins)] = likelihoods
+        likelihoods_df.loc[:, pos_col_format(0, enc_settings.pos_num_bins):
+                           pos_col_format(enc_settings.pos_num_bins-1,
+                                          enc_settings.pos_num_bins)] = likelihoods
 
         return likelihoods_df
 
@@ -352,9 +347,9 @@ class OfflinePPDecoder:
         Returns (pd.DataFrame): The decoded posteriors per time bin estimating the animal's location.
 
         """
-        likelihoods_pos = likelihoods.loc[:, OfflinePPDecoder.pos_col_format(0, enc_settings.pos_num_bins):
-                                          OfflinePPDecoder.pos_col_format(enc_settings.pos_num_bins-1,
-                                                                          enc_settings.pos_num_bins)]
+        likelihoods_pos = likelihoods.loc[:, pos_col_format(0, enc_settings.pos_num_bins):
+                                          pos_col_format(enc_settings.pos_num_bins-1,
+                                                         enc_settings.pos_num_bins)]
 
         last_posterior = np.ones(enc_settings.pos_num_bins)
 
@@ -368,44 +363,9 @@ class OfflinePPDecoder:
 
         # copy observ DataFrame and replace with likelihoods, preserving other columns
         posteriors_df = likelihoods.copy()  # type: pd.DataFrame
-        posteriors_df.loc[:, OfflinePPDecoder.pos_col_format(0, enc_settings.pos_num_bins):
-                          OfflinePPDecoder.pos_col_format(enc_settings.pos_num_bins-1,
-                                                          enc_settings.pos_num_bins)] = posteriors
+        posteriors_df.loc[:, pos_col_format(0, enc_settings.pos_num_bins):
+                          pos_col_format(enc_settings.pos_num_bins-1,
+                                         enc_settings.pos_num_bins)] = posteriors
 
         return posteriors_df
-
-
-class DecodeVisualizer:
-    def plot_decode_2d(dec_bin_times, dec_est, stim_lockout_ranges, linpos_flat, plt_range, x_tick=1.0):
-        stim_lockout_ranges_sec = stim_lockout_ranges/30000
-        stim_lockout_range_sec_sub = stim_lockout_ranges_sec[(stim_lockout_ranges_sec[1] > plt_range[0]) &
-                                                             (stim_lockout_ranges_sec[0] < plt_range[1])]
-
-        plt.imshow(dec_est[(dec_bin_times > plt_range[0]*30000) & (dec_bin_times < plt_range[1]*30000)].transpose(),
-                   extent=[plt_range[0], plt_range[1], 0, 450], origin='lower', aspect='auto', cmap='hot', zorder=0)
-
-        plt.colorbar()
-
-        # Plot linear position
-        if isinstance(linpos_flat.index, pd.MultiIndex):
-            linpos_index_s = linpos_flat.index.get_level_values('timestamp') / 30000
-        else:
-            linpos_index_s = linpos_flat.index / 30000
-        index_mask = (linpos_index_s > plt_range[0]) & (linpos_index_s < plt_range[1])
-
-        plt.plot(linpos_index_s[index_mask],
-                 linpos_flat.values[index_mask], 'c.', zorder=1, markersize=5)
-
-        plt.plot(stim_lockout_range_sec_sub.values.transpose(), np.tile([[440], [440]], [1, len(stim_lockout_range_sec_sub)]), 'c-*' )
-
-        for stim_lockout in stim_lockout_range_sec_sub.values:
-            plt.axvspan(stim_lockout[0], stim_lockout[1], facecolor='#AAAAAA', alpha=0.3)
-
-        plt.plot(plt_range, [74, 74], '--', color='gray')
-        plt.plot(plt_range, [148, 148], '--', color='gray')
-        plt.plot(plt_range, [256, 256], '--', color='gray')
-        plt.plot(plt_range, [298, 298], '--', color='gray')
-        plt.plot(plt_range, [407, 407], '--', color='gray')
-
-        plt.xticks(np.arange(plt_range[0], plt_range[1], x_tick))
 

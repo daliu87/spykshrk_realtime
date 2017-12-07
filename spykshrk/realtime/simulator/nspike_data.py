@@ -4,6 +4,7 @@ Defines classes necessary to access and stream NSpike animal's data.
 """
 import numpy as np
 import pandas as pd
+import itertools
 
 from struct import unpack
 from array import array
@@ -575,20 +576,25 @@ class PosMatDataStream:
                 poslindist_epoch = posdata[0, epoch]['statematrix'][0, 0]['linearDistanceToWells'][0, 0]
                 possegind_epoch = posdata[0, epoch]['statematrix'][0, 0]['segmentIndex'][0, 0]
                 poslinvel_epoch = posdata[0, epoch]['statematrix'][0, 0]['linearVelocity'][0, 0]
-                posdata_all = np.hstack((postime_epoch, postimestamp_epoch, poslindist_epoch,
+                posdata_all = np.hstack((poslindist_epoch,
                                          possegind_epoch, poslinvel_epoch))
 
-                pos_pd_idx = pd.MultiIndex.from_product(
-                    ([day], [epoch], postimestamp_epoch.flatten()), names=['day', 'epoch', 'timestamp'])
+                pos_ind_tup = list(itertools.starmap(lambda d, e, t: np.hstack([d, e, t]),
+                                                     itertools.product([day], [epoch],
+                                                                       zip(postimestamp_epoch.flatten(),
+                                                                           postime_epoch.flatten()))))
+
+                pos_pd_idx = pd.MultiIndex.from_tuples(pos_ind_tup,
+                                                       names=['day', 'epoch', 'timestamp', 'time'])
 
                 pos_pd_col = pd.MultiIndex.from_tuples(
-                    [('time', 'time'), ('time', 'timestamp'), ('lin_dist_well', 'well_center'),
+                    [('lin_dist_well', 'well_center'),
                      ('lin_dist_well', 'well_left'), ('lin_dist_well', 'well_right'),
                      ('seg_idx', 'seg_idx'), ('lin_vel', 'well_center'),
                      ('lin_vel', 'well_left'), ('lin_vel', 'well_right')])
 
                 posdata_all_df = pd.DataFrame(posdata_all, index=pos_pd_idx, columns=pos_pd_col)
-                posdata_all_df = posdata_all_df.sort_values([('time', 'time')])
+                posdata_all_df = posdata_all_df.sort_index(level='time')
 
                 self.data = self.data.append(posdata_all_df)
 
