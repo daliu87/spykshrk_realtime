@@ -135,17 +135,17 @@ class LinearPositionContainer:
         """
 
         center_pos_flat = (self.data.query('@self.data.seg_idx.seg_idx == 1').
-                           loc[:, ('lin_dist_well', 'well_center')]) + self.arm_coord[0][0]
+                           loc[:, [('lin_dist_well', 'well_center')]]) + self.arm_coord[0][0]
         left_pos_flat = (self.data.query('@self.data.seg_idx.seg_idx == 2 | '
                                          '@self.data.seg_idx.seg_idx == 3').
-                         loc[:, ('lin_dist_well', 'well_left')]) + self.arm_coord[1][0]
+                         loc[:, [('lin_dist_well', 'well_left')]]) + self.arm_coord[1][0]
         right_pos_flat = (self.data.query('@self.data.seg_idx.seg_idx == 4 | '
                                           '@self.data.seg_idx.seg_idx == 5').
-                          loc[:, ('lin_dist_well', 'well_right')]) + self.arm_coord[2][0]
+                          loc[:, [('lin_dist_well', 'well_right')]]) + self.arm_coord[2][0]
 
-        center_pos_flat.name = 'linpos_flat'
-        left_pos_flat.name = 'linpos_flat'
-        right_pos_flat.name = 'linpos_flat'
+        center_pos_flat.columns = ['linpos_flat']
+        left_pos_flat.columns = ['linpos_flat']
+        right_pos_flat.columns = ['linpos_flat']
 
         linpos_flat = pd.concat([center_pos_flat, left_pos_flat, right_pos_flat])
         linpos_flat = linpos_flat.sort_index()
@@ -164,7 +164,8 @@ class SpikeObservation:
     def __init__(self, spike_dec):
         self.data = spike_dec
         self.start_timestamp = self.data['timestamp'][0]
-        self.data = self.data.pivot_table(index=['timestamp'])
+        self.data['time'] = self.data['timestamp'] / 30000.
+        self.data = self.data.pivot_table(index=['timestamp', 'time'])
 
     def get_observations_bin_assigned(self, time_bin_size):
         dec_bins = np.floor((self.data.index.get_level_values('timestamp') -
@@ -182,4 +183,24 @@ class SpikeObservation:
 class Posteriors:
     def __init__(self, posts):
         self.data = posts
+
+
+class StimLockout:
+
+    def __init__(self, stim_lockout):
+        self.data_raw = stim_lockout
+        stim_lockout_ranges = stim_lockout.pivot(index='lockout_num', columns='lockout_state', values='timestamp')
+        stim_lockout_ranges = stim_lockout_ranges.reindex(columns=[1, 0])
+        stim_lockout_ranges.columns = pd.MultiIndex.from_product([['timestamp'], ['on', 'off']])
+        stim_lockout_ranges_sec = stim_lockout_ranges / 30000.
+        stim_lockout_ranges_sec.columns = pd.MultiIndex.from_product([['time'], ['on', 'off']])
+
+        self.data = pd.concat([stim_lockout_ranges, stim_lockout_ranges_sec], axis=1)
+
+    def get_range_sec(self, low, high):
+
+        return self.data[(self.data.time.off > low) & (self.data.time.on < high)]
+
+    def _repr_html_(self):
+        return self.data._repr_html_()
 

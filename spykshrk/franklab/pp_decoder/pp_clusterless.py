@@ -247,10 +247,12 @@ class OfflinePPDecoder:
             firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * pos_bin_delta)
 
         start_bin_time = np.floor(spike_decode.index.get_level_values('timestamp')[0] / time_bin_size) * time_bin_size
-        dec_bin_times = np.arange(start_bin_time, start_bin_time + time_bin_size * len(dec_est), time_bin_size)
+        dec_bin_timestamps = np.arange(start_bin_time, start_bin_time + time_bin_size * len(dec_est), time_bin_size)
+        dec_bin_times = dec_bin_timestamps / 30000.     # hard coded sampling rate
         dec_bin_ind = range(len(dec_est))
 
-        ind = pd.MultiIndex.from_arrays([dec_bin_ind, dec_bin_times], names=['bin', 'timestamp'])
+        ind = pd.MultiIndex.from_arrays([dec_bin_ind, dec_bin_timestamps, dec_bin_times],
+                                        names=['bin', 'timestamp', 'time'])
         binned_observ = pd.DataFrame(data=dec_est, index=ind,
                                      columns=[pos_col_format(bin_id, enc_settings.pos_num_bins)
                                               for bin_id in range(enc_settings.pos_num_bins)])

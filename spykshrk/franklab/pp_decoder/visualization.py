@@ -3,51 +3,57 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-from spykshrk.franklab.pp_decoder.data_containers import pos_col_format
+from spykshrk.franklab.pp_decoder.data_containers import pos_col_format, Posteriors, LinearPositionContainer, \
+    EncodeSettings, StimLockout
 
 
 class DecodeVisualizer:
 
     @staticmethod
-    def plot_decode_2d(posteriors, plt_range, num_pos_bin, x_tick=1.0):
-        post_plot = posteriors.data.query('timestamp > {} and timestamp < {}'.
-                                          format(*plt_range)).loc[:, pos_col_format(0, num_pos_bin):
-                                                                  pos_col_format(num_pos_bin-1, num_pos_bin)]
+    def plot_decode_image(posteriors: Posteriors, plt_range, enc_settings: EncodeSettings, x_tick=1.0):
 
-        plt.imshow(post_plot)
+        post_plot = posteriors.data.query('time > {} and time < {}'.
+                                          format(*plt_range)).loc[:, pos_col_format(0, enc_settings.pos_num_bins):
+                                                                  pos_col_format(enc_settings.pos_num_bins-1,
+                                                                                 enc_settings.pos_num_bins)]
 
+        ax = plt.imshow(post_plot.T, extent=[plt_range[0], plt_range[1], 0, enc_settings.pos_num_bins],
+                        origin='lower', aspect='auto', cmap='hot', zorder=0)
 
-
-    def plot_decode(posteriors , stim_lockout_ranges, linpos_flat, plt_range, x_tick=1.0):
-        stim_lockout_ranges_sec = stim_lockout_ranges/30000
-        stim_lockout_range_sec_sub = stim_lockout_ranges_sec[(stim_lockout_ranges_sec[1] > plt_range[0]) &
-                                                             (stim_lockout_ranges_sec[0] < plt_range[1])]
-
-        plt.imshow(dec_est[(dec_bin_times > plt_range[0]*30000) & (dec_bin_times < plt_range[1]*30000)].transpose(),
-                   extent=[plt_range[0], plt_range[1], 0, 450], origin='lower', aspect='auto', cmap='hot', zorder=0)
-
-        plt.colorbar()
-
-        # Plot linear position
-        if isinstance(linpos_flat.index, pd.MultiIndex):
-            linpos_index_s = linpos_flat.index.get_level_values('timestamp') / 30000
-        else:
-            linpos_index_s = linpos_flat.index / 30000
-        index_mask = (linpos_index_s > plt_range[0]) & (linpos_index_s < plt_range[1])
-
-        plt.plot(linpos_index_s[index_mask],
-                 linpos_flat.values[index_mask], 'c.', zorder=1, markersize=5)
-
-        plt.plot(stim_lockout_range_sec_sub.values.transpose(), np.tile([[440], [440]], [1, len(stim_lockout_range_sec_sub)]), 'c-*' )
-
-        for stim_lockout in stim_lockout_range_sec_sub.values:
-            plt.axvspan(stim_lockout[0], stim_lockout[1], facecolor='#AAAAAA', alpha=0.3)
-
-        plt.plot(plt_range, [74, 74], '--', color='gray')
-        plt.plot(plt_range, [148, 148], '--', color='gray')
-        plt.plot(plt_range, [256, 256], '--', color='gray')
-        plt.plot(plt_range, [298, 298], '--', color='gray')
-        plt.plot(plt_range, [407, 407], '--', color='gray')
+        plt.plot(plt_range, [enc_settings.arm_coordinates[0][0]]*2, '--', color='0.4', zorder=1)
+        plt.plot(plt_range, [enc_settings.arm_coordinates[0][1]]*2, '--', color='0.4', zorder=1)
+        plt.plot(plt_range, [enc_settings.arm_coordinates[1][0]]*2, '--', color='0.4', zorder=1)
+        plt.plot(plt_range, [enc_settings.arm_coordinates[1][1]]*2, '--', color='0.4', zorder=1)
+        plt.plot(plt_range, [enc_settings.arm_coordinates[2][0]]*2, '--', color='0.4', zorder=1)
+        plt.plot(plt_range, [enc_settings.arm_coordinates[2][1]]*2, '--', color='0.4', zorder=1)
 
         plt.xticks(np.arange(plt_range[0], plt_range[1], x_tick))
+
+        plt.ylim([enc_settings.arm_coordinates[0][0] - 5, enc_settings.arm_coordinates[2][1] + 15])
+
+        ax.axes.set_facecolor('black')
+
+        return ax
+
+    @staticmethod
+    def plot_linear_pos(linpos: LinearPositionContainer, plt_range):
+        linpos_sing = linpos.get_mapped_single_axis()
+        linpos_sel = linpos_sing[(linpos_sing.index.get_level_values('time') > plt_range[0]) &
+                                 (linpos_sing.index.get_level_values('time') < plt_range[1])]
+        ax = plt.plot(linpos_sel.index.get_level_values('time'), linpos_sel.values, 'co', zorder=2, markersize=4)
+
+        return ax
+
+
+    @staticmethod
+    def plot_stim_lockout(stim_lock: StimLockout, plt_range, plt_location):
+
+        stim_lock_sel = stim_lock.get_range_sec(*plt_range)
+
+        ax = plt.plot(stim_lock_sel['time'].values.transpose(), np.tile([[plt_location], [plt_location]],
+                                                                        [1, len(stim_lock_sel)]), 'c-*',
+                      linewidth=3, markersize=10)
+
+        return ax
+
 
