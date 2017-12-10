@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import functools
 from itertools import product
 
 from spykshrk.franklab.pp_decoder.util import gaussian
@@ -9,10 +10,33 @@ def pos_col_format(ind, num_bins):
     return 'x{:0{dig}d}'.format(ind, dig=len(str(num_bins)))
 
 
+class LocIndexerContainer(object):
+    def __init__(self, container_cls, container, loc):
+        self.container_cls = container_cls
+        self.container = container
+        self.loc = loc
+
+    def __getitem__(self, item):
+        return self.container_cls(data=self.loc.__getitem__(item), history=self.container.history)
+
+    def __setitem__(self, key, value):
+        return self.loc.__setitem__(key, value)
+
+
 class PandaContainer(object):
 
-    def __init__(self, dataframe: pd.DataFrame):
+    def __init__(self, dataframe: pd.DataFrame, history=None):
         self.data = dataframe
+
+        if history is None:
+            self.history = [self]
+        else:
+            self.history = history + [self]
+
+        print(self.__class__)
+        self.loc_cont = LocIndexerContainer(self.__class__, self, self.data.loc)
+        self.iloc_cont = LocIndexerContainer(self.__class__, self, self.data.iloc)
+        self.xs_cont = LocIndexerContainer(self.__class__, self, self.data.xs)
 
     def __getitem__(self, item):
         return self.data.__getitem__(item)
@@ -22,15 +46,15 @@ class PandaContainer(object):
 
     @property
     def loc(self):
-        return self.data.loc
+        return self.loc_cont
 
     @property
     def iloc(self):
-        return self.data.iloc
+        return self.iloc_cont
 
     @property
     def xs(self):
-        return self.data.xs
+        return self.xs_cont
 
     def _repr_html_(self):
         return self.data._repr_html_()
@@ -38,11 +62,32 @@ class PandaContainer(object):
     def _repr_latex_(self):
         return self.data._repr_latex_()
 
-    def __repr__(self):
-        return self.data.__repr__()
-
     def __str__(self):
         return self.data.__str__()
+
+
+class PandaClass(pd.DataFrame):
+
+    _metadata = ['data_src']
+
+    _internal_names = pd.DataFrame._internal_names + ['history']
+    _internal_names_set = set(_internal_names)
+
+    def __init__(self, data=None, data_src=None, index=None, columns=None, dtype=None, copy=False, history=None):
+
+        if data_src is not None:
+            self.data_src = data_src
+
+        if history is None:
+            self.history = [self]
+        else:
+            self.history = history + [self]
+
+        super().__init__(data, index, columns, dtype, copy)
+
+    @property
+    def _constructor(self):
+        return functools.partial(self.__class__, history=self.history)
 
 
 class EncodeSettings:
@@ -223,18 +268,44 @@ class Posteriors:
 
 class StimLockout(PandaContainer):
 
-    def __init__(self, data: pd.DataFrame):
-        self.data_raw = data
-        stim_lockout_ranges = data.pivot(index='lockout_num', columns='lockout_state', values='timestamp')
-        stim_lockout_ranges = stim_lockout_ranges.reindex(columns=[1, 0])
-        stim_lockout_ranges.columns = pd.MultiIndex.from_product([['timestamp'], ['on', 'off']])
-        stim_lockout_ranges_sec = stim_lockout_ranges / 30000.
-        stim_lockout_ranges_sec.columns = pd.MultiIndex.from_product([['time'], ['on', 'off']])
-        df = pd.concat([stim_lockout_ranges, stim_lockout_ranges_sec], axis=1)      # type: pd.DataFrame
+    def __init__(self, data_raw: pd.DataFrame=None, data: pd.DataFrame=None, history=None):
 
-        super().__init__(df)
+        self.data_raw = data_raw
+
+        if data is None:
+            stim_lockout_ranges = self.data_raw.pivot(index='lockout_num', columns='lockout_state', values='timestamp')
+            stim_lockout_ranges = stim_lockout_ranges.reindex(columns=[1, 0])
+            stim_lockout_ranges.columns = pd.MultiIndex.from_product([['timestamp'], ['on', 'off']])
+            stim_lockout_ranges_sec = stim_lockout_ranges / 30000.
+            stim_lockout_ranges_sec.columns = pd.MultiIndex.from_product([['time'], ['on', 'off']])
+            df = pd.concat([stim_lockout_ranges, stim_lockout_ranges_sec], axis=1)      # type: pd.DataFrame
+
+            super().__init__(df, history)
+
+        else:
+            super().__init__(data, history)
 
     def get_range_sec(self, low, high):
         return self.data[(self.data.time.off > low) & (self.data.time.on < high)]
 
+
+class StimLockoutInher(PandaClass):
+
+    def __init__(self, data=None, data_src=None, index=None, columns=None, dtype=None, copy=False, history=None):
+
+        if data is None:
+            stim_lockout_ranges = data_src.pivot(index='lockout_num', columns='lockout_state', values='timestamp')
+            stim_lockout_ranges = stim_lockout_ranges.reindex(columns=[1, 0])
+            stim_lockout_ranges.columns = pd.MultiIndex.from_product([['timestamp'], ['on', 'off']])
+            stim_lockout_ranges_sec = stim_lockout_ranges / 30000.
+            stim_lockout_ranges_sec.columns = pd.MultiIndex.from_product([['time'], ['on', 'off']])
+            df = pd.concat([stim_lockout_ranges, stim_lockout_ranges_sec], axis=1)      # type: pd.DataFrame
+
+            super().__init__(df, data_src, index, columns, dtype, copy, history)
+
+        else:
+            super().__init__(data, data_src, index, columns, dtype, copy, history)
+
+    def get_range_sec(self, low, high):
+        return self.data[(self.data.time.off > low) & (self.data.time.on < high)]
 
