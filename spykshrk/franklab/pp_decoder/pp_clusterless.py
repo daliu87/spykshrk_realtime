@@ -3,7 +3,7 @@ import numpy as np
 import scipy as sp
 
 from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary
-from spykshrk.franklab.pp_decoder.data_containers import LinearPositionContainer, SpikeObservation, EncodeSettings, \
+from spykshrk.franklab.pp_decoder.data_containers import LinearPosition, SpikeObservation, EncodeSettings, \
     DecodeSettings, Posteriors, pos_col_format
 
 
@@ -17,7 +17,7 @@ class OfflinePPDecoder:
     and decoding settings (spykshrk.franklab.pp_decoder.DecodeSettings).
     
     """
-    def __init__(self, lin_obj: LinearPositionContainer, observ_obj: SpikeObservation, encode_settings: EncodeSettings,
+    def __init__(self, lin_obj: LinearPosition, observ_obj: SpikeObservation, encode_settings: EncodeSettings,
                  decode_settings: DecodeSettings, which_trans_mat='learned', time_bin_size=None):
         """
         Constructor for OfflinePPDecoder.
@@ -208,10 +208,10 @@ class OfflinePPDecoder:
         pos_bin_delta = enc_settings.pos_bins[1] - enc_settings.pos_bins[0]
 
         if time_bin_size is not None:
-            spike_decode = observ.get_observations_bin_assigned(time_bin_size=time_bin_size)
+            spike_decode = observ.update_observations_bins(time_bin_size=time_bin_size)
         else:
             time_bin_size = dec_settings.time_bin_size
-            spike_decode = observ.get_observations_bin_assigned(time_bin_size=time_bin_size)
+            spike_decode = observ.update_observations_bins(time_bin_size=time_bin_size)
 
         dec_est = np.zeros([int(spike_decode.index.get_level_values('dec_bin')[-1]) + 1, pos_num_bins])
 
@@ -261,7 +261,7 @@ class OfflinePPDecoder:
         return binned_observ, firing_rate
 
     @staticmethod
-    def calc_occupancy(lin_obj: LinearPositionContainer, enc_settings: EncodeSettings):
+    def calc_occupancy(lin_obj: LinearPosition, enc_settings: EncodeSettings):
         """
         
         Args:

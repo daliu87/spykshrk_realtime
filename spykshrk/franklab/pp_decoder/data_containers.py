@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
 import functools
+from abc import ABC, ABCMeta, abstractclassmethod, abstractmethod
 from itertools import product
+import uuid
 
 from spykshrk.franklab.pp_decoder.util import gaussian
 
@@ -23,7 +25,7 @@ class LocIndexerContainer(object):
         return self.loc.__setitem__(key, value)
 
 
-class PandaContainer(object):
+class PandaContainer(ABC):
 
     def __init__(self, dataframe: pd.DataFrame, history=None):
         self.data = dataframe
@@ -33,7 +35,6 @@ class PandaContainer(object):
         else:
             self.history = history + [self]
 
-        print(self.__class__)
         self.loc_cont = LocIndexerContainer(self.__class__, self, self.data.loc)
         self.iloc_cont = LocIndexerContainer(self.__class__, self, self.data.iloc)
         self.xs_cont = LocIndexerContainer(self.__class__, self, self.data.xs)
@@ -66,28 +67,63 @@ class PandaContainer(object):
         return self.data.__str__()
 
 
-class PandaClass(pd.DataFrame):
+class SeriesClass(pd.Series):
 
-    _metadata = ['data_src']
+    @property
+    def _constructor(self):
+        return self.__class__
 
-    _internal_names = pd.DataFrame._internal_names + ['history']
+    @property
+    def _constructor_expanddim(self):
+        return DataFrameClass
+
+
+class DataFrameClass(ABC, pd.DataFrame):
+
+    _metadata = ['kwds', 'history']
+    _internal_names = pd.DataFrame._internal_names + ['uuid']
     _internal_names_set = set(_internal_names)
 
-    def __init__(self, data=None, data_src=None, index=None, columns=None, dtype=None, copy=False, history=None):
+    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
 
-        if data_src is not None:
-            self.data_src = data_src
-
-        if history is None:
-            self.history = [self]
-        else:
-            self.history = history + [self]
+        # print('called for {} with shape {}'.format(type(data), data.shape))
+        self.uuid = uuid.uuid4()
+        self.kwds = kwds
+        if history is not None:
+            self.history = list(history)
+            self.history.append(self)
+        if parent is not None:
+            if hasattr(parent, 'history'):
+                # Assumes history contains everything including self
+                self.history = list(parent.history)
+            else:
+                self.history = [parent]
+            self.history.append(self)
 
         super().__init__(data, index, columns, dtype, copy)
 
     @property
     def _constructor(self):
-        return functools.partial(self.__class__, history=self.history)
+        if hasattr(self, 'history'):
+            return functools.partial(type(self), history=self.history, **self.kwds)
+        else:
+            return type(self)
+
+    @property
+    def _constructor_sliced(self):
+        return SeriesClass
+
+    @property
+    def _constructor_expanddim(self):
+        raise NotImplementedError
+
+    @classmethod
+    @abstractclassmethod
+    def create_default(cls, df, **kwd):
+        pass
+
+    def __repr__(self):
+        return '<{}: {}, shape: ({})>'.format(self.__class__.__name__, self.uuid, self.shape)
 
 
 class EncodeSettings:
@@ -133,7 +169,7 @@ class DecodeSettings:
         self.trans_uniform_gain = realtime_config['pp_decoder']['trans_mat_uniform_gain']
 
 
-class LinearPositionContainer:
+class LinearPosition(DataFrameClass):
     """
     Container for Linearized position read from an AnimalInfo.  
     
@@ -142,19 +178,25 @@ class LinearPositionContainer:
     structure and PosMatDataStream to parse the linearized position files.
     """
 
-    def __init__(self, nspike_pos_data, enc_settings: EncodeSettings):
+    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
+        super().__init__(data, index, columns, dtype, copy, parent, history, **kwds)
+
+    @classmethod
+    def create_default(cls, df, **kwds):
+        return cls.create_from_nspike_posmat(df, **kwds)
+
+    @classmethod
+    def create_from_nspike_posmat(cls, nspike_pos_data, enc_settings: EncodeSettings):
         """
         
         Args:
             nspike_pos_data: The position panda table from an animal info.  Expects a specific multi-index format.
             enc_settings: Encoder settings, used to get the endpoints of the W track
         """
-        self.data = nspike_pos_data
-        self.enc_settings = enc_settings
-        self.arm_coord = enc_settings.arm_coordinates
+
+        return cls(data=nspike_pos_data, parent=nspike_pos_data, enc_settings=enc_settings)
 
         # make sure there's a time field
-
 
     def get_pd_no_multiindex(self):
         """
@@ -167,13 +209,15 @@ class LinearPositionContainer:
 
         """
 
-        pos_data_time = self.data.loc[:, 'time']
+        pos_data_time = self.index.get_level_values('time')
+        pos_data_timestamp = self.index.get_level_values('timestamp')
 
-        pos_data_simple = self.data.loc[:, 'lin_dist_well'].copy()
-        pos_data_simple.loc[:, 'lin_vel_center'] = self.data.loc[:, ('lin_vel', 'well_center')]
-        pos_data_simple.loc[:, 'seg_idx'] = self.data.loc[:, ('seg_idx', 'seg_idx')]
-        pos_data_simple.loc[:, 'timestamps'] = pos_data_time*30000
-        pos_data_simple = pos_data_simple.set_index('timestamps')
+        pos_data_simple = self.loc[:, 'lin_dist_well'].copy()
+        pos_data_simple.loc[:, 'lin_vel_center'] = self.loc[:, ('lin_vel', 'well_center')]
+        pos_data_simple.loc[:, 'seg_idx'] = self.loc[:, ('seg_idx', 'seg_idx')]
+        pos_data_simple.loc[:, 'time'] = pos_data_time
+        pos_data_simple.loc[:, 'timestamp'] = pos_data_timestamp
+        pos_data_simple = pos_data_simple.set_index('timestamp')
 
         return pos_data_simple
 
@@ -182,16 +226,16 @@ class LinearPositionContainer:
         
         Args:
             bin_size: size of time 
-
+7
         Returns (LinearPositionContainer): copy of self with times resampled using backfill.
 
         """
 
         def epoch_rebin_func(df):
 
-            new_timestamps = np.arange(df.time.timestamp[0] +
-                                       (bin_size - df.time.timestamp[0] % bin_size),
-                                       df.time.timestamp[-1]+1, bin_size)
+            new_timestamps = np.arange(df.index.get_level_values('timestamp')[0] +
+                                       (bin_size - df.index.get_level_values('timestamp')[0] % bin_size),
+                                       df.index.get_level_values('timestamp')[-1]+1, bin_size)
 
             df.set_index(df.index.get_level_values('timestamp'), inplace=True)
             pos_data_bin_ids = np.arange(0, len(new_timestamps), 1)
@@ -202,10 +246,10 @@ class LinearPositionContainer:
 
             return pos_data_binned
 
-        grp = self.data.groupby(level=['day', 'epoch'])
+        grp = self.groupby(level=['day', 'epoch'])
 
         pos_data_rebinned = grp.apply(epoch_rebin_func)
-        return type(self)(pos_data_rebinned.copy(), self.enc_settings)
+        return type(self)(pos_data_rebinned, history=self.history, **self.kwds)
 
     def get_mapped_single_axis(self):
         """
@@ -215,15 +259,15 @@ class LinearPositionContainer:
 
         """
 
-        center_pos_flat = (self.data.query('@self.data.seg_idx.seg_idx == 1').
-                           loc[:, [('lin_dist_well', 'well_center')]]) + self.arm_coord[0][0]
-        left_pos_flat = (self.data.query('@self.data.seg_idx.seg_idx == 2 | '
-                                         '@self.data.seg_idx.seg_idx == 3').
-                         loc[:, [('lin_dist_well', 'well_left')]]) + self.arm_coord[1][0]
-        right_pos_flat = (self.data.query('@self.data.seg_idx.seg_idx == 4 | '
-                                          '@self.data.seg_idx.seg_idx == 5').
-                          loc[:, [('lin_dist_well', 'well_right')]]) + self.arm_coord[2][0]
-
+        center_pos_flat = (self.query('@self.seg_idx.seg_idx == 1').
+                           loc[:, [('lin_dist_well', 'well_center')]]) + self.kwds['enc_settings'].arm_coordinates[0][0]
+        left_pos_flat = (self.query('@self.seg_idx.seg_idx == 2 | '
+                                    '@self.seg_idx.seg_idx == 3').
+                         loc[:, [('lin_dist_well', 'well_left')]]) + self.kwds['enc_settings'].arm_coordinates[1][0]
+        right_pos_flat = (self.query('@self.seg_idx.seg_idx == 4 | '
+                                     '@self.seg_idx.seg_idx == 5').
+                          loc[:, [('lin_dist_well', 'well_right')]]) + (self.kwds['enc_settings'].
+                                                                        arm_coordinates[2][0])
         center_pos_flat.columns = ['linpos_flat']
         left_pos_flat.columns = ['linpos_flat']
         right_pos_flat.columns = ['linpos_flat']
@@ -231,10 +275,11 @@ class LinearPositionContainer:
         linpos_flat = pd.concat([center_pos_flat, left_pos_flat, right_pos_flat])
         linpos_flat = linpos_flat.sort_index()
 
-        return linpos_flat
+        # reset history to remove intermediate query steps
+        return type(self)(linpos_flat, history=self.history)
 
 
-class SpikeObservation(PandaContainer):
+class SpikeObservation(DataFrameClass):
     """
     The observations can be generated by the realtime system or from an offline encoding model.
     The observations consist of a panda table with one row for each spike being decoded.  Each
@@ -242,31 +287,42 @@ class SpikeObservation(PandaContainer):
     content is the estimated probability that the spike and its marks will be observed in the
     encoding model.
     """
-    def __init__(self, spike_dec):
-        self.data = spike_dec
-        self.start_timestamp = self.data['timestamp'][0]
-        self.data['time'] = self.data['timestamp'] / 30000.
-        super().__init__(self.data.pivot_table(index=['timestamp', 'time']))
+    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
+        super().__init__(data, index, columns, dtype, copy, parent, history, **kwds)
 
-    def get_observations_bin_assigned(self, time_bin_size):
-        dec_bins = np.floor((self.data.index.get_level_values('timestamp') -
-                             self.data.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
-        dec_bins_start = (int(self.data.index.get_level_values('timestamp')[0] / time_bin_size) *
+    @classmethod
+    def create_default(cls, df, **kwds):
+        return cls.create_from_realtime(df, **kwds)
+
+    @classmethod
+    def create_from_realtime(cls, spike_dec, **kwds):
+        start_timestamp = spike_dec['timestamp'][0]
+        spike_dec['time'] = spike_dec['timestamp'] / 30000.
+        return cls(spike_dec.pivot_table(index=['timestamp', 'time']), parent=spike_dec, **kwds)
+
+    def update_observations_bins(self, time_bin_size):
+        dec_bins = np.floor((self.index.get_level_values('timestamp') -
+                             self.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
+        dec_bins_start = (int(self.index.get_level_values('timestamp')[0] / time_bin_size) *
                           time_bin_size + dec_bins * time_bin_size)
-        self.data['dec_bin'] = dec_bins
-        self.data['dec_bin_start'] = dec_bins_start
+        self['dec_bin'] = dec_bins
+        self['dec_bin_start'] = dec_bins_start
 
-        self.data.set_index([self.data.index.get_level_values('timestamp'), 'dec_bin'], inplace=True)
+        self.set_index([self.index.get_level_values('timestamp'), 'dec_bin'], inplace=True)
 
         return self
 
 
-class Posteriors:
-    def __init__(self, posts):
-        self.data = posts
+class Posteriors(DataFrameClass):
+    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
+        super().__init__(data, index, columns, dtype, copy, parent, history, **kwds)
+
+    @classmethod
+    def create_default(cls, df, **kwds):
+        cls(df, parent=df, **kwds)
 
 
-class StimLockout(PandaContainer):
+class StimLockoutContainer(PandaContainer):
 
     def __init__(self, data_raw: pd.DataFrame=None, data: pd.DataFrame=None, history=None):
 
@@ -289,23 +345,35 @@ class StimLockout(PandaContainer):
         return self.data[(self.data.time.off > low) & (self.data.time.on < high)]
 
 
-class StimLockoutInher(PandaClass):
+class StimLockout(DataFrameClass):
 
-    def __init__(self, data=None, data_src=None, index=None, columns=None, dtype=None, copy=False, history=None):
+    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
+        super().__init__(data, index, columns, dtype, copy, parent, history, **kwds)
 
-        if data is None:
-            stim_lockout_ranges = data_src.pivot(index='lockout_num', columns='lockout_state', values='timestamp')
-            stim_lockout_ranges = stim_lockout_ranges.reindex(columns=[1, 0])
-            stim_lockout_ranges.columns = pd.MultiIndex.from_product([['timestamp'], ['on', 'off']])
-            stim_lockout_ranges_sec = stim_lockout_ranges / 30000.
-            stim_lockout_ranges_sec.columns = pd.MultiIndex.from_product([['time'], ['on', 'off']])
-            df = pd.concat([stim_lockout_ranges, stim_lockout_ranges_sec], axis=1)      # type: pd.DataFrame
+    @classmethod
+    def create_default(cls, df, **kwds):
+        return cls.create_from_realtime(df, **kwds)
 
-            super().__init__(df, data_src, index, columns, dtype, copy, history)
+    @classmethod
+    def create_from_realtime(cls, stim_lockout, **kwds):
+        """
+        Class factory to create stimulation lockout from realtime system.  
+        Reshapes the structure to a more useful format (stim lockout intervals)
+        Args:
+            stim_lockout: Stim lockout pandas table from realtime records
 
-        else:
-            super().__init__(data, data_src, index, columns, dtype, copy, history)
+        Returns: StimLockout
+
+        """
+        stim_lockout_ranges = stim_lockout.pivot(index='lockout_num', columns='lockout_state', values='timestamp')
+        stim_lockout_ranges = stim_lockout_ranges.reindex(columns=[1, 0])
+        stim_lockout_ranges.columns = pd.MultiIndex.from_product([['timestamp'], ['on', 'off']])
+        stim_lockout_ranges_sec = stim_lockout_ranges / 30000.
+        stim_lockout_ranges_sec.columns = pd.MultiIndex.from_product([['time'], ['on', 'off']])
+        df = pd.concat([stim_lockout_ranges, stim_lockout_ranges_sec], axis=1)      # type: pd.DataFrame
+
+        return cls(df, parent=stim_lockout, **kwds)
 
     def get_range_sec(self, low, high):
-        return self.data[(self.data.time.off > low) & (self.data.time.on < high)]
+        return self.query('@self.time.off > @low and @self.time.on < @high')
 

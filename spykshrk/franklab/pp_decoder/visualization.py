@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-from spykshrk.franklab.pp_decoder.data_containers import pos_col_format, Posteriors, LinearPositionContainer, \
+from spykshrk.franklab.pp_decoder.data_containers import pos_col_format, Posteriors, LinearPosition, \
     EncodeSettings, StimLockout
 
 
@@ -12,10 +12,10 @@ class DecodeVisualizer:
     @staticmethod
     def plot_decode_image(posteriors: Posteriors, plt_range, enc_settings: EncodeSettings, x_tick=1.0):
 
-        post_plot = posteriors.data.query('time > {} and time < {}'.
-                                          format(*plt_range)).loc[:, pos_col_format(0, enc_settings.pos_num_bins):
-                                                                  pos_col_format(enc_settings.pos_num_bins-1,
-                                                                                 enc_settings.pos_num_bins)]
+        post_plot = posteriors.query('time > {} and time < {}'.
+                                     format(*plt_range)).loc[:, pos_col_format(0, enc_settings.pos_num_bins):
+                                                             pos_col_format(enc_settings.pos_num_bins-1,
+                                                             enc_settings.pos_num_bins)]
 
         ax = plt.imshow(post_plot.T, extent=[plt_range[0], plt_range[1], 0, enc_settings.pos_num_bins],
                         origin='lower', aspect='auto', cmap='hot', zorder=0)
@@ -36,7 +36,7 @@ class DecodeVisualizer:
         return ax
 
     @staticmethod
-    def plot_linear_pos(linpos: LinearPositionContainer, plt_range):
+    def plot_linear_pos(linpos: LinearPosition, plt_range):
         linpos_sing = linpos.get_mapped_single_axis()
         linpos_sel = linpos_sing[(linpos_sing.index.get_level_values('time') > plt_range[0]) &
                                  (linpos_sing.index.get_level_values('time') < plt_range[1])]
