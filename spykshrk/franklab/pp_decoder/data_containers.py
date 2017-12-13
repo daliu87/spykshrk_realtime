@@ -78,7 +78,7 @@ class SeriesClass(pd.Series):
         return DataFrameClass
 
 
-class DataFrameClass(ABC, pd.DataFrame):
+class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
 
     _metadata = ['kwds', 'history']
     _internal_names = pd.DataFrame._internal_names + ['uuid']
@@ -272,7 +272,7 @@ class LinearPosition(DataFrameClass):
         left_pos_flat.columns = ['linpos_flat']
         right_pos_flat.columns = ['linpos_flat']
 
-        linpos_flat = pd.concat([center_pos_flat, left_pos_flat, right_pos_flat])
+        linpos_flat = pd.concat([center_pos_flat, left_pos_flat, right_pos_flat])   # type: pd.DataFrame
         linpos_flat = linpos_flat.sort_index()
 
         # reset history to remove intermediate query steps
@@ -292,13 +292,14 @@ class SpikeObservation(DataFrameClass):
 
     @classmethod
     def create_default(cls, df, **kwds):
-        return cls.create_from_realtime(df, **kwds)
+        return cls.from_realtime(df, **kwds)
 
     @classmethod
-    def create_from_realtime(cls, spike_dec, **kwds):
+    def from_realtime(cls, spike_dec, **kwds):
         start_timestamp = spike_dec['timestamp'][0]
         spike_dec['time'] = spike_dec['timestamp'] / 30000.
-        return cls(spike_dec.pivot_table(index=['timestamp', 'time']), parent=spike_dec, **kwds)
+        return cls(spike_dec.set_index(pd.MultiIndex.from_arrays([spike_dec['timestamp'], spike_dec['time']])),
+                   parent=spike_dec, **kwds)
 
     def update_observations_bins(self, time_bin_size):
         dec_bins = np.floor((self.index.get_level_values('timestamp') -
@@ -308,18 +309,38 @@ class SpikeObservation(DataFrameClass):
         self['dec_bin'] = dec_bins
         self['dec_bin_start'] = dec_bins_start
 
-        self.set_index([self.index.get_level_values('timestamp'), 'dec_bin'], inplace=True)
+        self.set_index([self.index.get_level_values('timestamp'),
+                        self.index.get_level_values('time'), 'dec_bin'], append=False, inplace=True)
 
         return self
 
 
 class Posteriors(DataFrameClass):
+
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
         super().__init__(data, index, columns, dtype, copy, parent, history, **kwds)
 
     @classmethod
     def create_default(cls, df, **kwds):
-        cls(df, parent=df, **kwds)
+        return cls.from_dataframe(df, **kwds)
+
+    @classmethod
+    def from_dataframe(cls, posterior, index=None, columns=None):
+        return cls(data=posterior, index=index, columns=columns)
+
+    @classmethod
+    def from_numpy(cls, posterior, index, columns):
+        return cls(data=posterior, index=index, columns=columns)
+
+    @classmethod
+    def from_realtime(cls, posterior: pd.DataFrame, copy=False):
+        if copy:
+            posterior = posterior.copy()    # type: pd.DataFrame
+        posterior.index.name = 'bin'
+        posterior['time'] = posterior['timestamp']/30000.
+        posterior.set_index(['timestamp', 'time'], append=True, inplace=True)
+
+        return cls(posterior)
 
 
 class StimLockoutContainer(PandaContainer):
@@ -352,10 +373,10 @@ class StimLockout(DataFrameClass):
 
     @classmethod
     def create_default(cls, df, **kwds):
-        return cls.create_from_realtime(df, **kwds)
+        return cls.from_realtime(df, **kwds)
 
     @classmethod
-    def create_from_realtime(cls, stim_lockout, **kwds):
+    def from_realtime(cls, stim_lockout, **kwds):
         """
         Class factory to create stimulation lockout from realtime system.  
         Reshapes the structure to a more useful format (stim lockout intervals)
