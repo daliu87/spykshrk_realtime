@@ -82,7 +82,7 @@ def calc_error_for_plot(dec_est):
     return dec_est
 
 
-def calc_error_table(pos_data_bins, dec_est_pos, arm_coordinates, vel_thresh):
+def calc_error_table(lin_obj, dec_est_pos, arm_coordinates, vel_thresh):
     """
     
     Args:
@@ -95,8 +95,7 @@ def calc_error_table(pos_data_bins, dec_est_pos, arm_coordinates, vel_thresh):
 
     """
     # Reindex and join real position (linpos) to the decode estimated position table
-    linpos_reindexed = pos_data_bins.reindex(dec_est_pos.index, method='bfill')
-    dec_est_and_linpos = dec_est_pos.join(linpos_reindexed)
+    dec_est_and_linpos = dec_est_pos.join(lin_obj)
 
     # Select rows only when velocity meets criterion
     dec_est_and_linpos = dec_est_and_linpos[np.abs(dec_est_and_linpos['lin_vel_center']) >= vel_thresh]
@@ -125,22 +124,24 @@ def calc_error_table(pos_data_bins, dec_est_pos, arm_coordinates, vel_thresh):
 
 
 def plot_arms_error(center_dec_error, left_dec_error, right_dec_error, plt_range):
-    center_plt_ind = (center_dec_error.index/30000 >= plt_range[0]) & (center_dec_error.index/30000 <= plt_range[1])
-    left_plt_ind = (left_dec_error.index/30000 >= plt_range[0]) & (left_dec_error.index/30000 <= plt_range[1])
-    right_plt_ind = (right_dec_error.index/30000 >= plt_range[0]) & (right_dec_error.index/30000 <= plt_range[1])
+    center_plt_ind = ((center_dec_error.index.get_level_values('time') >= plt_range[0]) &
+                      (center_dec_error.index.get_level_values('time') <= plt_range[1]))
+    left_plt_ind = ((left_dec_error.index.get_level_values('time') >= plt_range[0]) &
+                    (left_dec_error.index.get_level_values('time') <= plt_range[1]))
+    right_plt_ind = ((right_dec_error.index.get_level_values('time') >= plt_range[0]) &
+                     (right_dec_error.index.get_level_values('time') <= plt_range[1]))
 
-    plt.figure(figsize=[400,10])
-    plt.errorbar(x=center_dec_error.index[center_plt_ind]/30000,
+    plt.errorbar(x=center_dec_error.index.get_level_values('time')[center_plt_ind],
                  y=center_dec_error['real_pos'][center_plt_ind],
                  yerr=[center_dec_error['plt_error_up'][center_plt_ind],
                        center_dec_error['plt_error_down'][center_plt_ind]], fmt='*')
 
-    plt.errorbar(x=left_dec_error.index[left_plt_ind]/30000,
+    plt.errorbar(x=left_dec_error.index.get_level_values('time')[left_plt_ind],
                  y=left_dec_error['real_pos'][left_plt_ind],
                  yerr=[left_dec_error['plt_error_up'][left_plt_ind],
                        left_dec_error['plt_error_down'][left_plt_ind]], fmt='*')
 
-    plt.errorbar(x=right_dec_error.index[right_plt_ind]/30000,
+    plt.errorbar(x=right_dec_error.index.get_level_values('time')[right_plt_ind],
                  y=right_dec_error['real_pos'][right_plt_ind],
                  yerr=[right_dec_error['plt_error_up'][right_plt_ind],
                        right_dec_error['plt_error_down'][right_plt_ind]], fmt='*')

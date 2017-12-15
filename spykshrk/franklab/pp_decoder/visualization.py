@@ -17,7 +17,7 @@ class DecodeVisualizer:
                                                              pos_col_format(enc_settings.pos_num_bins-1,
                                                              enc_settings.pos_num_bins)]
 
-        ax = plt.imshow(post_plot.T, extent=[plt_range[0], plt_range[1], 0, enc_settings.pos_num_bins],
+        ax = plt.imshow(post_plot.values.T, extent=[plt_range[0], plt_range[1], 0, enc_settings.pos_num_bins],
                         origin='lower', aspect='auto', cmap='hot', zorder=0)
 
         plt.plot(plt_range, [enc_settings.arm_coordinates[0][0]]*2, '--', color='0.4', zorder=1)

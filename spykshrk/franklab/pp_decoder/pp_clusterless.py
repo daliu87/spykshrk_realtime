@@ -66,7 +66,7 @@ class OfflinePPDecoder:
         self.prob_no_spike = self.calc_prob_no_spike(self.firing_rate, self.occupancy, self.decode_settings)
         self.likelihoods = self.calc_likelihood(self.binned_observ, self.prob_no_spike, self.encode_settings)
         self.posteriors = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
-        self.posteriors_obj = Posteriors(self.posteriors)
+        self.posteriors_obj = Posteriors.from_dataframe(self.posteriors, encode_settings=self.encode_settings)
 
         return self.posteriors_obj
 
@@ -207,13 +207,16 @@ class OfflinePPDecoder:
         pos_num_bins = len(enc_settings.pos_bins)
         pos_bin_delta = enc_settings.pos_bins[1] - enc_settings.pos_bins[0]
 
+        day = observ.index.get_level_values('day')[0]
+        epoch = observ.index.get_level_values('epoch')[0]
+
         if time_bin_size is not None:
             spike_decode = observ.update_observations_bins(time_bin_size=time_bin_size)
         else:
             time_bin_size = dec_settings.time_bin_size
             spike_decode = observ.update_observations_bins(time_bin_size=time_bin_size)
 
-        dec_est = np.zeros([int(spike_decode.index.get_level_values('dec_bin')[-1]) + 1, pos_num_bins])
+        dec_est = np.zeros([int(spike_decode['dec_bin'].iloc[-1]) + 1, pos_num_bins])
 
         # initialize conditional intensity function
         firing_rate = {ntrode_id: np.zeros(pos_num_bins) for ntrode_id in spike_decode['ntrode_id'].unique()}
@@ -251,12 +254,13 @@ class OfflinePPDecoder:
         dec_bin_times = dec_bin_timestamps / 30000.     # hard coded sampling rate
         dec_bin_ind = range(len(dec_est))
 
-        ind = pd.MultiIndex.from_arrays([dec_bin_ind, dec_bin_timestamps, dec_bin_times],
-                                        names=['bin', 'timestamp', 'time'])
+        ind = pd.MultiIndex.from_arrays([[day]*len(dec_est), [epoch]*len(dec_est), dec_bin_timestamps, dec_bin_times],
+                                        names=['day', 'epoch', 'timestamp', 'time'])
         binned_observ = pd.DataFrame(data=dec_est, index=ind,
                                      columns=[pos_col_format(bin_id, enc_settings.pos_num_bins)
                                               for bin_id in range(enc_settings.pos_num_bins)])
         binned_observ['num_spikes'] = bin_num_spikes
+        binned_observ['dec_bin'] = dec_bin_ind
 
         return binned_observ, firing_rate
 
