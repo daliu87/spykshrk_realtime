@@ -16,61 +16,6 @@ def pos_col_format(ind, num_bins):
     return 'x{:0{dig}d}'.format(ind, dig=len(str(num_bins)))
 
 
-class LocIndexerContainer(object):
-    def __init__(self, container_cls, container, loc):
-        self.container_cls = container_cls
-        self.container = container
-        self.loc = loc
-
-    def __getitem__(self, item):
-        return self.container_cls(data=self.loc.__getitem__(item), history=self.container.history)
-
-    def __setitem__(self, key, value):
-        return self.loc.__setitem__(key, value)
-
-
-class PandaContainer(ABC):
-
-    def __init__(self, dataframe: pd.DataFrame, history=None):
-        self.data = dataframe
-
-        if history is None:
-            self.history = [self]
-        else:
-            self.history = history + [self]
-
-        self.loc_cont = LocIndexerContainer(self.__class__, self, self.data.loc)
-        self.iloc_cont = LocIndexerContainer(self.__class__, self, self.data.iloc)
-        self.xs_cont = LocIndexerContainer(self.__class__, self, self.data.xs)
-
-    def __getitem__(self, item):
-        return self.data.__getitem__(item)
-
-    def __setitem__(self, key, value):
-        return self.data.__setitem__(key, value)
-
-    @property
-    def loc(self):
-        return self.loc_cont
-
-    @property
-    def iloc(self):
-        return self.iloc_cont
-
-    @property
-    def xs(self):
-        return self.xs_cont
-
-    def _repr_html_(self):
-        return self.data._repr_html_()
-
-    def _repr_latex_(self):
-        return self.data._repr_latex_()
-
-    def __str__(self):
-        return self.data.__str__()
-
-
 class SeriesClass(pd.Series):
 
     @property
@@ -89,20 +34,37 @@ class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
     _internal_names_set = set(_internal_names)
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
-
+        """
+        
+        Args:
+            data: 
+            index: 
+            columns: 
+            dtype: 
+            copy: 
+            parent: Uses parent history if avaliable.
+            history: List that is set as the history of this object.  
+                Overrides both the history of the parent and data source.
+            **kwds: 
+        """
         # print('called for {} with shape {}'.format(type(data), data.shape))
         self.uuid = uuid.uuid4()
         self.kwds = kwds
+
         if history is not None:
             self.history = list(history)
-            self.history.append(self)
-        if parent is not None:
+        elif parent is not None:
             if hasattr(parent, 'history'):
                 # Assumes history contains everything including self
                 self.history = list(parent.history)
             else:
                 self.history = [parent]
-            self.history.append(self)
+        else:
+            if hasattr(data, 'history'):
+                self.history = list(data.history)
+            else:
+                self.history = [data]
+        self.history.append(self)
 
         super().__init__(data, index, columns, dtype, copy)
 
@@ -123,7 +85,7 @@ class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
 
     @classmethod
     @abstractclassmethod
-    def create_default(cls, df, **kwd):
+    def create_default(cls, df, parent=None, **kwd):
         pass
 
     def __repr__(self):
@@ -207,19 +169,25 @@ class LinearPosition(DayEpochTimeSeries, DataFrameClass):
                          history=history, **kwds)
 
     @classmethod
-    def create_default(cls, df, **kwds):
-        return cls.create_from_nspike_posmat(df, **kwds)
+    def create_default(cls, df, parent=None, **kwds):
+        if parent is None:
+            parent = df
+
+        return cls.create_from_nspike_posmat(df, parent=parent, **kwds)
 
     @classmethod
-    def from_nspike_posmat(cls, nspike_pos_data, enc_settings: EncodeSettings):
+    def from_nspike_posmat(cls, nspike_pos_data, enc_settings: EncodeSettings, parent=None):
         """
         
         Args:
+            parent: 
             nspike_pos_data: The position panda table from an animal info.  Expects a specific multi-index format.
             enc_settings: Encoder settings, used to get the endpoints of the W track
         """
+        if parent is None:
+            parent = nspike_pos_data
 
-        return cls(data=nspike_pos_data, parent=nspike_pos_data, enc_settings=enc_settings)
+        return cls(data=nspike_pos_data, parent=parent, enc_settings=enc_settings)
 
         # make sure there's a time field
 
@@ -306,8 +274,10 @@ class LinearPosition(DayEpochTimeSeries, DataFrameClass):
         linpos_flat = pd.concat([center_pos_flat, left_pos_flat, right_pos_flat])   # type: pd.DataFrame
         linpos_flat = linpos_flat.sort_index()
 
+        linpos_flat['seg_idx'] = self.seg_idx.seg_idx
+
         # reset history to remove intermediate query steps
-        return type(self)(linpos_flat, history=self.history)
+        return FlatLinearPosition.create_default(linpos_flat, parent=self)
 
     def get_time_only_index(self):
         return self.reset_index(level=['day', 'epoch'])
@@ -326,17 +296,23 @@ class SpikeObservation(DayEpochTimeSeries, DataFrameClass):
                          history=history, **kwds)
 
     @classmethod
-    def create_default(cls, df, **kwds):
-        return cls.from_realtime(df, **kwds)
+    def create_default(cls, df, parent=None, **kwds):
+        if parent is None:
+            parent = df
+
+        return cls.from_realtime(df, parent=parent, **kwds)
 
     @classmethod
-    def from_realtime(cls, spike_dec, day, epoch, **kwds):
+    def from_realtime(cls, spike_dec, day, epoch, parent=None, **kwds):
+        if parent is None:
+            parent = spike_dec
+
         start_timestamp = spike_dec['timestamp'][0]
         spike_dec['time'] = spike_dec['timestamp'] / 30000.
         return cls(spike_dec.set_index(pd.MultiIndex.from_arrays([[day]*len(spike_dec), [epoch]*len(spike_dec),
                                                                   spike_dec['timestamp'], spike_dec['time']],
                                                                  names=['day', 'epoch', 'timestamp', 'time'])),
-                   parent=spike_dec, **kwds)
+                   parent=parent, **kwds)
 
     def update_observations_bins(self, time_bin_size):
         dec_bins = np.floor((self.index.get_level_values('timestamp') -
@@ -360,26 +336,39 @@ class Posteriors(DayEpochTimeSeries, DataFrameClass):
                          history=history, **kwds)
 
     @classmethod
-    def create_default(cls, df, **kwds):
-        return cls.from_dataframe(df, **kwds)
+    def create_default(cls, df, parent=None, **kwds):
+        if parent is None:
+            parent = df
+
+        return cls.from_dataframe(df, parent=parent, **kwds)
 
     @classmethod
-    def from_dataframe(cls, posterior: pd.DataFrame, index=None, columns=None, encode_settings=None):
+    def from_dataframe(cls, posterior: pd.DataFrame, index=None, columns=None, parent=None, encode_settings=None):
+        if parent is None:
+            parent = posterior
+
         if index is not None:
             posterior.set_index(index)
         if columns is not None:
             posterior.columns = columns
-        return cls(data=posterior, enc_settings=encode_settings)
+        return cls(data=posterior, parent=parent, enc_settings=encode_settings)
 
     @classmethod
-    def from_numpy(cls, posterior, day, epoch, timestamps, times, columns=None, encode_settings=None):
+    def from_numpy(cls, posterior, day, epoch, timestamps, times, columns=None, parent=None, encode_settings=None):
+        if parent is None:
+            parent = posterior
+
         return cls(data=posterior, index=pd.MultiIndex.from_arrays([[day]*len(posterior), [epoch]*len(posterior),
                                                                     timestamps, times],
                                                                    names=['day', 'epoch', 'timestamp', 'time']),
-                   columns=columns, enc_settings=encode_settings)
+                   columns=columns, parent=parent, enc_settings=encode_settings)
 
     @classmethod
-    def from_realtime(cls, posterior: pd.DataFrame, day, epoch, columns=None, copy=False, encode_settings=None):
+    def from_realtime(cls, posterior: pd.DataFrame, day, epoch, columns=None, copy=False, parent=None,
+                      encode_settings=None):
+        if parent is None:
+            parent = posterior
+
         if copy:
             posterior = posterior.copy()    # type: pd.DataFrame
         posterior.set_index(pd.MultiIndex.from_arrays([[day]*len(posterior), [epoch]*len(posterior),
@@ -389,7 +378,7 @@ class Posteriors(DayEpochTimeSeries, DataFrameClass):
         if columns is not None:
             posterior.columns = columns
 
-        return cls(data=posterior, enc_settings=encode_settings)
+        return cls(data=posterior, parent=parent, enc_settings=encode_settings)
 
     def get_posteriors_as_np(self):
         return self[pos_col_format(0, self.kwds['enc_settings'].pos_num_bins):
@@ -407,49 +396,33 @@ class Posteriors(DayEpochTimeSeries, DataFrameClass):
                         pos_col_format(self.enc_settings.pos_num_bins-1, self.enc_settings.pos_num_bins)]
 
 
-class StimLockoutContainer(PandaContainer):
-
-    def __init__(self, data_raw: pd.DataFrame=None, data: pd.DataFrame=None, history=None):
-
-        self.data_raw = data_raw
-
-        if data is None:
-            stim_lockout_ranges = self.data_raw.pivot(index='lockout_num', columns='lockout_state', values='timestamp')
-            stim_lockout_ranges = stim_lockout_ranges.reindex(columns=[1, 0])
-            stim_lockout_ranges.columns = pd.MultiIndex.from_product([['timestamp'], ['on', 'off']])
-            stim_lockout_ranges_sec = stim_lockout_ranges / 30000.
-            stim_lockout_ranges_sec.columns = pd.MultiIndex.from_product([['time'], ['on', 'off']])
-            df = pd.concat([stim_lockout_ranges, stim_lockout_ranges_sec], axis=1)      # type: pd.DataFrame
-
-            super().__init__(df, history)
-
-        else:
-            super().__init__(data, history)
-
-    def get_range_sec(self, low, high):
-        return self.data[(self.data.time.off > low) & (self.data.time.on < high)]
-
-
 class StimLockout(DataFrameClass):
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
         super().__init__(data, index, columns, dtype, copy, parent, history, **kwds)
 
     @classmethod
-    def create_default(cls, df, **kwds):
-        return cls.from_realtime(df, **kwds)
+    def create_default(cls, df, parent=None, **kwds):
+        if parent is None:
+            parent = df
+
+        return cls.from_realtime(df, parent=parent, **kwds)
 
     @classmethod
-    def from_realtime(cls, stim_lockout, **kwds):
+    def from_realtime(cls, stim_lockout, parent=None, **kwds):
         """
         Class factory to create stimulation lockout from realtime system.  
         Reshapes the structure to a more useful format (stim lockout intervals)
         Args:
+            parent: 
             stim_lockout: Stim lockout pandas table from realtime records
 
         Returns: StimLockout
 
         """
+        if parent is None:
+            parent = stim_lockout
+
         stim_lockout_ranges = stim_lockout.pivot(index='lockout_num', columns='lockout_state', values='timestamp')
         stim_lockout_ranges = stim_lockout_ranges.reindex(columns=[1, 0])
         stim_lockout_ranges.columns = pd.MultiIndex.from_product([['timestamp'], ['on', 'off']])
@@ -457,8 +430,22 @@ class StimLockout(DataFrameClass):
         stim_lockout_ranges_sec.columns = pd.MultiIndex.from_product([['time'], ['on', 'off']])
         df = pd.concat([stim_lockout_ranges, stim_lockout_ranges_sec], axis=1)      # type: pd.DataFrame
 
-        return cls(df, parent=stim_lockout, **kwds)
+        return cls(df, parent=parent, **kwds)
 
     def get_range_sec(self, low, high):
         return self.query('@self.time.off > @low and @self.time.on < @high')
+
+
+class FlatLinearPosition(DayEpochTimeSeries, DataFrameClass):
+
+    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
+        super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
+                         history=history, **kwds)
+
+    @classmethod
+    def create_default(cls, df, parent=None, **kwds):
+        if parent is None:
+            parent = df
+
+        return cls(df, parent=parent, **kwds)
 
