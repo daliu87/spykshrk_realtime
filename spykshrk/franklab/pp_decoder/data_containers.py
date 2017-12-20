@@ -343,7 +343,8 @@ class Posteriors(DayEpochTimeSeries, DataFrameClass):
         return cls.from_dataframe(df, parent=parent, **kwds)
 
     @classmethod
-    def from_dataframe(cls, posterior: pd.DataFrame, index=None, columns=None, parent=None, encode_settings=None):
+    def from_dataframe(cls, posterior: pd.DataFrame, index=None, columns=None, parent=None,
+                       encode_settings=None, **kwds):
         if parent is None:
             parent = posterior
 
@@ -351,7 +352,7 @@ class Posteriors(DayEpochTimeSeries, DataFrameClass):
             posterior.set_index(index)
         if columns is not None:
             posterior.columns = columns
-        return cls(data=posterior, parent=parent, enc_settings=encode_settings)
+        return cls(data=posterior, parent=parent, enc_settings=encode_settings, **kwds)
 
     @classmethod
     def from_numpy(cls, posterior, day, epoch, timestamps, times, columns=None, parent=None, encode_settings=None):
@@ -391,7 +392,7 @@ class Posteriors(DayEpochTimeSeries, DataFrameClass):
     def get_timestamp(self):
         return self.index.get_level_values('timestamp')
 
-    def get_distribution_only(self):
+    def get_distribution_view(self):
         return self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
                         pos_col_format(self.enc_settings.pos_num_bins-1, self.enc_settings.pos_num_bins)]
 
@@ -433,7 +434,8 @@ class StimLockout(DataFrameClass):
         return cls(df, parent=parent, **kwds)
 
     def get_range_sec(self, low, high):
-        return self.query('@self.time.off > @low and @self.time.on < @high')
+        sel = self.query('@self.time.off > @low and @self.time.on < @high')
+        return type(self)(sel)
 
 
 class FlatLinearPosition(DayEpochTimeSeries, DataFrameClass):

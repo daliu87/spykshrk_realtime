@@ -129,14 +129,18 @@ def plot_arms_error(center_dec_error, left_dec_error, right_dec_error, plt_range
     plt.errorbar(x=center_dec_error.index.get_level_values('time')[center_plt_ind],
                  y=center_dec_error['real_pos'][center_plt_ind],
                  yerr=[center_dec_error['plt_error_up'][center_plt_ind],
-                       center_dec_error['plt_error_down'][center_plt_ind]], fmt='*')
+                       center_dec_error['plt_error_down'][center_plt_ind]], fmt='o', markersize=10)
 
     plt.errorbar(x=left_dec_error.index.get_level_values('time')[left_plt_ind],
                  y=left_dec_error['real_pos'][left_plt_ind],
                  yerr=[left_dec_error['plt_error_up'][left_plt_ind],
-                       left_dec_error['plt_error_down'][left_plt_ind]], fmt='*')
+                       left_dec_error['plt_error_down'][left_plt_ind]], fmt='*', markersize=10)
 
     plt.errorbar(x=right_dec_error.index.get_level_values('time')[right_plt_ind],
                  y=right_dec_error['real_pos'][right_plt_ind],
                  yerr=[right_dec_error['plt_error_up'][right_plt_ind],
-                       right_dec_error['plt_error_down'][right_plt_ind]], fmt='*')
+                       right_dec_error['plt_error_down'][right_plt_ind]], fmt='*', markersize=10)
+
+    plt.xlabel('seconds')
+    plt.ylabel("distance from arm's well")
+    plt.legend(['center arm', 'left arm', 'right arm'])
