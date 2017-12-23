@@ -64,4 +64,11 @@ class DecodeVisualizer:
         return ax
 
 
+class DecodeErrorVisualizer:
 
+    @staticmethod
+    def plot_arms_error(dec_error, plt_range=None):
+
+        plt.xlabel('seconds')
+        plt.ylabel("distance from arm's well")
+        plt.legend(['center arm', 'left arm', 'right arm'])

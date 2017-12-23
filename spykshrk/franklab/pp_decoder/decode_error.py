@@ -102,45 +102,18 @@ class LinearDecodeError:
         right_dec_est = self.conv_arm_pos(right_dec_est_merged, arm_coordinates, self.conv_right_pos, 'well_right')
 
         center_dec_est = self.calc_error_for_plot(center_dec_est)
+        center_dec_est.columns = pd.MultiIndex.from_product([['center'], center_dec_est.columns])
 
         left_dec_est = self.calc_error_for_plot(left_dec_est)
+        left_dec_est.columns = pd.MultiIndex.from_product([['left'], left_dec_est.columns])
 
         right_dec_est = self.calc_error_for_plot(right_dec_est)
+        right_dec_est.columns = pd.MultiIndex.from_product([['right'], right_dec_est.columns])
 
-        return center_dec_est, left_dec_est, right_dec_est
+        dec_error = pd.concat([center_dec_est, left_dec_est, right_dec_est])
+
+        dec_error.sort_index(inplace=True)
+
+        return dec_error
 
 
-def plot_arms_error(center_dec_error, left_dec_error, right_dec_error, plt_range=None):
-    if plt_range is None:
-        plt_range = [min([center_dec_error.index.get_level_values('time').min(),
-                          left_dec_error.index.get_level_values('time').min(),
-                          right_dec_error.index.get_level_values('time').min()]),
-                     max([center_dec_error.index.get_level_values('time').max(),
-                          left_dec_error.index.get_level_values('time').max(),
-                          right_dec_error.index.get_level_values('time').max()])]
-
-    center_plt_ind = ((center_dec_error.index.get_level_values('time') >= plt_range[0]) &
-                      (center_dec_error.index.get_level_values('time') <= plt_range[1]))
-    left_plt_ind = ((left_dec_error.index.get_level_values('time') >= plt_range[0]) &
-                    (left_dec_error.index.get_level_values('time') <= plt_range[1]))
-    right_plt_ind = ((right_dec_error.index.get_level_values('time') >= plt_range[0]) &
-                     (right_dec_error.index.get_level_values('time') <= plt_range[1]))
-
-    plt.errorbar(x=center_dec_error.index.get_level_values('time')[center_plt_ind],
-                 y=center_dec_error['real_pos'][center_plt_ind],
-                 yerr=[center_dec_error['plt_error_up'][center_plt_ind],
-                       center_dec_error['plt_error_down'][center_plt_ind]], fmt='o', markersize=10)
-
-    plt.errorbar(x=left_dec_error.index.get_level_values('time')[left_plt_ind],
-                 y=left_dec_error['real_pos'][left_plt_ind],
-                 yerr=[left_dec_error['plt_error_up'][left_plt_ind],
-                       left_dec_error['plt_error_down'][left_plt_ind]], fmt='*', markersize=10)
-
-    plt.errorbar(x=right_dec_error.index.get_level_values('time')[right_plt_ind],
-                 y=right_dec_error['real_pos'][right_plt_ind],
-                 yerr=[right_dec_error['plt_error_up'][right_plt_ind],
-                       right_dec_error['plt_error_down'][right_plt_ind]], fmt='*', markersize=10)
-
-    plt.xlabel('seconds')
-    plt.ylabel("distance from arm's well")
-    plt.legend(['center arm', 'left arm', 'right arm'])
