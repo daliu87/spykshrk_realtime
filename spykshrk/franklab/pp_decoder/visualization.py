@@ -51,7 +51,7 @@ class DecodeVisualizer:
 
 
     @staticmethod
-    def plot_stim_lockout(ax, stim_lock: StimLockout, plt_range, plt_height ):
+    def plot_stim_lockout(ax, stim_lock: StimLockout, plt_range, plt_height):
 
         stim_lock_sel = stim_lock.get_range_sec(*plt_range)
 

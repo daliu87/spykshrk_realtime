@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import scipy as sp
+import scipy.signal
 
 from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary
 from spykshrk.franklab.pp_decoder.data_containers import LinearPosition, SpikeObservation, EncodeSettings, \
