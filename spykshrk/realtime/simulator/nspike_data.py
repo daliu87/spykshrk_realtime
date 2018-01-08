@@ -576,8 +576,7 @@ class PosMatDataStream:
                 poslindist_epoch = posdata[0, epoch]['statematrix'][0, 0]['linearDistanceToWells'][0, 0]
                 possegind_epoch = posdata[0, epoch]['statematrix'][0, 0]['segmentIndex'][0, 0]
                 poslinvel_epoch = posdata[0, epoch]['statematrix'][0, 0]['linearVelocity'][0, 0]
-                posdata_all = np.hstack((poslindist_epoch,
-                                         possegind_epoch, poslinvel_epoch))
+                posdata_all = np.hstack((poslindist_epoch, poslinvel_epoch, possegind_epoch))
 
                 pos_ind_tup = list(itertools.starmap(lambda d, e, t: np.hstack([d, e, t]),
                                                      itertools.product([day], [epoch],
@@ -590,8 +589,8 @@ class PosMatDataStream:
                 pos_pd_col = pd.MultiIndex.from_tuples(
                     [('lin_dist_well', 'well_center'),
                      ('lin_dist_well', 'well_left'), ('lin_dist_well', 'well_right'),
-                     ('seg_idx', 'seg_idx'), ('lin_vel', 'well_center'),
-                     ('lin_vel', 'well_left'), ('lin_vel', 'well_right')])
+                     ('lin_vel', 'well_center'), ('lin_vel', 'well_left'),
+                     ('lin_vel', 'well_right'), ('seg_idx', 'seg_idx')])
 
                 posdata_all_df = pd.DataFrame(posdata_all, index=pos_pd_idx, columns=pos_pd_col)
                 posdata_all_df = posdata_all_df.sort_index(level='time')
@@ -609,21 +608,22 @@ class PosMatDataStream:
                 day_epoch_data = self.data.loc[day, epoch]
 
                 pos_raw = day_epoch_data.values
+                pos_raw_timestamps = day_epoch_data.index.get_level_values('timestamp')
 
                 for row_id in range(len(pos_raw)):
                     row = pos_raw[row_id]
-                    segind = row[5]     # seg_idx
-                    postimestamp = int(row[1])    # timestamp
+                    segind = row[6]     # seg_idx
+                    postimestamp = int(pos_raw_timestamps[row_id])    # timestamp
 
                     if segind == 1:
-                        pos_conv = row[2]          # ['lin_dist_well', 'well_center']
-                        veldata = row[6]           # ['lin_vel', 'well_center']
+                        pos_conv = row[0]          # ['lin_dist_well', 'well_center']
+                        veldata = row[3]           # ['lin_vel', 'well_center']
                     elif (segind == 2) or (segind == 3):
-                        pos_conv = row[3] + 150    # ['lin_dist_well', 'well_left']
-                        veldata = row[7]           # ['lin_vel', 'well_left']
+                        pos_conv = row[1] + 150    # ['lin_dist_well', 'well_left']
+                        veldata = row[4]           # ['lin_vel', 'well_left']
                     elif (segind == 4) or (segind == 5):
-                        pos_conv = row[4] + 300    # ['lin_dist_well', 'well_right']
-                        veldata = row[8]           # ['lin_vel', 'well_right']
+                        pos_conv = row[2] + 300    # ['lin_dist_well', 'well_right']
+                        veldata = row[5]           # ['lin_vel', 'well_right']
                     else:
                         raise DataContentError("Segment Index ({}) is invalid, expects 1 to 5 for W-Track.".
                                                format(segind))

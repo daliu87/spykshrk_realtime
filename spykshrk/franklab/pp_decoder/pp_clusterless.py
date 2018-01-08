@@ -182,9 +182,12 @@ class OfflinePPDecoder:
 
         # Setup transition matrix
         transition_mat = np.ones([pos_num_bins, pos_num_bins])
+        transition_mat = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, transition_mat)
 
         # normalize transition matrix
-        transition_mat = transition_mat/( transition_mat.sum(axis=0)[None, :])
+        transition_mat = transition_mat/(transition_mat.sum(axis=0)[None, :])
+
+        transition_mat = np.nan_to_num(transition_mat)
 
         return transition_mat
 

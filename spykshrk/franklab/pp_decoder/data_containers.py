@@ -68,6 +68,9 @@ class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
 
         super().__init__(data, index, columns, dtype, copy)
 
+    def __setstate__(self, state):
+        self.__init__(data=state['_data'], history=state['history'], kwds=state['kwds'])
+
     @property
     def _constructor(self):
         if hasattr(self, 'history'):
