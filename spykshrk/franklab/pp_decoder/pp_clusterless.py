@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import scipy as sp
 import scipy.signal
+import multiprocessing as mp
+import functools
 
 from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary
 from spykshrk.franklab.pp_decoder.data_containers import LinearPosition, SpikeObservation, EncodeSettings, \
@@ -19,7 +21,7 @@ class OfflinePPDecoder:
     
     """
     def __init__(self, lin_obj: LinearPosition, observ_obj: SpikeObservation, encode_settings: EncodeSettings,
-                 decode_settings: DecodeSettings, which_trans_mat='learned', time_bin_size=None):
+                 decode_settings: DecodeSettings, which_trans_mat='learned', time_bin_size=None, pool_size=10):
         """
         Constructor for OfflinePPDecoder.
         
@@ -45,6 +47,8 @@ class OfflinePPDecoder:
             self.trans_mat = self.calc_simple_trans_mat(self.encode_settings)
         elif self.which_trans_mat == 'uniform':
             self.trans_mat = self.calc_uniform_trans_mat(self.encode_settings)
+
+        self._pool = mp.Pool(pool_size)
 
     def run_decoder(self, time_bin_size=None):
         """
@@ -208,6 +212,10 @@ class OfflinePPDecoder:
             Dictionary of numpy arrays, one per tetrode, containing occupancy firing rate.
 
         """
+
+        pos_col_names = [pos_col_format(bin_id, enc_settings.pos_num_bins)
+                         for bin_id in range(enc_settings.pos_num_bins)]
+
         pos_num_bins = len(enc_settings.pos_bins)
         pos_bin_delta = enc_settings.pos_bins[1] - enc_settings.pos_bins[0]
 
@@ -223,26 +231,26 @@ class OfflinePPDecoder:
         dec_est = np.zeros([int(spike_decode['dec_bin'].iloc[-1]) + 1, pos_num_bins])
 
         # initialize conditional intensity function
-        firing_rate = {ntrode_id: np.zeros(pos_num_bins) for ntrode_id in spike_decode['ntrode_id'].unique()}
+        firing_rate = {}
+
+        tet_pos_groups = spike_decode.loc[:, ('ntrode_id', 'position')].groupby('ntrode_id')
+
+        for tet_id, tet_spikes in tet_pos_groups:
+            tet_pos_hist, _ = np.histogram(tet_spikes, bins=enc_settings.pos_bin_edges)
+
+            firing_rate[tet_id] = tet_pos_hist
 
         groups = spike_decode.groupby('dec_bin')
-        bin_num_spikes = [0] * len(dec_est)
+
+        dec_agg_results = []
 
         for bin_id, spikes_in_bin in groups:
-            dec_in_bin = np.ones(pos_num_bins)
+            dec_bin_agg = OfflinePPDecoder._calc_observation_intensity_single_bin(bin_id, spikes_in_bin, enc_settings,
+                                                                                  pos_col_names)
+            dec_agg_results.append(dec_bin_agg)
 
-            bin_num_spikes[bin_id] = len(spikes_in_bin)
-
-            # Count spikes for occupancy firing rate (conditional intensity function)
-            for ntrode_id, pos in spikes_in_bin.loc[:, ('ntrode_id', 'position')].values:
-                firing_rate[ntrode_id][np.searchsorted(enc_settings.pos_bins, pos, side='right') - 1] += 1
-
-            for dec_ii, dec in enumerate(spikes_in_bin.loc[:, [pos_col_format(bin_id, enc_settings.pos_num_bins)
-                                                               for bin_id in range(enc_settings.pos_num_bins)]].values):
-                dec_in_bin = dec_in_bin * dec
-                dec_in_bin = dec_in_bin / (np.sum(dec_in_bin) * pos_bin_delta)
-
-            dec_est[bin_id, :] = dec_in_bin
+        binned_observ = pd.DataFrame(dec_agg_results)
+        binned_observ.index = pd.MultiIndex.from_tuples(binned_observ.index, names=['day', 'epoch', 'timestamp', 'time'])
 
         # Smooth and normalize firing rate (conditional intensity function)
         for fr_key in firing_rate.keys():
@@ -253,20 +261,35 @@ class OfflinePPDecoder:
 
             firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * pos_bin_delta)
 
-        start_bin_time = np.floor(spike_decode.index.get_level_values('timestamp')[0] / time_bin_size) * time_bin_size
-        dec_bin_timestamps = np.arange(start_bin_time, start_bin_time + time_bin_size * len(dec_est), time_bin_size)
-        dec_bin_times = dec_bin_timestamps / 30000.     # hard coded sampling rate
-        dec_bin_ind = range(len(dec_est))
-
-        ind = pd.MultiIndex.from_arrays([[day]*len(dec_est), [epoch]*len(dec_est), dec_bin_timestamps, dec_bin_times],
-                                        names=['day', 'epoch', 'timestamp', 'time'])
-        binned_observ = pd.DataFrame(data=dec_est, index=ind,
-                                     columns=[pos_col_format(bin_id, enc_settings.pos_num_bins)
-                                              for bin_id in range(enc_settings.pos_num_bins)])
-        binned_observ['num_spikes'] = bin_num_spikes
-        binned_observ['dec_bin'] = dec_bin_ind
-
         return binned_observ, firing_rate
+
+    @staticmethod
+    def _calc_observation_intensity_single_bin(bin_id, spikes_in_bin, enc_settings, pos_col_names):
+
+        dec_in_bin = np.ones(enc_settings.pos_num_bins)
+
+        num_spikes = len(spikes_in_bin)
+
+        for dec_ii, dec in enumerate(spikes_in_bin.loc[:, pos_col_names].values):
+            dec_in_bin = dec_in_bin * dec
+            dec_in_bin = dec_in_bin / (np.sum(dec_in_bin) * enc_settings.pos_bin_delta)
+
+        """dec_bin_df = pd.DataFrame([dec_in_bin], columns=[pos_col_format(bin_id, enc_settings.pos_num_bins)
+                                                         for bin_id in range(enc_settings.pos_num_bins)],
+                                  index=pd.MultiIndex.from_tuples([(spikes_in_bin.index.get_level_values('day')[0],
+                                                                    spikes_in_bin.index.get_level_values('epoch')[0],
+                                                                    spikes_in_bin['dec_bin_start'].iloc[0],
+                                                                    spikes_in_bin['dec_bin_start'].iloc[0]/30000.)],
+                                                                  names=['day', 'epoch', 'timestamp', 'time']))
+        """
+        dec_bin_df = pd.Series(np.append(dec_in_bin, [num_spikes, bin_id]),
+                               name=(spikes_in_bin.index.get_level_values('day')[0],
+                                     spikes_in_bin.index.get_level_values('epoch')[0],
+                                     spikes_in_bin['dec_bin_start'].iloc[0],
+                                     spikes_in_bin['dec_bin_start'].iloc[0]/30000.),
+                               index=pos_col_names + ['num_spikes', 'dec_bin'])
+
+        return dec_bin_df
 
     @staticmethod
     def calc_occupancy(lin_obj: LinearPosition, enc_settings: EncodeSettings):
@@ -283,6 +306,8 @@ class OfflinePPDecoder:
                                                 normed=True)
 
         occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
+
+        occupancy += 1e10
 
         return occupancy
 
