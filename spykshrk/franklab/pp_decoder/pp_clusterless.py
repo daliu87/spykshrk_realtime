@@ -228,8 +228,6 @@ class OfflinePPDecoder:
             time_bin_size = dec_settings.time_bin_size
             spike_decode = observ.update_observations_bins(time_bin_size=time_bin_size)
 
-        dec_est = np.zeros([int(spike_decode['dec_bin'].iloc[-1]) + 1, pos_num_bins])
-
         # initialize conditional intensity function
         firing_rate = {}
 
@@ -243,14 +241,19 @@ class OfflinePPDecoder:
         groups = spike_decode.groupby('dec_bin')
 
         dec_agg_results = []
+        dec_agg_index = []
 
         for bin_id, spikes_in_bin in groups:
-            dec_bin_agg = OfflinePPDecoder._calc_observation_intensity_single_bin(bin_id, spikes_in_bin, enc_settings,
-                                                                                  pos_col_names)
-            dec_agg_results.append(dec_bin_agg)
+            dec_bin_times, dec_bin_val = OfflinePPDecoder._calc_observation_single_bin(bin_id, spikes_in_bin,
+                                                                                       enc_settings,
+                                                                                       pos_col_names)
+            dec_agg_index.append([day, epoch] + dec_bin_times)
+            dec_agg_results.append(dec_bin_val)
 
-        binned_observ = pd.DataFrame(dec_agg_results)
-        binned_observ.index = pd.MultiIndex.from_tuples(binned_observ.index, names=['day', 'epoch', 'timestamp', 'time'])
+        binned_observ = pd.DataFrame(dec_agg_results,
+                                     columns=pos_col_names+['num_spikes', 'dec_bin'],
+                                     index=pd.MultiIndex.from_tuples(dec_agg_index,
+                                                                     names=['day', 'epoch', 'timestamp', 'time']))
 
         # Smooth and normalize firing rate (conditional intensity function)
         for fr_key in firing_rate.keys():
@@ -264,7 +267,7 @@ class OfflinePPDecoder:
         return binned_observ, firing_rate
 
     @staticmethod
-    def _calc_observation_intensity_single_bin(bin_id, spikes_in_bin, enc_settings, pos_col_names):
+    def _calc_observation_single_bin(bin_id, spikes_in_bin, enc_settings, pos_col_names):
 
         dec_in_bin = np.ones(enc_settings.pos_num_bins)
 
@@ -274,22 +277,11 @@ class OfflinePPDecoder:
             dec_in_bin = dec_in_bin * dec
             dec_in_bin = dec_in_bin / (np.sum(dec_in_bin) * enc_settings.pos_bin_delta)
 
-        """dec_bin_df = pd.DataFrame([dec_in_bin], columns=[pos_col_format(bin_id, enc_settings.pos_num_bins)
-                                                         for bin_id in range(enc_settings.pos_num_bins)],
-                                  index=pd.MultiIndex.from_tuples([(spikes_in_bin.index.get_level_values('day')[0],
-                                                                    spikes_in_bin.index.get_level_values('epoch')[0],
-                                                                    spikes_in_bin['dec_bin_start'].iloc[0],
-                                                                    spikes_in_bin['dec_bin_start'].iloc[0]/30000.)],
-                                                                  names=['day', 'epoch', 'timestamp', 'time']))
-        """
-        dec_bin_df = pd.Series(np.append(dec_in_bin, [num_spikes, bin_id]),
-                               name=(spikes_in_bin.index.get_level_values('day')[0],
-                                     spikes_in_bin.index.get_level_values('epoch')[0],
-                                     spikes_in_bin['dec_bin_start'].iloc[0],
-                                     spikes_in_bin['dec_bin_start'].iloc[0]/30000.),
-                               index=pos_col_names + ['num_spikes', 'dec_bin'])
+        dec_bin_val = np.append(dec_in_bin, [num_spikes, bin_id])
+        dec_bin_times = [spikes_in_bin['dec_bin_start'].iloc[0],
+                         spikes_in_bin['dec_bin_start'].iloc[0]/30000.]
 
-        return dec_bin_df
+        return dec_bin_times, dec_bin_val
 
     @staticmethod
     def calc_occupancy(lin_obj: LinearPosition, enc_settings: EncodeSettings):

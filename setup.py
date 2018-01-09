@@ -16,7 +16,7 @@ binary_rec_sourcefiles = ['./spykshrk/realtime/binary_record_cy.pyx']
 extensions = [Extension('spykshrk.realtime.rst.RSTPython', rst_sourcefiles, include_dirs=[numpy.get_include()]),
               Extension('spykshrk.realtime.binary_record_cy', binary_rec_sourcefiles, include_dirs=[numpy.get_include()])]
 
-setup (name = 'Spykshrk Realtime',
+setup (name = 'spykshrk_realtime',
        ext_modules = cythonize(extensions),
        packages=find_packages('./'),
        package_dir={'spykshrk':'./spykshrk'})
