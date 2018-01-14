@@ -327,6 +327,12 @@ class SpikeObservation(DayEpochTimeSeries, DataFrameClass):
 
         return self
 
+    def update_parallel_bins(self, time_bin_size):
+        parallel_bins = np.floor((self.index.get_level_values('timestamp') -
+                             self.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
+        self['parallel_bin'] = parallel_bins
+
+        return self
 
 class Posteriors(DayEpochTimeSeries, DataFrameClass):
 
