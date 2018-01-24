@@ -307,8 +307,15 @@ class SpkDataStream:
                     epoch_spk_wave_ind = pd.MultiIndex.from_product([[day], [epoch], [tet], epoch_spk_time_reshape],
                                                                     names=['day', 'epoch', 'tet', 'timestamp'])
 
-                    epoch_spk_wave_df = pd.DataFrame(data=epoch_spk_wave_reshape, index=epoch_spk_wave_ind)
-                    epoch_spk_time_channel = np.tile(np.arange(0, epoch_spk_wave.shape[1]), epoch_spk_wave.shape[2])
+                    epoch_spk_wave_df = pd.DataFrame(data=epoch_spk_wave_reshape, index=epoch_spk_wave_ind,
+                                                     columns=pd.Index(['s{:02d}'.format(ii) for ii in
+                                                                       range(epoch_spk_wave_reshape.shape[1])],
+                                                                      name='sample'))
+
+                    epoch_spk_time_channel = np.tile(['c{:02d}'.format(ii) for ii in
+                                                      np.arange(0, epoch_spk_wave.shape[1])],
+                                                     epoch_spk_wave.shape[2])
+
                     epoch_spk_wave_df['channel'] = epoch_spk_time_channel
                     epoch_spk_wave_df.set_index('channel', append=True, inplace=True)
 

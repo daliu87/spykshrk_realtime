@@ -105,9 +105,49 @@ class DayEpochTimeSeries:
             if not isinstance(data.index, pd.MultiIndex):
                 raise DataFormatError("DataFrame index must use MultiIndex as index.")
 
-            if not (data.index.names == ['day', 'epoch', 'timestamp', 'time']):
+            if not all([col in data.index.names for col in ['day', 'epoch', 'timestamp', 'time']]):
                 raise DataFormatError("DayEpochTimeSeries must have index with 4 levels named: "
                                       "day, epoch, timestamp, time.")
+
+        if index is not None and not isinstance(index, pd.MultiIndex):
+            raise DataFormatError("Index to be set must be MultiIndex.")
+
+        super().__init__(**kwds)
+
+
+class DayEpochTetTimeChannelSeries:
+
+    def __init__(self, **kwds):
+        data = kwds['data']
+        index = kwds['index']
+
+        if isinstance(data, pd.DataFrame):
+            if not isinstance(data.index, pd.MultiIndex):
+                raise DataFormatError("DataFrame index must use MultiIndex as index.")
+
+            if not all([col in data.index.names for col in ['day', 'epoch', 'tet', 'timestamp', 'time', 'channel']]):
+                raise DataFormatError("DayEpochTimeSeries must have index with 6 levels named: "
+                                      "day, epoch, tet, timestamp, time.")
+
+        if index is not None and not isinstance(index, pd.MultiIndex):
+            raise DataFormatError("Index to be set must be MultiIndex.")
+
+        super().__init__(**kwds)
+
+
+class DayEpochTetTimeSeries:
+
+    def __init__(self, **kwds):
+        data = kwds['data']
+        index = kwds['index']
+
+        if isinstance(data, pd.DataFrame):
+            if not isinstance(data.index, pd.MultiIndex):
+                raise DataFormatError("DataFrame index must use MultiIndex as index.")
+
+            if not all([col in data.index.names for col in ['day', 'epoch', 'tet', 'timestamp', 'time']]):
+                raise DataFormatError("DayEpochTimeSeries must have index with 6 levels named: "
+                                      "day, epoch, tet, timestamp, time.")
 
         if index is not None and not isinstance(index, pd.MultiIndex):
             raise DataFormatError("Index to be set must be MultiIndex.")
@@ -156,6 +196,44 @@ class DecodeSettings:
         self.time_bin_size = realtime_config['pp_decoder']['bin_size']     # Decode bin size in samples (usually 30kHz)
         self.trans_smooth_std = realtime_config['pp_decoder']['trans_mat_smoother_std']
         self.trans_uniform_gain = realtime_config['pp_decoder']['trans_mat_uniform_gain']
+
+
+class SpikeWaves(DayEpochTetTimeChannelSeries, DataFrameClass):
+
+    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
+
+        if isinstance(data, pd.DataFrame) and ('timestamp' in data.index.names) and not ('time' in data.index.names):
+            data['time'] = data.index.get_level_values('timestamp') / 30000.
+            data.set_index('time', append=True, inplace=True)
+            data.index = data.index.swaplevel(4, 5)
+
+        super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
+                         history=history, **kwds)
+
+    @classmethod
+    def create_default(cls, df, parent=None, **kwds):
+        if parent is None:
+            parent = df
+
+        return cls(df, parent=parent, **kwds)
+
+
+class SpikeFeatures(DayEpochTetTimeSeries, DataFrameClass):
+
+    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
+        super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
+                         history=history, **kwds)
+
+    @classmethod
+    def create_default(cls, df, parent=None, **kwds):
+        if parent is None:
+            parent = df
+
+        return cls(df, parent=parent, **kwds)
+
+    def get_above_threshold(self, threshold):
+        ind = np.nonzero(np.sum(self.values > threshold, axis=1))
+        return self.iloc[ind]
 
 
 class LinearPosition(DayEpochTimeSeries, DataFrameClass):
