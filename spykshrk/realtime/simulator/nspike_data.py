@@ -4,6 +4,7 @@ Defines classes necessary to access and stream NSpike animal's data.
 """
 import numpy as np
 import pandas as pd
+import xarray as xr
 import itertools
 
 from struct import unpack
@@ -16,6 +17,8 @@ from glob import glob
 import math
 
 from spykshrk.realtime.datatypes import LFPPoint, LinearPosPoint, SpikePoint
+
+idx = pd.IndexSlice
 
 try:
     from IPython.terminal.debugger import TerminalPdb
@@ -290,38 +293,43 @@ class SpkDataStream:
                                   (day_timestamps <= epoch_end)).ravel()
                     epoch_numspks = np.nonzero(epoch_mask)[0].size
 
-                    epoch_spk_time = day_timestamps[epoch_mask]
+                    # hardcoded conversion from 3 samples/time
+                    epoch_spk_time = day_timestamps[epoch_mask] * 3
                     epoch_spk_wave = day_waves[:, :, epoch_mask]
                     # convert nparray to a list so each waveform set can be
                     # added to the right index
-                    epoch_spk_wave_list = epoch_spk_wave.swapaxes(0, 2).tolist()
-                    spk_pd_idx = pd.MultiIndex.from_product(
-                        ([day], [tet], [epoch], range(epoch_numspks)),
-                        names=['day', 'tet', 'epoch', 'idx'])
-                    spk_pd_col = pd.Series(['time', 'waveform'])
 
-                    spkdata_df = pd.DataFrame(index=spk_pd_idx, columns=spk_pd_col)
-                    spkdata_df['time'] = epoch_spk_time
-                    spkdata_df['waveform'] = epoch_spk_wave_list
+                    epoch_spk_wave_reshape = epoch_spk_wave.swapaxes(1, 2).reshape(epoch_spk_wave.shape[0],
+                                                                                   epoch_spk_wave.shape[2] *
+                                                                                   epoch_spk_wave.shape[1]).T
 
-                    self.data = self.data.append(spkdata_df)
+                    epoch_spk_time_reshape = np.tile(epoch_spk_time, (1, 4)).reshape(4 * len(epoch_spk_time))
+                    epoch_spk_wave_ind = pd.MultiIndex.from_product([[day], [epoch], [tet], epoch_spk_time_reshape],
+                                                                    names=['day', 'epoch', 'tet', 'timestamp'])
+
+                    epoch_spk_wave_df = pd.DataFrame(data=epoch_spk_wave_reshape, index=epoch_spk_wave_ind)
+                    epoch_spk_time_channel = np.tile(np.arange(0, epoch_spk_wave.shape[1]), epoch_spk_wave.shape[2])
+                    epoch_spk_wave_df['channel'] = epoch_spk_time_channel
+                    epoch_spk_wave_df.set_index('channel', append=True, inplace=True)
+
+                    self.data = self.data.append(epoch_spk_wave_df)
 
     def __call__(self):
         for day in self.days:
             for epoch in self.anim.epochs:
                 # For day, epoch sort based on time
-                epoch_data_sorted = self.data.loc[day, :, epoch, :].sort_values('time')
+                epoch_data_sorted = self.data.loc[idx[day, epoch, :], :].sort_index(level='timestamp')
                 # Waveform data
                 epoch_data_sorted_raw = epoch_data_sorted.values
                 # Indexing data (with tet_id info)
                 epoch_data_sorted_index = epoch_data_sorted.index
 
-                for ind in range(len(epoch_data_sorted_raw)):
-                    timestamp = epoch_data_sorted_raw[ind][0]
-                    spk_data = epoch_data_sorted_raw[ind][1]
-                    tet_num = epoch_data_sorted_index[ind][0]
+                for ind in range(0, len(epoch_data_sorted_raw), 4):
+                    timestamp = epoch_data_sorted_index[ind][3]
+                    spk_data = epoch_data_sorted_raw[ind:ind+4, :]
+                    tet_num = epoch_data_sorted_index[ind][2]
 
-                    yield SpikePoint(timestamp=timestamp * 3, ntrode_id=tet_num, data=spk_data)
+                    yield SpikePoint(timestamp=timestamp, ntrode_id=tet_num, data=spk_data)
 
 
 class EEGDataStream:
