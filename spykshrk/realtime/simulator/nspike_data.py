@@ -305,7 +305,8 @@ class SpkDataStream:
 
                     epoch_spk_time_reshape = np.tile(epoch_spk_time, (1, 4)).reshape(4 * len(epoch_spk_time))
                     epoch_spk_wave_ind = pd.MultiIndex.from_product([[day], [epoch], [tet], epoch_spk_time_reshape],
-                                                                    names=['day', 'epoch', 'tet', 'timestamp'])
+                                                                    names=['day', 'epoch', 'electrode_group_id',
+                                                                           'timestamp'])
 
                     epoch_spk_wave_df = pd.DataFrame(data=epoch_spk_wave_reshape, index=epoch_spk_wave_ind,
                                                      columns=pd.Index(['s{:02d}'.format(ii) for ii in
@@ -334,9 +335,9 @@ class SpkDataStream:
                 for ind in range(0, len(epoch_data_sorted_raw), 4):
                     timestamp = epoch_data_sorted_index[ind][3]
                     spk_data = epoch_data_sorted_raw[ind:ind+4, :]
-                    tet_num = epoch_data_sorted_index[ind][2]
+                    electrode_group_id = epoch_data_sorted_index[ind][2]
 
-                    yield SpikePoint(timestamp=timestamp, ntrode_id=tet_num, data=spk_data)
+                    yield SpikePoint(timestamp=timestamp, electrode_group_id=electrode_group_id, data=spk_data)
 
 
 class EEGDataStream:
@@ -452,7 +453,7 @@ class EEGDataStream:
 
                             # Hardcoded timestamp conversion to sample rate (10kHz to 30kHz)
                             yield LFPPoint(timestamp=int(timestamp * 3), ntrode_index=int(col_ind),
-                                           ntrode_id=int(tet_id), data=int(tet_val))
+                                           electrode_group_id=int(tet_id), data=int(tet_val))
 
                     # Increment to next row
                     row_cursor += 1

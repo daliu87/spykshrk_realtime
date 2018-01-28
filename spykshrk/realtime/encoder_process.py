@@ -16,9 +16,9 @@ class SpikeDecodeResultsMessage(realtime_logging.PrintableMessage):
     _header_byte_fmt = '=qidi'
     _header_byte_len = struct.calcsize(_header_byte_fmt)
 
-    def __init__(self, timestamp, ntrode_id, current_pos, pos_hist):
+    def __init__(self, timestamp, electrode_group_id, current_pos, pos_hist):
         self.timestamp = timestamp
-        self.ntrode_id = ntrode_id
+        self.electrode_group_id = electrode_group_id
         self.current_pos = current_pos
         self.pos_hist = pos_hist
 
@@ -28,7 +28,7 @@ class SpikeDecodeResultsMessage(realtime_logging.PrintableMessage):
 
         message_bytes = struct.pack(self._header_byte_fmt,
                                     self.timestamp,
-                                    self.ntrode_id,
+                                    self.electrode_group_id,
                                     self.current_pos,
                                     pos_hist_byte_len)
 
@@ -38,12 +38,13 @@ class SpikeDecodeResultsMessage(realtime_logging.PrintableMessage):
 
     @classmethod
     def unpack(cls, message_bytes):
-        timestamp, ntrode_id, current_pos, pos_hist_len = struct.unpack(cls._header_byte_fmt,
-                                                                        message_bytes[0:cls._header_byte_len])
+        timestamp, electrode_group_id, current_pos, pos_hist_len = struct.unpack(cls._header_byte_fmt,
+                                                                                 message_bytes[0:cls._header_byte_len])
 
         pos_hist = np.frombuffer(message_bytes[cls._header_byte_len:cls._header_byte_len+pos_hist_len])
 
-        return cls(timestamp=timestamp, ntrode_id=ntrode_id, current_pos=current_pos, pos_hist=pos_hist)
+        return cls(timestamp=timestamp, electrode_group_id=electrode_group_id,
+                   current_pos=current_pos, pos_hist=pos_hist)
 
 
 class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
@@ -86,7 +87,7 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming):
                                                                'weight',
                                                                'position'],
                                                               ['timestamp',
-                                                               'ntrode_id',
+                                                               'electrode_group_id',
                                                                'position'] +
                                                               ['x{:0{dig}d}'.
                                                                format(x, dig=len(str(config['encoder']
@@ -156,17 +157,17 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming):
             datapoint = msgs[0]
             timing_msg = msgs[1]
             if isinstance(datapoint, SpikePoint):
-                self.record_timing(timestamp=datapoint.timestamp, ntrode_id=datapoint.ntrode_id,
+                self.record_timing(timestamp=datapoint.timestamp, electrode_group_id=datapoint.electrode_group_id,
                                    datatype=datatypes.Datatypes.SPIKES, label='enc_recv')
 
                 self.spk_counter += 1
                 amp_marks = [max(x) for x in datapoint.data]
 
                 if max(amp_marks) > self.config['encoder']['spk_amp']:
-                    query_result = self.encoders[datapoint.ntrode_id]. \
+                    query_result = self.encoders[datapoint.electrode_group_id]. \
                         query_mark_hist(amp_marks,
                                         datapoint.timestamp,
-                                        datapoint.ntrode_id)                # type: kernel_encoder.RSTKernelEncoderQuery
+                                        datapoint.electrode_group_id)                # type: kernel_encoder.RSTKernelEncoderQuery
 
                     # for weight, position in zip(query_result.query_weights, query_result.query_positions):
                     #     self.write_record(realtime_base.RecordIDs.ENCODER_QUERY,
@@ -176,23 +177,25 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming):
 
                     self.write_record(realtime_base.RecordIDs.ENCODER_OUTPUT,
                                       query_result.query_time,
-                                      query_result.ntrode_id,
+                                      query_result.electrode_group_id,
                                       self.current_pos,
                                       *query_result.query_hist)
 
-                    self.record_timing(timestamp=datapoint.timestamp, ntrode_id=datapoint.ntrode_id,
+                    self.record_timing(timestamp=datapoint.timestamp, electrode_group_id=datapoint.electrode_group_id,
                                        datatype=datatypes.Datatypes.SPIKES, label='spk_dec')
 
                     self.mpi_send.send_decoded_spike(SpikeDecodeResultsMessage(timestamp=query_result.query_time,
-                                                                               ntrode_id=query_result.ntrode_id,
+                                                                               electrode_group_id=
+                                                                               query_result.electrode_group_id,
                                                                                current_pos=self.current_pos,
                                                                                pos_hist=query_result.query_hist))
 
                     if abs(self.current_vel) >= self.config['encoder']['vel']:
 
-                        self.encoders[datapoint.ntrode_id].new_mark(amp_marks)
+                        self.encoders[datapoint.electrode_group_id].new_mark(amp_marks)
 
-                        self.record_timing(timestamp=datapoint.timestamp, ntrode_id=datapoint.ntrode_id,
+                        self.record_timing(timestamp=datapoint.timestamp, electrode_group_id=
+                                           datapoint.electrode_group_id,
                                            datatype=datatypes.Datatypes.SPIKES, label='spk_enc')
 
                 if self.spk_counter % 10000 == 0:

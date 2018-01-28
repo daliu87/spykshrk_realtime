@@ -114,6 +114,13 @@ class DayEpochTimeSeries:
 
         super().__init__(**kwds)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
 
 class DayEpochTetTimeChannelSeries:
 
@@ -165,22 +172,26 @@ class EncodeSettings:
         Args:
             realtime_config (dict[str, *]): JSON realtime configuration imported as a dict
         """
+        encoder_config = realtime_config['encoder']
 
-        self.arm_coordinates = realtime_config['encoder']['position']['arm_pos']
+        self.arm_coordinates = encoder_config['position']['arm_pos']
 
-        self.pos_upper = realtime_config['encoder']['position']['upper']
-        self.pos_lower = realtime_config['encoder']['position']['lower']
-        self.pos_num_bins = realtime_config['encoder']['position']['bins']
+        self.pos_upper = encoder_config['position']['upper']
+        self.pos_lower = encoder_config['position']['lower']
+        self.pos_num_bins = encoder_config['position']['bins']
         self.pos_bin_delta = ((self.pos_upper - self.pos_lower) / self.pos_num_bins)
 
         self.pos_bins = np.linspace(0, self.pos_bin_delta * (self.pos_num_bins - 1), self.pos_num_bins)
         self.pos_bin_edges = np.linspace(0, self.pos_bin_delta * self.pos_num_bins, self.pos_num_bins+1)
 
-        self.pos_kernel_std = realtime_config['encoder']['position_kernel']['std']
+        self.pos_kernel_std = encoder_config['position_kernel']['std']
 
         self.pos_kernel = gaussian(self.pos_bins,
                                    self.pos_bins[int(len(self.pos_bins)/2)],
                                    self.pos_kernel_std)
+
+        self.mark_kernel_mean = encoder_config['mark_kernel']['mean']
+        self.mark_kernel_std = encoder_config['mark_kernel']['std']
 
 
 class DecodeSettings:
@@ -234,6 +245,15 @@ class SpikeFeatures(DayEpochTetTimeSeries, DataFrameClass):
     def get_above_threshold(self, threshold):
         ind = np.nonzero(np.sum(self.values > threshold, axis=1))
         return self.iloc[ind]
+
+    def get_simple_index(self):
+        """
+        Only use if MultiIndex has been selected for day, epoch, and tetrode.
+        Returns:
+
+        """
+
+        return self.set_index(self.index.get_level_values('timestamp'))
 
 
 class LinearPosition(DayEpochTimeSeries, DataFrameClass):
@@ -320,7 +340,7 @@ class LinearPosition(DayEpochTimeSeries, DataFrameClass):
             #df.set_index(df.index.get_level_values('timestamp'), inplace=True)
             pos_data_bin_ids = np.arange(0, len(new_timestamps), 1)
 
-            pos_data_binned = df.loc[day, epoch].reindex(new_indices, method='bfill')
+            pos_data_binned = df.loc[day, epoch].reindex(new_indices, method='ffill')
             #pos_data_binned.set_index(new_timestamps)
             pos_data_binned['bin'] = pos_data_bin_ids
 
@@ -331,6 +351,16 @@ class LinearPosition(DayEpochTimeSeries, DataFrameClass):
         pos_data_rebinned = grp.apply(epoch_rebin_func)
         return type(self)(pos_data_rebinned, history=self.history, **self.kwds)
 
+    def get_irregular_resampled(self, timestamps):
+
+        grp = self.groupby(level=['day', 'epoch'])
+        for (day, epoch), grp_df in grp:
+            ind = pd.MultiIndex.from_arrays([[day]*len(timestamps), [epoch]*len(timestamps),
+                                             timestamps, np.array(timestamps)/30000], names=['day', 'epoch',
+                                                                                             'timestamp', 'time'])
+
+            return grp_df.reindex(ind, method='ffill', fill_value=0)
+
     def get_mapped_single_axis(self):
         """
         Returns linearized position converted into a segmented 1-D representation.
@@ -338,6 +368,10 @@ class LinearPosition(DayEpochTimeSeries, DataFrameClass):
         Returns (pd.DataFrame): Segmented 1-D linear position.
 
         """
+
+        invalid_pos = self.query('@self.seg_idx.seg_idx == 0')
+        invalid_pos_flat = pd.DataFrame([0 for _ in range(len(invalid_pos))],
+                                        columns=['linpos_flat'], index=invalid_pos.index)
 
         center_pos_flat = (self.query('@self.seg_idx.seg_idx == 1').
                            loc[:, [('lin_dist_well', 'well_center')]]) + self.kwds['enc_settings'].arm_coordinates[0][0]
@@ -352,7 +386,7 @@ class LinearPosition(DayEpochTimeSeries, DataFrameClass):
         left_pos_flat.columns = ['linpos_flat']
         right_pos_flat.columns = ['linpos_flat']
 
-        linpos_flat = pd.concat([center_pos_flat, left_pos_flat, right_pos_flat])   # type: pd.DataFrame
+        linpos_flat = pd.concat([invalid_pos_flat, center_pos_flat, left_pos_flat, right_pos_flat]) # type: pd.DataFrame
         linpos_flat = linpos_flat.sort_index()
 
         linpos_flat['seg_idx'] = self.seg_idx.seg_idx
@@ -407,10 +441,11 @@ class SpikeObservation(DayEpochTimeSeries, DataFrameClass):
 
     def update_parallel_bins(self, time_bin_size):
         parallel_bins = np.floor((self.index.get_level_values('timestamp') -
-                             self.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
+                                  self.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
         self['parallel_bin'] = parallel_bins
 
         return self
+
 
 class Posteriors(DayEpochTimeSeries, DataFrameClass):
 

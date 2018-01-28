@@ -71,7 +71,7 @@
     }, 
 
     "encoder": {
-        "kernel": {
+        "mark_kernel": {
             "mean": 0,
             "std": 5,
             "lower": -1024,

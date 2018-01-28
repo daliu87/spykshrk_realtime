@@ -18,22 +18,22 @@ class SpikePoint(PrintableMessage):
     """
     _byte_format = '=qi40h40h40h40h'
 
-    def __init__(self, timestamp, ntrode_id, data):
+    def __init__(self, timestamp, electrode_group_id, data):
         self.timestamp = timestamp
-        self.ntrode_id = ntrode_id
+        self.electrode_group_id = electrode_group_id
         self.data = data
 
     def pack(self):
-        return struct.pack(self._byte_format, self.timestamp, self.ntrode_id,
+        return struct.pack(self._byte_format, self.timestamp, self.electrode_group_id,
                            *self.data[0], *self.data[1], *self.data[2], *self.data[3])
 
     @classmethod
     def unpack(cls, message_bytes):
-        timestamp, ntrode_id, *raw_data = struct.unpack(cls._byte_format, message_bytes)
-        return cls(timestamp=timestamp, ntrode_id=ntrode_id, data=[raw_data[0:40],
-                                                                   raw_data[40:80],
-                                                                   raw_data[80:120],
-                                                                   raw_data[120:160]])
+        timestamp, electrode_group_id, *raw_data = struct.unpack(cls._byte_format, message_bytes)
+        return cls(timestamp=timestamp, electrode_group_id=electrode_group_id, data=[raw_data[0:40],
+                                                                                     raw_data[40:80],
+                                                                                     raw_data[80:120],
+                                                                                     raw_data[120:160]])
 
     @classmethod
     def packed_message_size(cls):
@@ -43,19 +43,20 @@ class SpikePoint(PrintableMessage):
 class LFPPoint(PrintableMessage):
     _byte_format = '=qiii'
 
-    def __init__(self, timestamp, ntrode_index, ntrode_id, data):
+    def __init__(self, timestamp, ntrode_index, electrode_group_id, data):
         self.timestamp = timestamp
         self.ntrode_index = ntrode_index
-        self.ntrode_id = ntrode_id
+        self.electrode_group_id = electrode_group_id
         self.data = data
 
     def pack(self):
-        return struct.pack(self._byte_format, self.timestamp, self.ntrode_index, self.ntrode_id, self.data)
+        return struct.pack(self._byte_format, self.timestamp, self.ntrode_index, self.electrode_group_id, self.data)
 
     @classmethod
     def unpack(cls, message_bytes):
-        timestamp, ntrode_index, ntrode_id, data = struct.unpack(cls._byte_format, message_bytes)
-        message = cls(timestamp=timestamp, ntrode_index=ntrode_index, ntrode_id=ntrode_id, data=data)
+        timestamp, ntrode_index, electrode_group_id, data = struct.unpack(cls._byte_format, message_bytes)
+        message = cls(timestamp=timestamp, ntrode_index=electrode_group_id,
+                      electrode_group_id=electrode_group_id, data=data)
         return message
 
     @classmethod
@@ -83,6 +84,7 @@ class LinearPosPoint(PrintableMessage):
     @classmethod
     def packed_message_size(cls):
         return struct.calcsize(cls._byte_format)
+
 
 class RawPosPoint(PrintableMessage):
     def __init__(self, timestamp, x1, y1, x2, y2, camera_id):
