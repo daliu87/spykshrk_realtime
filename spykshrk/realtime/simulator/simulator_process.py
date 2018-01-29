@@ -274,13 +274,13 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
             data_to_send = self.data_itr.__next__()
             if isinstance(data_to_send, datatypes.LFPPoint):
 
-                self.record_timing(timestamp=data_to_send.timestamp, electrode_group_id=data_to_send.electrode_group_id,
+                self.record_timing(timestamp=data_to_send.timestamp, elec_grp_id=data_to_send.elec_grp_id,
                                    datatype=datatypes.Datatypes.LFP, label='sim_send')
 
                 try:
                     bytes_to_send = data_to_send.pack()
 
-                    self.comm.Ssend(buf=bytes_to_send, dest=self.lfp_chan_req_dict[data_to_send.electrode_group_id],
+                    self.comm.Ssend(buf=bytes_to_send, dest=self.lfp_chan_req_dict[data_to_send.elec_grp_id],
                                     tag=realtime_base.MPIMessageTag.SIMULATOR_LFP_DATA)
 
                 except KeyError as err:
@@ -290,22 +290,22 @@ class Simulator(realtime_base.BinaryRecordBaseWithTiming, realtime_base.Realtime
 
             elif isinstance(data_to_send, datatypes.SpikePoint):
 
-                self.record_timing(timestamp=data_to_send.timestamp, electrode_group_id=data_to_send.electrode_group_id,
+                self.record_timing(timestamp=data_to_send.timestamp, elec_grp_id=data_to_send.elec_grp_id,
                                    datatype=datatypes.Datatypes.SPIKES, label='sim_send')
                 try:
                     bytes_to_send = data_to_send.pack()
 
-                    for dest_rank in self.spk_chan_req_dict[data_to_send.electrode_group_id]:
+                    for dest_rank in self.spk_chan_req_dict[data_to_send.elec_grp_id]:
                         self.comm.Ssend(buf=bytes_to_send, dest=dest_rank,
                                         tag=realtime_base.MPIMessageTag.SIMULATOR_SPK_DATA)
 
                 except KeyError as err:
                     self.class_log.exception(("KeyError: Tetrode id ({:}) not in spike channel request dict {:}, "
                                               "was likely never requested by a receiving/computing ranks.").
-                                             format(data_to_send.electrode_group_id, self.spk_chan_req_dict), exc_info=err)
+                                             format(data_to_send.elec_grp_id, self.spk_chan_req_dict), exc_info=err)
 
             elif isinstance(data_to_send, datatypes.LinearPosPoint):
-                self.record_timing(timestamp=data_to_send.timestamp, electrode_group_id=-1,
+                self.record_timing(timestamp=data_to_send.timestamp, elec_grp_id=-1,
                                    datatype=datatypes.Datatypes.LINEAR_POSITION, label='sim_send')
                 bytes_to_send = data_to_send.pack()
 

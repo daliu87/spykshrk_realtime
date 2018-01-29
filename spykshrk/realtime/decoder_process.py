@@ -111,11 +111,11 @@ class PointProcessDecoder(realtime_logging.LoggingClass):
 
     def select_ntrodes(self, ntrode_list):
         self.ntrode_list = ntrode_list
-        self.firing_rate = {electrode_group_id: np.ones(self.pos_bins)
-                            for electrode_group_id in self.ntrode_list}
+        self.firing_rate = {elec_grp_id: np.ones(self.pos_bins)
+                            for elec_grp_id in self.ntrode_list}
 
-    def add_observation(self, spk_electrode_group_id, spk_pos_hist):
-        self.firing_rate[spk_electrode_group_id][self.cur_pos_ind] += 1
+    def add_observation(self, spk_elec_grp_id, spk_pos_hist):
+        self.firing_rate[spk_elec_grp_id][self.cur_pos_ind] += 1
 
         self.observation *= spk_pos_hist
         self.observation = self.observation / np.max(self.observation)
@@ -208,7 +208,7 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
                                                            format(x, dig=len(str(config['encoder']
                                                                                  ['position']['bins'])))
                                                            for x in range(config['encoder']['position']['bins'])],
-                                                          ['timestamp', 'electrode_group_id', 'real_bin', 'late_bin']],
+                                                          ['timestamp', 'elec_grp_id', 'real_bin', 'late_bin']],
                                               rec_formats=['qqd'+'d'*config['encoder']['position']['bins'],
                                                            'qiii'])
 
@@ -250,7 +250,7 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
 
         if spike_dec_msg is not None:
 
-            self.record_timing(timestamp=spike_dec_msg.timestamp, electrode_group_id=spike_dec_msg.electrode_group_id,
+            self.record_timing(timestamp=spike_dec_msg.timestamp, elec_grp_id=spike_dec_msg.elec_grp_id,
                                datatype=datatypes.Datatypes.SPIKES, label='dec_recv')
 
             # Update firing rate
@@ -264,7 +264,7 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
 
             if spike_time_bin == self.current_time_bin:
                 # Spike is in current time bin
-                self.pp_decoder.add_observation(spk_electrode_group_id=spike_dec_msg.electrode_group_id,
+                self.pp_decoder.add_observation(spk_elec_grp_id=spike_dec_msg.elec_grp_id,
                                                 spk_pos_hist=spike_dec_msg.pos_hist)
                 pass
 
@@ -290,7 +290,7 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
                                       *posterior)
                     self.current_time_bin += 1
 
-                self.pp_decoder.add_observation(spk_electrode_group_id=spike_dec_msg.electrode_group_id,
+                self.pp_decoder.add_observation(spk_elec_grp_id=spike_dec_msg.elec_grp_id,
                                                 spk_pos_hist=spike_dec_msg.pos_hist)
 
                 # Increment current time bin to latest spike
@@ -299,7 +299,7 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
 
             elif spike_time_bin < self.current_time_bin:
                 self.write_record(realtime_base.RecordIDs.DECODER_MISSED_SPIKES,
-                                  spike_dec_msg.timestamp, spike_dec_msg.electrode_group_id,
+                                  spike_dec_msg.timestamp, spike_dec_msg.elec_grp_id,
                                   spike_time_bin, self.current_time_bin)
                 # Spike is in an old time bin, discard and mark as missed
                 self.class_log.debug('Spike was excluded from PP decode calculation, arrived late.')
@@ -309,7 +309,7 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
             if self.msg_counter % 1000 == 0:
                 self.class_log.debug('Received {} decoded messages.'.format(self.msg_counter))
 
-            self.record_timing(timestamp=spike_dec_msg.timestamp, electrode_group_id=spike_dec_msg.electrode_group_id,
+            self.record_timing(timestamp=spike_dec_msg.timestamp, elec_grp_id=spike_dec_msg.elec_grp_id,
                                datatype=datatypes.Datatypes.SPIKES, label='dec_proc')
 
             pass
@@ -360,7 +360,7 @@ class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
 
         if spike_dec_msg is not None:
 
-            self.record_timing(timestamp=spike_dec_msg.timestamp, electrode_group_id=spike_dec_msg.electrode_group_id,
+            self.record_timing(timestamp=spike_dec_msg.timestamp, elec_grp_id=spike_dec_msg.elec_grp_id,
                                datatype=datatypes.Datatypes.SPIKES, label='dec_recv')
 
             if self.current_time_bin == 0:

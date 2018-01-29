@@ -1,4 +1,6 @@
 import numpy as np
+import scipy as sp
+import scipy.stats
 
 
 def gaussian(x, mu, sig):
@@ -7,6 +9,13 @@ def gaussian(x, mu, sig):
 
 def normal2D(x, y, sig):
     return np.exp(-(np.power(x, 2.) + np.power(y, 2.)) / (2 * np.power(sig, 2.)))
+
+
+def normal_pdf_int_lookup(x, mean, std):
+    max_amp = 2000
+    norm_dist = sp.stats.norm.pdf(x=np.arange(-max_amp,max_amp), loc=0, scale=std)
+
+    return norm_dist[x-mean+max_amp]
 
 
 def apply_no_anim_boundary(x_bins, arm_coor, image):

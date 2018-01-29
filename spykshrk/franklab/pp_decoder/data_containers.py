@@ -122,7 +122,7 @@ class DayEpochTimeSeries:
         self.__dict__.update(state)
 
 
-class DayEpochTetTimeChannelSeries:
+class DayEpochElecTimeChannelSeries:
 
     def __init__(self, **kwds):
         data = kwds['data']
@@ -132,9 +132,10 @@ class DayEpochTetTimeChannelSeries:
             if not isinstance(data.index, pd.MultiIndex):
                 raise DataFormatError("DataFrame index must use MultiIndex as index.")
 
-            if not all([col in data.index.names for col in ['day', 'epoch', 'tet', 'timestamp', 'time', 'channel']]):
+            if not all([col in data.index.names for col in ['day', 'epoch', 'elec_grp_id',
+                                                            'timestamp', 'time', 'channel']]):
                 raise DataFormatError("DayEpochTimeSeries must have index with 6 levels named: "
-                                      "day, epoch, tet, timestamp, time.")
+                                      "day, epoch, elec_grp_id, timestamp, time.")
 
         if index is not None and not isinstance(index, pd.MultiIndex):
             raise DataFormatError("Index to be set must be MultiIndex.")
@@ -142,7 +143,7 @@ class DayEpochTetTimeChannelSeries:
         super().__init__(**kwds)
 
 
-class DayEpochTetTimeSeries:
+class DayEpochElecTimeSeries:
 
     def __init__(self, **kwds):
         data = kwds['data']
@@ -152,9 +153,9 @@ class DayEpochTetTimeSeries:
             if not isinstance(data.index, pd.MultiIndex):
                 raise DataFormatError("DataFrame index must use MultiIndex as index.")
 
-            if not all([col in data.index.names for col in ['day', 'epoch', 'tet', 'timestamp', 'time']]):
+            if not all([col in data.index.names for col in ['day', 'epoch', 'elec_grp_id', 'timestamp', 'time']]):
                 raise DataFormatError("DayEpochTimeSeries must have index with 6 levels named: "
-                                      "day, epoch, tet, timestamp, time.")
+                                      "day, epoch, elec_grp_id, timestamp, time.")
 
         if index is not None and not isinstance(index, pd.MultiIndex):
             raise DataFormatError("Index to be set must be MultiIndex.")
@@ -209,7 +210,7 @@ class DecodeSettings:
         self.trans_uniform_gain = realtime_config['pp_decoder']['trans_mat_uniform_gain']
 
 
-class SpikeWaves(DayEpochTetTimeChannelSeries, DataFrameClass):
+class SpikeWaves(DayEpochElecTimeChannelSeries, DataFrameClass):
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
 
@@ -229,7 +230,7 @@ class SpikeWaves(DayEpochTetTimeChannelSeries, DataFrameClass):
         return cls(df, parent=parent, **kwds)
 
 
-class SpikeFeatures(DayEpochTetTimeSeries, DataFrameClass):
+class SpikeFeatures(DayEpochElecTimeSeries, DataFrameClass):
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
         super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,

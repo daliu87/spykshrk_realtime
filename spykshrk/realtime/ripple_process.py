@@ -56,23 +56,23 @@ class RippleThresholdState(rt_logging.PrintableMessage):
     """
     _byte_format = 'Iii'
 
-    def __init__(self, timestamp, electrode_group_id, threshold_state):
+    def __init__(self, timestamp, elec_grp_id, threshold_state):
         self.timestamp = timestamp
-        self.electrode_group_id = electrode_group_id
+        self.elec_grp_id = elec_grp_id
         self.threshold_state = threshold_state
 
     def pack(self):
-        return struct.pack(self._byte_format, self.timestamp, self.electrode_group_id, self.threshold_state)
+        return struct.pack(self._byte_format, self.timestamp, self.elec_grp_id, self.threshold_state)
 
     @classmethod
     def unpack(cls, message_bytes):
-        timestamp, electrode_group_id, threshold_state = struct.unpack(cls._byte_format, message_bytes)
-        return cls(timestamp=timestamp, electrode_group_id=electrode_group_id, threshold_state=threshold_state)
+        timestamp, elec_grp_id, threshold_state = struct.unpack(cls._byte_format, message_bytes)
+        return cls(timestamp=timestamp, elec_grp_id=elec_grp_id, threshold_state=threshold_state)
 
 
 class RippleFilter(rt_logging.LoggingClass):
     def __init__(self, rec_base: realtime_base.BinaryRecordBase, param: RippleParameterMessage,
-                 electrode_group_id):
+                 elec_grp_id):
         super().__init__()
         self.rec_base = rec_base
         self.NFILT = 19
@@ -117,7 +117,7 @@ class RippleFilter(rt_logging.LoggingClass):
                             -9.165841559639211766e-01,
                             9.461443242601841330e-02]
 
-        self.electrode_group_id = electrode_group_id
+        self.elec_grp_id = elec_grp_id
         self.param = param
 
         self.stim_enabled = False
@@ -147,7 +147,7 @@ class RippleFilter(rt_logging.LoggingClass):
 
     @custom_baseline_mean.setter
     def custom_baseline_mean(self, value):
-        self.class_log.debug("Custom Baseline Mean for {}, {}".format(self.electrode_group_id, value))
+        self.class_log.debug("Custom Baseline Mean for {}, {}".format(self.elec_grp_id, value))
         if value:
             self._custom_baseline_mean = value
         else:
@@ -159,7 +159,7 @@ class RippleFilter(rt_logging.LoggingClass):
 
     @custom_baseline_std.setter
     def custom_baseline_std(self, value):
-        self.class_log.debug("Custom Baseline Std for {}, {}".format(self.electrode_group_id, value))
+        self.class_log.debug("Custom Baseline Std for {}, {}".format(self.elec_grp_id, value))
         if value:
             self._custom_baseline_std = value
         else:
@@ -274,7 +274,7 @@ class RippleFilter(rt_logging.LoggingClass):
         # rec_labels=['current_time', 'ntrode_index', 'thresh_crossed', 'lockout', 'lfp_data', 'rd','current_val'],
         # rec_format='Ii??dd',
         self.rec_base.write_record(realtime_base.RecordIDs.RIPPLE_STATE,
-                                   self.current_time, self.electrode_group_id, self.thresh_crossed,
+                                   self.current_time, self.elec_grp_id, self.thresh_crossed,
                                    self.in_lockout, self._custom_baseline_mean, self._custom_baseline_std,
                                    int(data), rd, self.current_val)
 
@@ -283,7 +283,7 @@ class RippleFilter(rt_logging.LoggingClass):
     def get_status_dict(self):
         s = OrderedDict()
         if self.param.enabled:
-            s['nt'] = self.electrode_group_id
+            s['nt'] = self.elec_grp_id
 
             if self.param.use_custom_baseline:
                 s['custom_mean'] = self.custom_baseline_mean
@@ -315,8 +315,8 @@ class RippleMPISendInterface(realtime_base.RealtimeMPIClass):
                        dest=self.config['rank']['supervisor'],
                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
-    def send_ripple_thresh_state(self, timestamp, electrode_group_id, thresh_state):
-        message = RippleThresholdState(timestamp, electrode_group_id, thresh_state)
+    def send_ripple_thresh_state(self, timestamp, elec_grp_id, thresh_state):
+        message = RippleThresholdState(timestamp, elec_grp_id, thresh_state)
 
         self.comm.Send(buf=message.pack(),
                        dest=self.config['rank']['supervisor'],
@@ -344,7 +344,7 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
                          send_interface=send_interface,
                          rec_ids=[realtime_base.RecordIDs.RIPPLE_STATE],
                          rec_labels=[['timestamp',
-                                      'electrode_group_id',
+                                      'elec_grp_id',
                                       'thresh_crossed',
                                       'lockout',
                                       'custom_mean',
@@ -378,7 +378,7 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
             self.data_interface.register_datatype_channel(channel=electrode_group)
 
             self.ripple_filters.setdefault(electrode_group, RippleFilter(rec_base=self, param=self.param,
-                                                                         electrode_group_id=electrode_group))
+                                                                         elec_grp_id=electrode_group))
 
     def turn_on_datastreams(self):
         self.class_log.info("Turn on datastreams.")
@@ -441,18 +441,18 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
             timing_msg = msgs[1]
 
             if isinstance(datapoint, LFPPoint):
-                self.record_timing(timestamp=datapoint.timestamp, electrode_group_id=datapoint.electrode_group_id,
+                self.record_timing(timestamp=datapoint.timestamp, elec_grp_id=datapoint.elec_grp_id,
                                    datatype=datatypes.Datatypes.LFP, label='rip_recv')
 
-                filter_state = (self.ripple_filters[datapoint.electrode_group_id].
+                filter_state = (self.ripple_filters[datapoint.elec_grp_id].
                                 process_data(timestamp=datapoint.timestamp,
                                              data=datapoint.data))
 
-                self.record_timing(timestamp=datapoint.timestamp, electrode_group_id=datapoint.electrode_group_id,
+                self.record_timing(timestamp=datapoint.timestamp, elec_grp_id=datapoint.elec_grp_id,
                                    datatype=datatypes.Datatypes.LFP, label='rip_send')
 
                 self.mpi_send.send_ripple_thresh_state(timestamp=datapoint.timestamp,
-                                                       electrode_group_id=datapoint.electrode_group_id,
+                                                       elec_grp_id=datapoint.elec_grp_id,
                                                        thresh_state=filter_state)
 
                 self.data_packet_counter += 1

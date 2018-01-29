@@ -116,7 +116,7 @@ class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
                          send_interface=send_interface,
                          rec_ids=[realtime_base.RecordIDs.STIM_STATE,
                                   realtime_base.RecordIDs.STIM_LOCKOUT],
-                         rec_labels=[['timestamp', 'electrode_group_id', 'threshold_state'],
+                         rec_labels=[['timestamp', 'elec_grp_id', 'threshold_state'],
                                      ['timestamp', 'lockout_num', 'lockout_state']],
                          rec_formats=['Iii',
                                       'Iii'])
@@ -153,19 +153,19 @@ class StimDecider(realtime_base.BinaryRecordBaseWithTiming):
     def update_lockout_time(self, lockout_time):
         self._lockout_time = lockout_time
 
-    def update_ripple_threshold_state(self, timestamp, electrode_group_id, threshold_state):
+    def update_ripple_threshold_state(self, timestamp, elec_grp_id, threshold_state):
         # Log timing
-        self.record_timing(timestamp=timestamp, electrode_group_id=electrode_group_id,
+        self.record_timing(timestamp=timestamp, elec_grp_id=elec_grp_id,
                            datatype=datatypes.Datatypes.LFP, label='stim_rip_state')
 
         if self._enabled:
 
-            self._ripple_thresh_states.setdefault(electrode_group_id, 0)
+            self._ripple_thresh_states.setdefault(elec_grp_id, 0)
             # only write state if state changed
-            if self._ripple_thresh_states[electrode_group_id] != threshold_state:
-                self.write_record(realtime_base.RecordIDs.STIM_STATE, timestamp, electrode_group_id, threshold_state)
+            if self._ripple_thresh_states[elec_grp_id] != threshold_state:
+                self.write_record(realtime_base.RecordIDs.STIM_STATE, timestamp, elec_grp_id, threshold_state)
 
-            self._ripple_thresh_states[electrode_group_id] = threshold_state
+            self._ripple_thresh_states[elec_grp_id] = threshold_state
             num_above = 0
             for state in self._ripple_thresh_states.values():
                 num_above += state
@@ -216,7 +216,7 @@ class StimDeciderMPIRecvInterface(realtime_base.RealtimeMPIClass):
             if self.mpi_statuses[0].source in self.config['rank']['ripples']:
                 message = ripple_process.RippleThresholdState.unpack(message_bytes=self.feedback_bytes)
                 self.stim.update_ripple_threshold_state(timestamp=message.timestamp,
-                                                        electrode_group_id=message.electrode_group_id,
+                                                        elec_grp_id=message.elec_grp_id,
                                                         threshold_state=message.threshold_state)
 
                 self.mpi_reqs[0] = self.comm.Irecv(buf=self.feedback_bytes,
