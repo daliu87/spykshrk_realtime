@@ -22,8 +22,8 @@ class OfflinePPDecoder:
     
     """
     def __init__(self, lin_obj: LinearPosition, observ_obj: SpikeObservation, encode_settings: EncodeSettings,
-                 decode_settings: DecodeSettings, which_trans_mat='learned', time_bin_size=None, parallel=True,
-                 bin_per_pool=100):
+                 decode_settings: DecodeSettings, which_trans_mat='learned', time_bin_size=10, parallel=True,
+                 bin_per_pool=1000):
         """
         Constructor for OfflinePPDecoder.
         
@@ -55,8 +55,18 @@ class OfflinePPDecoder:
         self.parallel = parallel
 
         if self.parallel:
-            self._rc = ipp.Client()
-            self._dview = self._rc[:]  # use all cores
+
+            try:
+                self._rc = ipp.Client()
+                self._dview = self._rc[:]  # use all cores
+
+            except OSError:
+                print("Disabling ipyparallel features.")
+
+                self.parallel = False
+                self._rc = None
+                self._dview = None
+
         else:
             self._rc = None
             self._dview = None
@@ -260,8 +270,10 @@ class OfflinePPDecoder:
         if dview is None:
             groups = spike_decode.groupby('dec_bin')
             dec_agg_results = []
-            for spk_grp_bin in groups:
-                dec_agg_val = OfflinePPDecoder._calc_observation_single_bin(spk_grp_bin,
+            for grp_ii, spk_grp_bin in groups:
+                dec_agg_val = OfflinePPDecoder._calc_observation_single_bin((spk_grp_bin.index,
+                                                                             spk_grp_bin.columns,
+                                                                             spk_grp_bin.values),
                                                                             enc_settings,
                                                                             day,
                                                                             epoch,
