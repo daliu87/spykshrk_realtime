@@ -430,6 +430,13 @@ class SpikeObservation(DayEpochTimeSeries, DataFrameClass):
                                                                  names=['day', 'epoch', 'timestamp', 'time'])),
                    parent=parent, **kwds)
 
+    @classmethod
+    def from_df(cls, df, parent=None, **kwd):
+        if parent is None:
+            parent = df
+
+        return cls(data=df, parent=df)
+
     def update_observations_bins(self, time_bin_size):
         dec_bins = np.floor((self.index.get_level_values('timestamp') -
                              self.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
