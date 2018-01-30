@@ -14,3 +14,5 @@ _templates/
 *.log
 *.png
 *.swp
+dask-worker-space/
+.nfs*

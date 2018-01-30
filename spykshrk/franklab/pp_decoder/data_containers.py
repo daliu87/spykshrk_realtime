@@ -454,6 +454,9 @@ class SpikeObservation(DayEpochTimeSeries, DataFrameClass):
 
         return self
 
+    def get_no_multi_index(self):
+        return pd.DataFrame(self.set_index(self.index.get_level_values('timestamp')))
+
 
 class Posteriors(DayEpochTimeSeries, DataFrameClass):
 

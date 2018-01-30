@@ -2,6 +2,9 @@ import pandas as pd
 import numpy as np
 import scipy as sp
 import scipy.signal
+import dask
+import dask.dataframe as dd
+
 import multiprocessing as mp
 import functools
 import ipyparallel as ipp
@@ -22,8 +25,7 @@ class OfflinePPDecoder:
     
     """
     def __init__(self, lin_obj: LinearPosition, observ_obj: SpikeObservation, encode_settings: EncodeSettings,
-                 decode_settings: DecodeSettings, which_trans_mat='learned', time_bin_size=10, parallel=True,
-                 bin_per_pool=1000):
+                 decode_settings: DecodeSettings, which_trans_mat='learned', time_bin_size=30, parallel=True):
         """
         Constructor for OfflinePPDecoder.
         
@@ -42,7 +44,6 @@ class OfflinePPDecoder:
         self.decode_settings = decode_settings
         self.which_trans_mat = which_trans_mat
         self.time_bin_size = time_bin_size
-        self.bin_per_pool = bin_per_pool
 
         if self.which_trans_mat == 'learned':
             self.trans_mat = self.calc_learned_state_trans_mat(self.lin_obj.get_mapped_single_axis(),
@@ -53,23 +54,6 @@ class OfflinePPDecoder:
             self.trans_mat = self.calc_uniform_trans_mat(self.encode_settings)
 
         self.parallel = parallel
-
-        if self.parallel:
-
-            try:
-                self._rc = ipp.Client()
-                self._dview = self._rc[:]  # use all cores
-
-            except OSError:
-                print("Disabling ipyparallel features.")
-
-                self.parallel = False
-                self._rc = None
-                self._dview = None
-
-        else:
-            self._rc = None
-            self._dview = None
 
     def __del__(self):
         print('decoder deleting')
@@ -89,14 +73,13 @@ class OfflinePPDecoder:
         self.binned_observ, self.firing_rate = self.calc_observation_intensity(self.observ_obj,
                                                                                self.encode_settings,
                                                                                self.decode_settings,
-                                                                               dview=self._dview,
-                                                                               time_bin_size=self.time_bin_size,
-                                                                               parallel_time_bin_size=
-                                                                               self.bin_per_pool*self.time_bin_size)
+                                                                               time_bin_size=self.time_bin_size)
 
         self.occupancy = self.calc_occupancy(self.lin_obj, self.encode_settings)
         self.prob_no_spike = self.calc_prob_no_spike(self.firing_rate, self.occupancy, self.decode_settings)
+        print("Computing likelihood")
         self.likelihoods = self.calc_likelihood(self.binned_observ, self.prob_no_spike, self.encode_settings)
+        print("Computing posterior")
         self.posteriors = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
         self.posteriors_obj = Posteriors.from_dataframe(self.posteriors, encode_settings=self.encode_settings)
 
@@ -226,9 +209,7 @@ class OfflinePPDecoder:
     def calc_observation_intensity(observ: SpikeObservation,
                                    enc_settings: EncodeSettings,
                                    dec_settings: DecodeSettings,
-                                   dview: ipp.DirectView=None,
-                                   time_bin_size=None,
-                                   parallel_time_bin_size=None):
+                                   time_bin_size=None):
         """
         
         Args:
@@ -245,9 +226,6 @@ class OfflinePPDecoder:
         pos_col_names = [pos_col_format(bin_id, enc_settings.pos_num_bins)
                          for bin_id in range(enc_settings.pos_num_bins)]
 
-        pos_num_bins = len(enc_settings.pos_bins)
-        pos_bin_delta = enc_settings.pos_bins[1] - enc_settings.pos_bins[0]
-
         day = observ.index.get_level_values('day')[0]
         epoch = observ.index.get_level_values('epoch')[0]
 
@@ -257,6 +235,7 @@ class OfflinePPDecoder:
             time_bin_size = dec_settings.time_bin_size
             spike_decode = observ.update_observations_bins(time_bin_size=time_bin_size)
 
+        spike_decode.update_parallel_bins(30000)
         # initialize conditional intensity function
         firing_rate = {}
 
@@ -267,34 +246,38 @@ class OfflinePPDecoder:
 
             firing_rate[tet_id] = tet_pos_hist
 
-        if dview is None:
-            groups = spike_decode.groupby('dec_bin')
-            dec_agg_results = []
-            for grp_ii, spk_grp_bin in groups:
-                dec_agg_val = OfflinePPDecoder._calc_observation_single_bin((spk_grp_bin.index,
-                                                                             spk_grp_bin.columns,
-                                                                             spk_grp_bin.values),
-                                                                            enc_settings,
-                                                                            day,
-                                                                            epoch,
-                                                                            pos_col_names)
-                dec_agg_results.extend(dec_agg_val)
-        else:
-            spike_decode = observ.update_parallel_bins(parallel_time_bin_size)
-            parallel_groups = spike_decode.groupby('parallel_bin')
-            parallel_groups_raw = []
-            for grp_id, parallel_df in parallel_groups:
-                parallel_groups_raw.append((parallel_df.index, parallel_df.columns, parallel_df.values))
+        observ_dask = dd.from_pandas(spike_decode.get_no_multi_index(), chunksize=10000)
+        observ_grp = observ_dask.groupby('parallel_bin')
 
-            dec_parallel_results = dview.map_sync(functools.partial(OfflinePPDecoder._calc_observation_single_bin,
-                                                                    enc_settings=enc_settings, day=day, epoch=epoch,
-                                                                    pos_col_names=pos_col_names), parallel_groups_raw)
-            dec_agg_results = [item for sub in dec_parallel_results for item in sub]
+        observ_meta = {key: 'f8' for key in [pos_col_format(ii, enc_settings.pos_num_bins)
+                                             for ii in range(enc_settings.pos_num_bins)]}
+        observ_meta['timestamp'] = 'i8'
+        observ_meta['num_spikes'] = 'i4'
+        observ_meta['dec_bin'] = 'i4'
+        observ_task = observ_grp.apply(functools.partial(OfflinePPDecoder._calc_observation_single_bin,
+                                                         enc_settings=enc_settings,
+                                                         pos_col_names=pos_col_names),
+                                       meta=observ_meta)
 
-        binned_observ = pd.DataFrame(dec_agg_results,
-                                     columns=(['day', 'epoch', 'timestamp', 'time'] +
-                                              pos_col_names + ['num_spikes', 'dec_bin']))
-        binned_observ = binned_observ.set_index(['day', 'epoch', 'timestamp', 'time'])
+        dec_agg_results = observ_task.compute()
+        dec_agg_results.sort_values('timestamp', inplace=True)
+        """groups = spike_decode.groupby('dec_bin')
+        dec_agg_results = []
+        for grp_ii, spk_grp_bin in groups:
+            dec_agg_val = OfflinePPDecoder._calc_observation_single_bin((spk_grp_bin.index,
+                                                                         spk_grp_bin.columns,
+                                                                         spk_grp_bin.values),
+                                                                        enc_settings,
+                                                                        day,
+                                                                        epoch,
+                                                                        pos_col_names)
+            dec_agg_results.extend(dec_agg_val)
+        """
+
+        dec_agg_results['day'] = day
+        dec_agg_results['epoch'] = epoch
+        dec_agg_results['time'] = dec_agg_results['timestamp']/30000.
+        binned_observ = dec_agg_results.set_index(['day', 'epoch', 'timestamp', 'time'])
 
         # Smooth and normalize firing rate (conditional intensity function)
         for fr_key in firing_rate.keys():
@@ -303,20 +286,17 @@ class OfflinePPDecoder:
             firing_rate[fr_key] = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates,
                                                          firing_rate[fr_key])
 
-            firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * pos_bin_delta)
+            firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * enc_settings.pos_bin_delta)
 
         return binned_observ, firing_rate
 
     @staticmethod
-    def _calc_observation_single_bin(spike_grp_raw, enc_settings, day, epoch, pos_col_names):
-        import pandas as pd
-        import numpy as np
-        spike_parallel_grp = pd.DataFrame(data=spike_grp_raw[2], index=spike_grp_raw[0], columns=spike_grp_raw[1])
+    def _calc_observation_single_bin(spikes_in_parallel, enc_settings, pos_col_names):
 
-        dec_bin_val_list = []
+        parallel_grp = spikes_in_parallel.groupby('dec_bin')
 
-        spike_grp = spike_parallel_grp.groupby('dec_bin')
-        for bin_id, spikes_in_bin in spike_grp:
+        results = []
+        for dec_bin_ii, spikes_in_bin in parallel_grp:
 
             dec_in_bin = np.ones(enc_settings.pos_num_bins)
 
@@ -326,14 +306,14 @@ class OfflinePPDecoder:
                 dec_in_bin = dec_in_bin * dec
                 dec_in_bin = dec_in_bin / (np.sum(dec_in_bin) * enc_settings.pos_bin_delta)
 
-            dec_bin_times = [day, epoch, spikes_in_bin['dec_bin_start'].iloc[0],
-                             spikes_in_bin['dec_bin_start'].iloc[0]/30000.]
+            dec_bin_timestamp = spikes_in_bin['dec_bin_start'].iloc[0]
 
-            dec_bin_val = np.concatenate([dec_bin_times, dec_in_bin, [num_spikes, bin_id]])
+            results.append(np.concatenate([dec_in_bin, [dec_bin_timestamp, num_spikes, dec_bin_ii]]))
 
-            dec_bin_val_list.append(dec_bin_val)
-
-        return dec_bin_val_list
+        dec_bin_results = pd.DataFrame(np.vstack(results),
+                                       columns=pos_col_names+['timestamp', 'num_spikes', 'dec_bin'])
+        #dec_bin_results = np.vstack(results)
+        return dec_bin_results
 
     @staticmethod
     def calc_occupancy(lin_obj: LinearPosition, enc_settings: EncodeSettings):
