@@ -370,27 +370,31 @@ class LinearPosition(DayEpochTimeSeries, DataFrameClass):
 
         """
 
-        invalid_pos = self.query('@self.seg_idx.seg_idx == 0')
-        invalid_pos_flat = pd.DataFrame([0 for _ in range(len(invalid_pos))],
-                                        columns=['linpos_flat'], index=invalid_pos.index)
+        invalid = self.query('@self.seg_idx.seg_idx == 0')
+        invalid_flat = pd.DataFrame([[0, 0] for _ in range(len(invalid))],
+                                    columns=['linpos_flat', 'linvel_flat'], index=invalid.index)
 
-        center_pos_flat = (self.query('@self.seg_idx.seg_idx == 1').
-                           loc[:, [('lin_dist_well', 'well_center')]]) + self.kwds['enc_settings'].arm_coordinates[0][0]
-        left_pos_flat = (self.query('@self.seg_idx.seg_idx == 2 | '
-                                    '@self.seg_idx.seg_idx == 3').
-                         loc[:, [('lin_dist_well', 'well_left')]]) + self.kwds['enc_settings'].arm_coordinates[1][0]
-        right_pos_flat = (self.query('@self.seg_idx.seg_idx == 4 | '
-                                     '@self.seg_idx.seg_idx == 5').
-                          loc[:, [('lin_dist_well', 'well_right')]]) + (self.kwds['enc_settings'].
-                                                                        arm_coordinates[2][0])
-        center_pos_flat.columns = ['linpos_flat']
-        left_pos_flat.columns = ['linpos_flat']
-        right_pos_flat.columns = ['linpos_flat']
+        center_flat = (self.query('@self.seg_idx.seg_idx == 1').
+                       loc[:, [('lin_dist_well', 'well_center'),
+                               ('lin_vel', 'well_center')]]) + self.kwds['enc_settings'].arm_coordinates[0][0]
+        left_flat = (self.query('@self.seg_idx.seg_idx == 2 | '
+                                '@self.seg_idx.seg_idx == 3').
+                     loc[:, [('lin_dist_well', 'well_left'),
+                             ('lin_vel', 'well_left')]]) + self.kwds['enc_settings'].arm_coordinates[1][0]
+        right_flat = (self.query('@self.seg_idx.seg_idx == 4 | '
+                                 '@self.seg_idx.seg_idx == 5').
+                      loc[:, [('lin_dist_well', 'well_right'),
+                              ('lin_vel', 'well_right')]]) + (self.kwds['enc_settings'].
+                                                              arm_coordinates[2][0])
+        center_flat.columns = ['linpos_flat', 'linvel_flat']
+        left_flat.columns = ['linpos_flat', 'linvel_flat']
+        right_flat.columns = ['linpos_flat', 'linvel_flat']
 
-        linpos_flat = pd.concat([invalid_pos_flat, center_pos_flat, left_pos_flat, right_pos_flat]) # type: pd.DataFrame
+        linpos_flat = pd.concat([invalid_flat, center_flat, left_flat, right_flat]) # type: pd.DataFrame
         linpos_flat = linpos_flat.sort_index()
 
         linpos_flat['seg_idx'] = self.seg_idx.seg_idx
+
 
         # reset history to remove intermediate query steps
         return FlatLinearPosition.create_default(linpos_flat, parent=self)
@@ -577,6 +581,9 @@ class FlatLinearPosition(DayEpochTimeSeries, DataFrameClass):
         super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
                          history=history, **kwds)
 
+        if isinstance(data, pd.DataFrame) and 'linvel_flat' not in data.columns:
+            raise DataFormatError("Missing 'linvel_flat' column.")
+
     @classmethod
     def create_default(cls, df, parent=None, **kwds):
         if parent is None:
@@ -584,3 +591,7 @@ class FlatLinearPosition(DayEpochTimeSeries, DataFrameClass):
 
         return cls(df, parent=parent, **kwds)
 
+    def get_above_velocity(self, threshold):
+
+        # explicitly return copy convert weakref, for pickling
+        return pd.DataFrame(self.query('linvel_flat > @threshold'))

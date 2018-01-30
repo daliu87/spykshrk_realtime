@@ -55,6 +55,14 @@ class OfflinePPDecoder:
 
         self.parallel = parallel
 
+        self.binned_observ = None
+        self.firing_rate = None
+        self.occupancy = None
+        self.prob_no_spike = None
+        self.likelihoods = None
+        self.posteriors = None
+        self.posteriors_obj = None
+
     def __del__(self):
         print('decoder deleting')
 
@@ -70,16 +78,14 @@ class OfflinePPDecoder:
 
         """
 
-        self.binned_observ, self.firing_rate = self.calc_observation_intensity(self.observ_obj,
-                                                                               self.encode_settings,
-                                                                               self.decode_settings,
-                                                                               time_bin_size=self.time_bin_size)
-
+        self.binned_observ = self.calc_observation_intensity(self.observ_obj,
+                                                             self.encode_settings,
+                                                             self.decode_settings,
+                                                             time_bin_size=self.time_bin_size)
+        self.firing_rate = self._calc_firing_rate_tet(self.observ_obj, self.encode_settings)
         self.occupancy = self.calc_occupancy(self.lin_obj, self.encode_settings)
         self.prob_no_spike = self.calc_prob_no_spike(self.firing_rate, self.occupancy, self.decode_settings)
-        print("Computing likelihood")
         self.likelihoods = self.calc_likelihood(self.binned_observ, self.prob_no_spike, self.encode_settings)
-        print("Computing posterior")
         self.posteriors = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
         self.posteriors_obj = Posteriors.from_dataframe(self.posteriors, encode_settings=self.encode_settings)
 
@@ -230,30 +236,21 @@ class OfflinePPDecoder:
         epoch = observ.index.get_level_values('epoch')[0]
 
         if time_bin_size is not None:
-            spike_decode = observ.update_observations_bins(time_bin_size=time_bin_size)
+            observ.update_observations_bins(time_bin_size=time_bin_size)
         else:
             time_bin_size = dec_settings.time_bin_size
-            spike_decode = observ.update_observations_bins(time_bin_size=time_bin_size)
+            observ.update_observations_bins(time_bin_size=time_bin_size)
 
-        spike_decode.update_parallel_bins(30000)
-        # initialize conditional intensity function
-        firing_rate = {}
+        observ.update_parallel_bins(30000)
 
-        tet_pos_groups = spike_decode.loc[:, ('ntrode_id', 'position')].groupby('ntrode_id')
-
-        for tet_id, tet_spikes in tet_pos_groups:
-            tet_pos_hist, _ = np.histogram(tet_spikes, bins=enc_settings.pos_bin_edges)
-
-            firing_rate[tet_id] = tet_pos_hist
-
-        observ_dask = dd.from_pandas(spike_decode.get_no_multi_index(), chunksize=10000)
+        observ_dask = dd.from_pandas(observ.get_no_multi_index(), chunksize=10000)
         observ_grp = observ_dask.groupby('parallel_bin')
 
-        observ_meta = {key: 'f8' for key in [pos_col_format(ii, enc_settings.pos_num_bins)
-                                             for ii in range(enc_settings.pos_num_bins)]}
-        observ_meta['timestamp'] = 'i8'
-        observ_meta['num_spikes'] = 'i4'
-        observ_meta['dec_bin'] = 'i4'
+        observ_meta = [(key, 'f8') for key in [pos_col_format(ii, enc_settings.pos_num_bins)
+                                              for ii in range(enc_settings.pos_num_bins)]]
+        observ_meta.append(('timestamp', 'f8'))
+        observ_meta.append(('num_spikes', 'f8'))
+        observ_meta.append(('dec_bin', 'f8'))
         observ_task = observ_grp.apply(functools.partial(OfflinePPDecoder._calc_observation_single_bin,
                                                          enc_settings=enc_settings,
                                                          pos_col_names=pos_col_names),
@@ -261,18 +258,6 @@ class OfflinePPDecoder:
 
         dec_agg_results = observ_task.compute()
         dec_agg_results.sort_values('timestamp', inplace=True)
-        """groups = spike_decode.groupby('dec_bin')
-        dec_agg_results = []
-        for grp_ii, spk_grp_bin in groups:
-            dec_agg_val = OfflinePPDecoder._calc_observation_single_bin((spk_grp_bin.index,
-                                                                         spk_grp_bin.columns,
-                                                                         spk_grp_bin.values),
-                                                                        enc_settings,
-                                                                        day,
-                                                                        epoch,
-                                                                        pos_col_names)
-            dec_agg_results.extend(dec_agg_val)
-        """
 
         dec_agg_results['day'] = day
         dec_agg_results['epoch'] = epoch
@@ -280,15 +265,8 @@ class OfflinePPDecoder:
         binned_observ = dec_agg_results.set_index(['day', 'epoch', 'timestamp', 'time'])
 
         # Smooth and normalize firing rate (conditional intensity function)
-        for fr_key in firing_rate.keys():
-            firing_rate[fr_key] = np.convolve(firing_rate[fr_key], enc_settings.pos_kernel, mode='same')
 
-            firing_rate[fr_key] = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates,
-                                                         firing_rate[fr_key])
-
-            firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * enc_settings.pos_bin_delta)
-
-        return binned_observ, firing_rate
+        return binned_observ
 
     @staticmethod
     def _calc_observation_single_bin(spikes_in_parallel, enc_settings, pos_col_names):
@@ -314,6 +292,28 @@ class OfflinePPDecoder:
                                        columns=pos_col_names+['timestamp', 'num_spikes', 'dec_bin'])
         #dec_bin_results = np.vstack(results)
         return dec_bin_results
+
+    @staticmethod
+    def _calc_firing_rate_tet(observ: SpikeObservation, enc_settings: EncodeSettings):
+        # initialize conditional intensity function
+        firing_rate = {}
+        tet_pos_groups = observ.loc[:, ('elec_grp_id', 'position')].groupby('elec_grp_id')
+
+        for tet_id, tet_spikes in tet_pos_groups:
+            tet_pos_hist, _ = np.histogram(tet_spikes, bins=enc_settings.pos_bin_edges)
+
+            firing_rate[tet_id] = tet_pos_hist
+
+
+        for fr_key in firing_rate.keys():
+            firing_rate[fr_key] = np.convolve(firing_rate[fr_key], enc_settings.pos_kernel, mode='same')
+
+            firing_rate[fr_key] = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates,
+                                                         firing_rate[fr_key])
+
+            firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * enc_settings.pos_bin_delta)
+
+        return firing_rate
 
     @staticmethod
     def calc_occupancy(lin_obj: LinearPosition, enc_settings: EncodeSettings):
