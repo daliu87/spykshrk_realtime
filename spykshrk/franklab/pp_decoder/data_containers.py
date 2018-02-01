@@ -132,10 +132,10 @@ class DayEpochElecTimeChannelSeries:
             if not isinstance(data.index, pd.MultiIndex):
                 raise DataFormatError("DataFrame index must use MultiIndex as index.")
 
-            if not all([col in data.index.names for col in ['day', 'epoch', 'elec_grp_id',
+            if not all([col in data.index.names for col in ['day', 'epoch', 'elec_grp',
                                                             'timestamp', 'time', 'channel']]):
                 raise DataFormatError("DayEpochTimeSeries must have index with 6 levels named: "
-                                      "day, epoch, elec_grp_id, timestamp, time.")
+                                      "day, epoch, elec_grp, timestamp, time.")
 
         if index is not None and not isinstance(index, pd.MultiIndex):
             raise DataFormatError("Index to be set must be MultiIndex.")
@@ -153,9 +153,9 @@ class DayEpochElecTimeSeries:
             if not isinstance(data.index, pd.MultiIndex):
                 raise DataFormatError("DataFrame index must use MultiIndex as index.")
 
-            if not all([col in data.index.names for col in ['day', 'epoch', 'elec_grp_id', 'timestamp', 'time']]):
+            if not all([col in data.index.names for col in ['day', 'epoch', 'elec_grp', 'timestamp', 'time']]):
                 raise DataFormatError("DayEpochTimeSeries must have index with 6 levels named: "
-                                      "day, epoch, elec_grp_id, timestamp, time.")
+                                      "day, epoch, elec_grp, timestamp, time.")
 
         if index is not None and not isinstance(index, pd.MultiIndex):
             raise DataFormatError("Index to be set must be MultiIndex.")
@@ -243,8 +243,16 @@ class SpikeFeatures(DayEpochElecTimeSeries, DataFrameClass):
 
         return cls(df, parent=parent, **kwds)
 
+    @classmethod
+    def from_numpy_single_epoch_elec(cls, day, epoch, elec_grp, timestamp, amps, sampling_rate):
+        ind = pd.MultiIndex.from_arrays([[day]*len(timestamp), [epoch]*len(timestamp), [elec_grp]*len(timestamp),
+                                         timestamp, timestamp/float(sampling_rate)],
+                                        names=['day', 'epoch', 'elec_grp', 'timestamp', 'time'])
+
+        return cls(data=amps, index=ind)
+
     def get_above_threshold(self, threshold):
-        ind = np.nonzero(np.sum(self.values > threshold, axis=1))
+        ind = np.nonzero(np.any(self.values > threshold, axis=1))
         return self.iloc[ind]
 
     def get_simple_index(self):
@@ -590,6 +598,14 @@ class FlatLinearPosition(DayEpochTimeSeries, DataFrameClass):
             parent = df
 
         return cls(df, parent=parent, **kwds)
+
+    @classmethod
+    def from_numpy_single_epoch(cls, day, epoch, timestamp, lin_pos, lin_vel, sampling_rate):
+        time = timestamp/float(sampling_rate)
+        return cls(pd.DataFrame(list(zip(lin_pos, lin_vel)), columns=['linpos_flat', 'linvel_flat'],
+                                index=pd.MultiIndex.from_arrays([[day]*len(timestamp), [epoch]*len(timestamp),
+                                                                 timestamp, time],
+                                                                names=['day', 'epoch', 'timestamp', 'time'])))
 
     def get_above_velocity(self, threshold):
 

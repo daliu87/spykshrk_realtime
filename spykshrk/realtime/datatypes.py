@@ -18,9 +18,9 @@ class SpikePoint(PrintableMessage):
     """
     _byte_format = '=qi40h40h40h40h'
 
-    def __init__(self, timestamp, elec_grp_id, data):
+    def __init__(self, timestamp, elec_grp, data):
         self.timestamp = timestamp
-        self.elec_grp_id = elec_grp_id
+        self.elec_grp_id = elec_grp
         self.data = data
 
     def pack(self):
