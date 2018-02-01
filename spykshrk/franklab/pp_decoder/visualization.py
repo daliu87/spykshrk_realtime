@@ -21,16 +21,7 @@ class DecodeVisualizer:
         ax = plt.imshow(post_plot.values.T, extent=[plt_range[0], plt_range[1], 0, enc_settings.pos_num_bins],
                         origin='lower', aspect='auto', cmap='hot', zorder=0, vmax=0.3)
 
-        plt.plot(plt_range, [enc_settings.arm_coordinates[0][0]]*2, '--', color='0.4', zorder=1)
-        plt.plot(plt_range, [enc_settings.arm_coordinates[0][1]]*2, '--', color='0.4', zorder=1)
-        plt.plot(plt_range, [enc_settings.arm_coordinates[1][0]]*2, '--', color='0.4', zorder=1)
-        plt.plot(plt_range, [enc_settings.arm_coordinates[1][1]]*2, '--', color='0.4', zorder=1)
-        plt.plot(plt_range, [enc_settings.arm_coordinates[2][0]]*2, '--', color='0.4', zorder=1)
-        plt.plot(plt_range, [enc_settings.arm_coordinates[2][1]]*2, '--', color='0.4', zorder=1)
-
         plt.xticks(np.arange(plt_range[0], plt_range[1], x_tick))
-
-        plt.ylim([enc_settings.arm_coordinates[0][0] - 5, enc_settings.arm_coordinates[2][1] + 15])
 
         plt.colorbar()
         ax.axes.set_facecolor('black')
@@ -39,6 +30,17 @@ class DecodeVisualizer:
         plt.ylabel('1D pos map')
 
         return ax
+
+    @staticmethod
+    def plot_arm_boundaries(plt_range, enc_settings: EncodeSettings):
+        plt.plot(plt_range, [enc_settings.arm_coordinates[0][0]]*2, '--', color='0.4', zorder=1)
+        plt.plot(plt_range, [enc_settings.arm_coordinates[0][1]]*2, '--', color='0.4', zorder=1)
+        plt.plot(plt_range, [enc_settings.arm_coordinates[1][0]]*2, '--', color='0.4', zorder=1)
+        plt.plot(plt_range, [enc_settings.arm_coordinates[1][1]]*2, '--', color='0.4', zorder=1)
+        plt.plot(plt_range, [enc_settings.arm_coordinates[2][0]]*2, '--', color='0.4', zorder=1)
+        plt.plot(plt_range, [enc_settings.arm_coordinates[2][1]]*2, '--', color='0.4', zorder=1)
+
+        plt.ylim([enc_settings.arm_coordinates[0][0] - 5, enc_settings.arm_coordinates[2][1] + 15])
 
     @staticmethod
     def plot_linear_pos(linpos: LinearPosition, plt_range):

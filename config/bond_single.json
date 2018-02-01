@@ -71,6 +71,7 @@
     }, 
 
     "encoder": {
+        "sampling_rate": 30000,
         "mark_kernel": {
             "mean": 0,
             "std": 5,

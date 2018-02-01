@@ -84,7 +84,8 @@ class OfflinePPDecoder:
                                                              time_bin_size=self.time_bin_size)
         self.firing_rate = self._calc_firing_rate_tet(self.observ_obj, self.encode_settings)
         self.occupancy = self.calc_occupancy(self.lin_obj, self.encode_settings)
-        self.prob_no_spike = self.calc_prob_no_spike(self.firing_rate, self.occupancy, self.decode_settings)
+        self.prob_no_spike = self.calc_prob_no_spike(self.firing_rate, self.occupancy, self.encode_settings,
+                                                     self.decode_settings)
         self.likelihoods = self.calc_likelihood(self.binned_observ, self.prob_no_spike, self.encode_settings)
         self.posteriors = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
         self.posteriors_obj = Posteriors.from_dataframe(self.posteriors, encode_settings=self.encode_settings)
@@ -241,7 +242,7 @@ class OfflinePPDecoder:
             time_bin_size = dec_settings.time_bin_size
             observ.update_observations_bins(time_bin_size=time_bin_size)
 
-        observ.update_parallel_bins(30000)
+        observ.update_parallel_bins(enc_settings.sampling_rate)
 
         observ_dask = dd.from_pandas(observ.get_no_multi_index(), chunksize=10000)
         observ_grp = observ_dask.groupby('parallel_bin')
@@ -261,7 +262,7 @@ class OfflinePPDecoder:
 
         dec_agg_results['day'] = day
         dec_agg_results['epoch'] = epoch
-        dec_agg_results['time'] = dec_agg_results['timestamp']/30000.
+        dec_agg_results['time'] = dec_agg_results['timestamp']/float(enc_settings.sampling_rate)
         binned_observ = dec_agg_results.set_index(['day', 'epoch', 'timestamp', 'time'])
 
         # Smooth and normalize firing rate (conditional intensity function)
@@ -336,12 +337,13 @@ class OfflinePPDecoder:
         return occupancy
 
     @staticmethod
-    def calc_prob_no_spike(firing_rate: dict, occupancy, dec_settings: DecodeSettings):
+    def calc_prob_no_spike(firing_rate: dict, occupancy, enc_settings: EncodeSettings, dec_settings: DecodeSettings):
         """
         
         Args:
             firing_rate (pd.DataFrame): Occupancy firing rate, from calc_observation_intensity(...).
             occupancy (np.array): The occupancy of the animal.
+            enc_settings (EncodeSettings): Realtime encode settings.
             dec_settings (DecodeSettings): Realtime decoding settings.
 
         Returns (dict[int, np.array]): Dictionary of probability that no spike occured per tetrode.
@@ -349,7 +351,7 @@ class OfflinePPDecoder:
         """
         prob_no_spike = {}
         for tet_id, tet_fr in firing_rate.items():
-            prob_no_spike[tet_id] = np.exp(-dec_settings.time_bin_size/30000 * tet_fr / occupancy)
+            prob_no_spike[tet_id] = np.exp(-dec_settings.time_bin_size/enc_settings.sampling_rate * tet_fr / occupancy)
 
         return prob_no_spike
 

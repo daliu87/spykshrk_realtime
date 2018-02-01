@@ -175,6 +175,7 @@ class EncodeSettings:
         """
         encoder_config = realtime_config['encoder']
 
+        self.sampling_rate = encoder_config['sampling_rate']
         self.arm_coordinates = encoder_config['position']['arm_pos']
 
         self.pos_upper = encoder_config['position']['upper']
@@ -214,11 +215,6 @@ class SpikeWaves(DayEpochElecTimeChannelSeries, DataFrameClass):
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
 
-        if isinstance(data, pd.DataFrame) and ('timestamp' in data.index.names) and not ('time' in data.index.names):
-            data['time'] = data.index.get_level_values('timestamp') / 30000.
-            data.set_index('time', append=True, inplace=True)
-            data.index = data.index.swaplevel(4, 5)
-
         super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
                          history=history, **kwds)
 
@@ -228,6 +224,13 @@ class SpikeWaves(DayEpochElecTimeChannelSeries, DataFrameClass):
             parent = df
 
         return cls(df, parent=parent, **kwds)
+
+    @classmethod
+    def from_df(cls, df, enc_settings, parent=None, **kwds):
+        df['time'] = df.index.get_level_values('timestamp') / float(enc_settings.sampling_rate)
+        df.set_index('time', append=True, inplace=True)
+        #df.index = df.index.swaplevel(4, 5)
+        cls(data=df, enc_settings=enc_settings, parent=parent, **kwds)
 
 
 class SpikeFeatures(DayEpochElecTimeSeries, DataFrameClass):
@@ -341,7 +344,7 @@ class LinearPosition(DayEpochTimeSeries, DataFrameClass):
             new_timestamps = np.arange(df.index.get_level_values('timestamp')[0] +
                                        (bin_size - df.index.get_level_values('timestamp')[0] % bin_size),
                                        df.index.get_level_values('timestamp')[-1]+1, bin_size)
-            new_times = new_timestamps / 30000.
+            new_times = new_timestamps / float(self.kwds['enc_settings'].sampling_rate)
 
             new_indices = pd.MultiIndex.from_tuples(list(zip(
                                                         new_timestamps, new_times)), names=['timestamp', 'time'])
@@ -365,8 +368,9 @@ class LinearPosition(DayEpochTimeSeries, DataFrameClass):
         grp = self.groupby(level=['day', 'epoch'])
         for (day, epoch), grp_df in grp:
             ind = pd.MultiIndex.from_arrays([[day]*len(timestamps), [epoch]*len(timestamps),
-                                             timestamps, np.array(timestamps)/30000], names=['day', 'epoch',
-                                                                                             'timestamp', 'time'])
+                                             timestamps, np.array(timestamps)/
+                                             float(self.kwds['enc_settings'].sampling_rate)],
+                                            names=['day', 'epoch', 'timestamp', 'time'])
 
             return grp_df.reindex(ind, method='ffill', fill_value=0)
 
@@ -431,23 +435,23 @@ class SpikeObservation(DayEpochTimeSeries, DataFrameClass):
         return cls.from_realtime(df, parent=parent, **kwds)
 
     @classmethod
-    def from_realtime(cls, spike_dec, day, epoch, parent=None, **kwds):
+    def from_realtime(cls, spike_dec, day, epoch, enc_settings, parent=None, **kwds):
         if parent is None:
             parent = spike_dec
 
         start_timestamp = spike_dec['timestamp'][0]
-        spike_dec['time'] = spike_dec['timestamp'] / 30000.
+        spike_dec['time'] = spike_dec['timestamp'] / float(enc_settings.sampling_rate)
         return cls(spike_dec.set_index(pd.MultiIndex.from_arrays([[day]*len(spike_dec), [epoch]*len(spike_dec),
                                                                   spike_dec['timestamp'], spike_dec['time']],
                                                                  names=['day', 'epoch', 'timestamp', 'time'])),
                    parent=parent, **kwds)
 
     @classmethod
-    def from_df(cls, df, parent=None, **kwd):
+    def from_df(cls, df, parent=None, **kwds):
         if parent is None:
             parent = df
 
-        return cls(data=df, parent=df)
+        return cls(data=df, parent=parent, **kwds)
 
     def update_observations_bins(self, time_bin_size):
         dec_bins = np.floor((self.index.get_level_values('timestamp') -
@@ -511,20 +515,21 @@ class Posteriors(DayEpochTimeSeries, DataFrameClass):
 
     @classmethod
     def from_realtime(cls, posterior: pd.DataFrame, day, epoch, columns=None, copy=False, parent=None,
-                      encode_settings=None):
+                      enc_settings=None):
         if parent is None:
             parent = posterior
 
         if copy:
             posterior = posterior.copy()    # type: pd.DataFrame
         posterior.set_index(pd.MultiIndex.from_arrays([[day]*len(posterior), [epoch]*len(posterior),
-                                                       posterior['timestamp'], posterior['timestamp']/30000],
+                                                       posterior['timestamp'], posterior['timestamp']/
+                                                       enc_settings.sampling_rate],
                                                       names=['day', 'epoch', 'timestamp', 'time']), inplace=True)
 
         if columns is not None:
             posterior.columns = columns
 
-        return cls(data=posterior, parent=parent, enc_settings=encode_settings)
+        return cls(data=posterior, parent=parent, enc_settings=enc_settings)
 
     def get_posteriors_as_np(self):
         return self[pos_col_format(0, self.kwds['enc_settings'].pos_num_bins):
@@ -555,7 +560,7 @@ class StimLockout(DataFrameClass):
         return cls.from_realtime(df, parent=parent, **kwds)
 
     @classmethod
-    def from_realtime(cls, stim_lockout, parent=None, **kwds):
+    def from_realtime(cls, stim_lockout, enc_settings, parent=None, **kwds):
         """
         Class factory to create stimulation lockout from realtime system.  
         Reshapes the structure to a more useful format (stim lockout intervals)
@@ -572,11 +577,11 @@ class StimLockout(DataFrameClass):
         stim_lockout_ranges = stim_lockout.pivot(index='lockout_num', columns='lockout_state', values='timestamp')
         stim_lockout_ranges = stim_lockout_ranges.reindex(columns=[1, 0])
         stim_lockout_ranges.columns = pd.MultiIndex.from_product([['timestamp'], ['on', 'off']])
-        stim_lockout_ranges_sec = stim_lockout_ranges / 30000.
+        stim_lockout_ranges_sec = stim_lockout_ranges / float(enc_settings.sampling_rate)
         stim_lockout_ranges_sec.columns = pd.MultiIndex.from_product([['time'], ['on', 'off']])
         df = pd.concat([stim_lockout_ranges, stim_lockout_ranges_sec], axis=1)      # type: pd.DataFrame
 
-        return cls(df, parent=parent, **kwds)
+        return cls(df, parent=parent, enc_settings=enc_settings, **kwds)
 
     def get_range_sec(self, low, high):
         sel = self.query('@self.time.off > @low and @self.time.on < @high')
@@ -611,3 +616,6 @@ class FlatLinearPosition(DayEpochTimeSeries, DataFrameClass):
 
         # explicitly return copy convert weakref, for pickling
         return pd.DataFrame(self.query('linvel_flat > @threshold'))
+
+    def get_mapped_single_axis(self):
+        return self
