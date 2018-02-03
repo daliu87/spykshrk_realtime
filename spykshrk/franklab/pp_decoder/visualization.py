@@ -18,7 +18,7 @@ class DecodeVisualizer:
                                                              pos_col_format(enc_settings.pos_num_bins-1,
                                                              enc_settings.pos_num_bins)]
 
-        ax = plt.imshow(post_plot.values.T, extent=[plt_range[0], plt_range[1], 0, enc_settings.pos_num_bins],
+        ax = plt.imshow(post_plot.values.T, extent=[plt_range[0], plt_range[1], 0, enc_settings.pos_bins[-1]],
                         origin='lower', aspect='auto', cmap='hot', zorder=0, vmax=0.3)
 
         plt.xticks(np.arange(plt_range[0], plt_range[1], x_tick))
@@ -47,7 +47,8 @@ class DecodeVisualizer:
         linpos_sing = linpos.get_mapped_single_axis()
 
         linpos_sel = linpos_sing.loc[:, ['linpos_flat']].query('time > {} and time < {}'.format(*plt_range))
-        ax = plt.plot(linpos_sel.index.get_level_values('time'), linpos_sel.values, 'co', zorder=2, markersize=6)
+        ax = plt.plot(linpos_sel.index.get_level_values('time'), linpos_sel.values, 'co', zorder=2, markersize=6,
+                      alpha=0.02)
 
         return ax
 
