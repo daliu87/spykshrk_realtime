@@ -43,12 +43,12 @@ class DecodeVisualizer:
         plt.ylim([enc_settings.arm_coordinates[0][0] - 5, enc_settings.arm_coordinates[2][1] + 15])
 
     @staticmethod
-    def plot_linear_pos(linpos: LinearPosition, plt_range):
+    def plot_linear_pos(linpos: LinearPosition, plt_range, alpha=0.5):
         linpos_sing = linpos.get_mapped_single_axis()
 
         linpos_sel = linpos_sing.loc[:, ['linpos_flat']].query('time > {} and time < {}'.format(*plt_range))
         ax = plt.plot(linpos_sel.index.get_level_values('time'), linpos_sel.values, 'co', zorder=2, markersize=6,
-                      alpha=0.02)
+                      alpha=alpha)
 
         return ax
 

@@ -230,7 +230,7 @@ class SpikeWaves(DayEpochElecTimeChannelSeries, DataFrameClass):
         df['time'] = df.index.get_level_values('timestamp') / float(enc_settings.sampling_rate)
         df.set_index('time', append=True, inplace=True)
         #df.index = df.index.swaplevel(4, 5)
-        cls(data=df, enc_settings=enc_settings, parent=parent, **kwds)
+        return cls(data=df, enc_settings=enc_settings, parent=parent, **kwds)
 
 
 class SpikeFeatures(DayEpochElecTimeSeries, DataFrameClass):
