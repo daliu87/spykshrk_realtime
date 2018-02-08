@@ -12,11 +12,16 @@ def normal2D(x, y, sig):
 
 
 def normal_pdf_int_lookup(x, mean, std):
-    print(x.dtype, mean.dtype)
     max_amp = 2000
     norm_dist = sp.stats.norm.pdf(x=np.arange(-max_amp,max_amp), loc=0, scale=std)
 
     return norm_dist[x-mean+max_amp]
+
+
+class AttrDict(dict):
+    def __init__(self, *args, **kwargs):
+        super(AttrDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self
 
 
 def apply_no_anim_boundary(x_bins, arm_coor, image):

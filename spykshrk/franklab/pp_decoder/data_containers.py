@@ -5,7 +5,7 @@ from abc import ABC, ABCMeta, abstractclassmethod, abstractmethod
 from itertools import product
 import uuid
 
-from spykshrk.franklab.pp_decoder.util import gaussian
+from spykshrk.franklab.pp_decoder.util import gaussian, AttrDict
 
 
 class DataFormatError(RuntimeError):
@@ -55,21 +55,32 @@ class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
             self.history = list(history)
         elif parent is not None:
             if hasattr(parent, 'history'):
-                # Assumes history contains everything including self
                 self.history = list(parent.history)
+                self.history.append(parent)
             else:
                 self.history = [parent]
         else:
             if hasattr(data, 'history'):
                 self.history = list(data.history)
+                self.history.append(data)
             else:
                 self.history = [data]
-        self.history.append(self)
+        #self.history.append(self)
 
         super().__init__(data, index, columns, dtype, copy)
 
     def __setstate__(self, state):
-        self.__init__(data=state['_data'], history=state['history'], kwds=state['kwds'])
+        # Insert new uuid (internal value)
+        self.uuid = uuid.uuid4()
+        super().__setstate__(state)
+
+    #def __setstate__(self, state):
+    #    #self.__init__(data=state['_data'], history=state['history'], kwds=state['kwds'])
+    #    self.__dict__.update(state.copy())
+
+    # def __getstate__(self):
+    #     state = self.__dict__.copy()
+    #     return state
 
     @property
     def _constructor(self):
@@ -92,10 +103,11 @@ class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
         pass
 
     def __repr__(self):
-        return '<{}: {}, shape: ({})>'.format(self.__class__.__name__, self.uuid, self.shape)
+        return "blar"
+        #return '<{}: {}, shape: ({})>'.format(self.__class__.__name__, self.uuid, self.shape)
 
 
-class DayEpochTimeSeries:
+class DayEpochTimeSeries(DataFrameClass):
 
     def __init__(self, **kwds):
         data = kwds['data']
@@ -109,20 +121,49 @@ class DayEpochTimeSeries:
                 raise DataFormatError("DayEpochTimeSeries must have index with 4 levels named: "
                                       "day, epoch, timestamp, time.")
 
+            epoch_grps = data.groupby(['day', 'epoch'])
+            try:
+                kwds['kwds']['start_times'] = []
+                kwds['kwds']['start_timestamps'] = []
+            except KeyError:
+                kwds['kwds'] = {}
+                kwds['kwds']['start_times'] = []
+                kwds['kwds']['start_timestamps'] = []
+
+            for key, epoch_data in epoch_grps:
+                kwds['kwds']['start_times'].append(epoch_data.index.get_level_values('time')[0])
+                kwds['kwds']['start_timestamps'].append(epoch_data.index.get_level_values('timestamp')[0])
+
         if index is not None and not isinstance(index, pd.MultiIndex):
             raise DataFormatError("Index to be set must be MultiIndex.")
 
         super().__init__(**kwds)
 
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        return state
+    def get_time(self):
+        return self.index.get_level_values('time')
 
-    def __setstate__(self, state):
-        self.__dict__.update(state)
+    def get_timestamp(self):
+        return self.index.get_level_values('timestamp')
+
+    def get_time_range(self):
+        return [self.index.get_level_values('time')[0], self.index.get_level_values('time')[-1]]
+
+    def get_relative_index(self, inplace=False):
+        if inplace:
+            ret_data = self
+            ind = self.index
+        else:
+            ret_data = self.copy()
+            ind = ret_data.index
+        ind.set_levels(level='time', levels=(self.index.get_level_values('time') -
+                                             self.index.get_level_values('time')[0]), inplace=True)
+        ind.set_levels(level='timestamp', levels=(self.index.get_level_values('timestamp') -
+                                                  self.index.get_level_values('timestamp')[0]), inplace=True)
+
+        return ret_data
 
 
-class DayEpochElecTimeChannelSeries:
+class DayEpochElecTimeChannelSeries(DayEpochTimeSeries):
 
     def __init__(self, **kwds):
         data = kwds['data']
@@ -143,7 +184,7 @@ class DayEpochElecTimeChannelSeries:
         super().__init__(**kwds)
 
 
-class DayEpochElecTimeSeries:
+class DayEpochElecTimeSeries(DayEpochTimeSeries):
 
     def __init__(self, **kwds):
         data = kwds['data']
@@ -211,7 +252,7 @@ class DecodeSettings:
         self.trans_uniform_gain = realtime_config['pp_decoder']['trans_mat_uniform_gain']
 
 
-class SpikeWaves(DayEpochElecTimeChannelSeries, DataFrameClass):
+class SpikeWaves(DayEpochElecTimeChannelSeries):
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
 
@@ -233,7 +274,7 @@ class SpikeWaves(DayEpochElecTimeChannelSeries, DataFrameClass):
         return cls(data=df, enc_settings=enc_settings, parent=parent, **kwds)
 
 
-class SpikeFeatures(DayEpochElecTimeSeries, DataFrameClass):
+class SpikeFeatures(DayEpochElecTimeSeries):
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
         super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
@@ -268,7 +309,7 @@ class SpikeFeatures(DayEpochElecTimeSeries, DataFrameClass):
         return self.set_index(self.index.get_level_values('timestamp'))
 
 
-class LinearPosition(DayEpochTimeSeries, DataFrameClass):
+class LinearPosition(DayEpochTimeSeries):
     """
     Container for Linearized position read from an AnimalInfo.  
     
@@ -415,7 +456,7 @@ class LinearPosition(DayEpochTimeSeries, DataFrameClass):
         return self.reset_index(level=['day', 'epoch'])
 
 
-class SpikeObservation(DayEpochTimeSeries, DataFrameClass):
+class SpikeObservation(DayEpochTimeSeries):
     """
     The observations can be generated by the realtime system or from an offline encoding model.
     The observations consist of a panda table with one row for each spike being decoded.  Each
@@ -428,11 +469,13 @@ class SpikeObservation(DayEpochTimeSeries, DataFrameClass):
                          history=history, **kwds)
 
     @classmethod
-    def create_default(cls, df, parent=None, **kwds):
+    def create_default(cls, df, sampling_rate, parent=None, **kwds):
         if parent is None:
             parent = df
 
-        return cls.from_realtime(df, parent=parent, **kwds)
+        enc_settings = AttrDict({'sampling_rate': sampling_rate})
+
+        return cls.from_realtime(df, enc_setting=enc_settings, parent=parent, **kwds)
 
     @classmethod
     def from_realtime(cls, spike_dec, day, epoch, enc_settings, parent=None, **kwds):
@@ -474,7 +517,7 @@ class SpikeObservation(DayEpochTimeSeries, DataFrameClass):
         return pd.DataFrame(self.set_index(self.index.get_level_values('timestamp')))
 
 
-class Posteriors(DayEpochTimeSeries, DataFrameClass):
+class Posteriors(DayEpochTimeSeries):
 
     _metadata = DataFrameClass._metadata + ['enc_settings']
 
@@ -536,11 +579,6 @@ class Posteriors(DayEpochTimeSeries, DataFrameClass):
                     pos_col_format(self.kwds['enc_settings'].pos_num_bins-1,
                                    self.kwds['enc_settings'].pos_num_bins)].values
 
-    def get_time(self):
-        return self.index.get_level_values('time')
-
-    def get_timestamp(self):
-        return self.index.get_level_values('timestamp')
 
     def get_distribution_view(self):
         return self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
@@ -553,11 +591,12 @@ class StimLockout(DataFrameClass):
         super().__init__(data, index, columns, dtype, copy, parent, history, **kwds)
 
     @classmethod
-    def create_default(cls, df, parent=None, **kwds):
+    def create_default(cls, df, sampling_rate, parent=None, **kwds):
         if parent is None:
             parent = df
 
-        return cls.from_realtime(df, parent=parent, **kwds)
+        enc_settings = AttrDict({'sampling_rate': sampling_rate})
+        return cls.from_realtime(df, enc_settings=enc_settings, parent=parent, **kwds)
 
     @classmethod
     def from_realtime(cls, stim_lockout, enc_settings, parent=None, **kwds):
@@ -588,7 +627,7 @@ class StimLockout(DataFrameClass):
         return type(self)(sel)
 
 
-class FlatLinearPosition(DayEpochTimeSeries, DataFrameClass):
+class FlatLinearPosition(DayEpochTimeSeries):
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
         super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
