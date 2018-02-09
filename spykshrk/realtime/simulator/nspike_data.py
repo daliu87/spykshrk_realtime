@@ -337,7 +337,7 @@ class SpkDataStream:
                     spk_data = epoch_data_sorted_raw[ind:ind+4, :]
                     elec_grp = epoch_data_sorted_index[ind][2]
 
-                    yield SpikePoint(timestamp=timestamp, elec_grp=elec_grp, data=spk_data)
+                    yield SpikePoint(timestamp=timestamp, elec_grp_id=elec_grp, data=spk_data)
 
 
 class EEGDataStream:

@@ -83,7 +83,7 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming):
                                                   rec_ids=[realtime_base.RecordIDs.ENCODER_QUERY,
                                                            realtime_base.RecordIDs.ENCODER_OUTPUT],
                                                   rec_labels=[['timestamp',
-                                                               'trodes_id',
+                                                               'elec_grp_id',
                                                                'weight',
                                                                'position'],
                                                               ['timestamp',
@@ -102,11 +102,11 @@ class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming):
         self.spike_interface = spike_interface
         self.pos_interface = pos_interface
 
-        kernel = RST.kernel_param(mean=config['encoder']['kernel']['mean'],
-                                  stddev=config['encoder']['kernel']['std'],
-                                  min_val=config['encoder']['kernel']['lower'],
-                                  max_val=config['encoder']['kernel']['upper'],
-                                  interval=config['encoder']['kernel']['interval'])
+        kernel = RST.kernel_param(mean=config['encoder']['mark_kernel']['mean'],
+                                  stddev=config['encoder']['mark_kernel']['std'],
+                                  min_val=config['encoder']['mark_kernel']['lower'],
+                                  max_val=config['encoder']['mark_kernel']['upper'],
+                                  interval=config['encoder']['mark_kernel']['interval'])
 
         pos_bin_struct = kernel_encoder.PosBinStruct([config['encoder']['position']['lower'],
                                                       config['encoder']['position']['upper']],

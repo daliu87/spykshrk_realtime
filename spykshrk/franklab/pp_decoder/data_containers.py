@@ -496,25 +496,43 @@ class SpikeObservation(DayEpochTimeSeries):
 
         return cls(data=df, parent=parent, **kwds)
 
-    def update_observations_bins(self, time_bin_size):
+    def update_observations_bins(self, time_bin_size, inplace=False):
+        if inplace:
+            df = self
+        else:
+            df = self.copy()
         dec_bins = np.floor((self.index.get_level_values('timestamp') -
                              self.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
         dec_bins_start = (int(self.index.get_level_values('timestamp')[0] / time_bin_size) *
                           time_bin_size + dec_bins * time_bin_size)
-        self['dec_bin'] = dec_bins
-        self['dec_bin_start'] = dec_bins_start
+        df['dec_bin'] = dec_bins
+        df['dec_bin_start'] = dec_bins_start
 
-        return self
+        df.update_num_missing_future_bins(inplace=True)
+        return df
 
-    def update_parallel_bins(self, time_bin_size):
+    def update_parallel_bins(self, time_bin_size, inplace=True):
+        if inplace:
+            df = self
+        else:
+            df = self.copy()
         parallel_bins = np.floor((self.index.get_level_values('timestamp') -
                                   self.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
-        self['parallel_bin'] = parallel_bins
+        df['parallel_bin'] = parallel_bins
 
-        return self
+        return df
 
     def get_no_multi_index(self):
         return pd.DataFrame(self.set_index(self.index.get_level_values('timestamp')))
+
+    def update_num_missing_future_bins(self, inplace=False):
+        if inplace:
+            df = self
+        else:
+            df = self.copy()
+        df['num_missing_bins'] = np.concatenate([np.clip(np.diff(df['dec_bin'])-1, 0, None), [0]])
+
+        return df
 
 
 class Posteriors(DayEpochTimeSeries):

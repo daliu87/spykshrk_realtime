@@ -64,8 +64,8 @@ class DecodeVisualizer:
 
         linpos_sing = self.linpos.get_mapped_single_axis()
 
-        linpos_sel = linpos_sing.loc[:, ['linpos_flat']].query('time > {} and time < {}'.format(*plt_range))
-        ax = plt.plot(linpos_sel.index.get_level_values('time'), linpos_sel.values, 'co', zorder=2, markersize=6,
+        self.linpos_sel = linpos_sing.loc[:, ['linpos_flat']].query('time > {} and time < {}'.format(*plt_range))
+        ax = plt.plot(self.linpos_sel.index.get_level_values('time'), self.linpos_sel.values, 'co', zorder=2, markersize=6,
                       alpha=alpha)
 
         return ax

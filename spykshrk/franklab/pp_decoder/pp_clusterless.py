@@ -78,15 +78,16 @@ class OfflinePPDecoder:
 
         """
 
-        self.binned_observ = self.calc_observation_intensity(self.observ_obj,
-                                                             self.encode_settings,
-                                                             self.decode_settings,
-                                                             time_bin_size=self.time_bin_size)
         self.firing_rate = self._calc_firing_rate_tet(self.observ_obj, self.encode_settings)
         self.occupancy = self.calc_occupancy(self.lin_obj, self.encode_settings)
         self.prob_no_spike = self.calc_prob_no_spike(self.firing_rate, self.occupancy, self.encode_settings,
                                                      self.decode_settings)
-        self.likelihoods = self.calc_likelihood(self.binned_observ, self.prob_no_spike, self.encode_settings)
+        self.likelihoods = self.calc_observation_intensity(self.observ_obj,
+                                                           self.prob_no_spike,
+                                                           self.encode_settings,
+                                                           self.decode_settings,
+                                                           time_bin_size=self.time_bin_size)
+        #self.likelihoods = self.calc_likelihood(self.binned_observ, self.prob_no_spike, self.encode_settings)
         self.posteriors = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
         self.posteriors_obj = Posteriors.from_dataframe(self.posteriors, encode_settings=self.encode_settings)
 
@@ -214,6 +215,7 @@ class OfflinePPDecoder:
 
     @staticmethod
     def calc_observation_intensity(observ: SpikeObservation,
+                                   prob_no_spike,
                                    enc_settings: EncodeSettings,
                                    dec_settings: DecodeSettings,
                                    time_bin_size=None):
@@ -237,22 +239,29 @@ class OfflinePPDecoder:
         epoch = observ.index.get_level_values('epoch')[0]
 
         if time_bin_size is not None:
-            observ.update_observations_bins(time_bin_size=time_bin_size)
+            observ.update_observations_bins(time_bin_size=time_bin_size, inplace=True)
         else:
             time_bin_size = dec_settings.time_bin_size
-            observ.update_observations_bins(time_bin_size=time_bin_size)
+            observ.update_observations_bins(time_bin_size=time_bin_size, inplace=True)
 
-        observ.update_parallel_bins(enc_settings.sampling_rate)
+        observ.update_parallel_bins(enc_settings.sampling_rate, inplace=True)
+
+        observ.update_num_missing_future_bins(inplace=True)
 
         observ_dask = dd.from_pandas(observ.get_no_multi_index(), chunksize=10000)
         observ_grp = observ_dask.groupby('parallel_bin')
 
         observ_meta = [(key, 'f8') for key in [pos_col_format(ii, enc_settings.pos_num_bins)
-                                              for ii in range(enc_settings.pos_num_bins)]]
+                                               for ii in range(enc_settings.pos_num_bins)]]
         observ_meta.append(('timestamp', 'f8'))
         observ_meta.append(('num_spikes', 'f8'))
         observ_meta.append(('dec_bin', 'f8'))
+
+        elec_grp_list = observ['elec_grp_id'].unique()
         observ_task = observ_grp.apply(functools.partial(OfflinePPDecoder._calc_observation_single_bin,
+                                                         elec_grp_list=elec_grp_list,
+                                                         prob_no_spike=prob_no_spike,
+                                                         time_bin_size=time_bin_size,
                                                          enc_settings=enc_settings,
                                                          pos_col_names=pos_col_names),
                                        meta=observ_meta)
@@ -270,29 +279,46 @@ class OfflinePPDecoder:
         return binned_observ
 
     @staticmethod
-    def _calc_observation_single_bin(spikes_in_parallel, enc_settings, pos_col_names):
+    def _calc_observation_single_bin(spikes_in_parallel, elec_grp_list,
+                                     prob_no_spike, time_bin_size, enc_settings, pos_col_names):
 
-        parallel_grp = spikes_in_parallel.groupby('dec_bin')
+        global_prob_no_spike = np.prod(list(prob_no_spike.values()), axis=0)
 
         results = []
-        for dec_bin_ii, spikes_in_bin in parallel_grp:
+        parallel_id = spikes_in_parallel['parallel_bin'].iloc[0]
+        parallel_grp = spikes_in_parallel.groupby('dec_bin')
 
-            dec_in_bin = np.ones(enc_settings.pos_num_bins)
+        for dec_bin_ii, spikes_in_bin in parallel_grp:
+            #print('parallel #{} dec #{}'.format(parallel_id, dec_bin_ii))
+            obv_in_bin = np.ones(enc_settings.pos_num_bins)
 
             num_spikes = len(spikes_in_bin)
 
-            for dec_ii, dec in enumerate(spikes_in_bin.loc[:, pos_col_names].values):
-                dec_in_bin = dec_in_bin * dec
-                dec_in_bin = dec_in_bin / (np.sum(dec_in_bin) * enc_settings.pos_bin_delta)
+            elec_set = set()
+
+            for obv, elec_grp_id, num_missing_bins in zip(spikes_in_bin.loc[:, pos_col_names].values,
+                                                          spikes_in_bin.loc[:, 'elec_grp_id'].values,
+                                                          spikes_in_bin.loc[:, 'num_missing_bins'].values):
+
+                elec_set.add(elec_grp_id)
+
+                obv_in_bin = obv_in_bin * obv
+                obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
+                obv_in_bin = obv_in_bin / (np.sum(obv_in_bin) * enc_settings.pos_bin_delta)
+
+            for elec_grp_id in elec_set.symmetric_difference(elec_grp_list):
+                obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
 
             dec_bin_timestamp = spikes_in_bin['dec_bin_start'].iloc[0]
+            results.append(np.concatenate([obv_in_bin, [dec_bin_timestamp, num_spikes, dec_bin_ii]]))
 
-            results.append(np.concatenate([dec_in_bin, [dec_bin_timestamp, num_spikes, dec_bin_ii]]))
+            for missing_ii in range(num_missing_bins):
+                results.append(np.concatenate([global_prob_no_spike, [dec_bin_timestamp+((missing_ii+1)*time_bin_size),
+                                                                      0, dec_bin_ii+missing_ii+1]]))
 
-        dec_bin_results = pd.DataFrame(np.vstack(results),
-                                       columns=pos_col_names+['timestamp', 'num_spikes', 'dec_bin'])
-        #dec_bin_results = np.vstack(results)
-        return dec_bin_results
+        likelihoods = pd.DataFrame(np.vstack(results),
+                                   columns=pos_col_names+['timestamp', 'num_spikes', 'dec_bin'])
+        return likelihoods
 
     @staticmethod
     def _calc_firing_rate_tet(observ: SpikeObservation, enc_settings: EncodeSettings):
