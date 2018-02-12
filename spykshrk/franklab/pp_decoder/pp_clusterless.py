@@ -5,6 +5,8 @@ import scipy.signal
 import dask
 import dask.dataframe as dd
 
+from numba import jit, autojit
+
 import multiprocessing as mp
 import functools
 import ipyparallel as ipp
@@ -13,8 +15,9 @@ from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_
 from spykshrk.franklab.pp_decoder.data_containers import LinearPosition, SpikeObservation, EncodeSettings, \
     DecodeSettings, Posteriors, pos_col_format
 
+import spykshrk.franklab.pp_decoder.pp_clusterless_cy as pp_cy
 
-class OfflinePPDecoder:
+class OfflinePPDecoder(object):
     """
     Implementation of Adaptive Marked Point Process Decoder [Deng, et. al. 2015].
     
@@ -78,20 +81,36 @@ class OfflinePPDecoder:
 
         """
 
+        self.recalc_firing_rate()
+        self.recalc_occupancy()
+        self.recalc_prob_no_spike()
+        print("Beginning likelihood calculation")
+        self.recalc_likelihood()
+        print("Beginning posterior calculation")
+        self.recalc_posterior()
+
+        return self.posteriors_obj
+
+    def recalc_firing_rate(self):
         self.firing_rate = self._calc_firing_rate_tet(self.observ_obj, self.encode_settings)
+
+    def recalc_occupancy(self):
         self.occupancy = self.calc_occupancy(self.lin_obj, self.encode_settings)
+
+    def recalc_prob_no_spike(self):
         self.prob_no_spike = self.calc_prob_no_spike(self.firing_rate, self.occupancy, self.encode_settings,
                                                      self.decode_settings)
+
+    def recalc_likelihood(self):
         self.likelihoods = self.calc_observation_intensity(self.observ_obj,
                                                            self.prob_no_spike,
                                                            self.encode_settings,
                                                            self.decode_settings,
                                                            time_bin_size=self.time_bin_size)
-        #self.likelihoods = self.calc_likelihood(self.binned_observ, self.prob_no_spike, self.encode_settings)
+
+    def recalc_posterior(self):
         self.posteriors = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
         self.posteriors_obj = Posteriors.from_dataframe(self.posteriors, encode_settings=self.encode_settings)
-
-        return self.posteriors_obj
 
     @staticmethod
     def calc_learned_state_trans_mat(linpos_simple, enc_settings, dec_settings):
@@ -232,9 +251,6 @@ class OfflinePPDecoder:
 
         """
 
-        pos_col_names = [pos_col_format(bin_id, enc_settings.pos_num_bins)
-                         for bin_id in range(enc_settings.pos_num_bins)]
-
         day = observ.index.get_level_values('day')[0]
         epoch = observ.index.get_level_values('epoch')[0]
 
@@ -244,11 +260,11 @@ class OfflinePPDecoder:
             time_bin_size = dec_settings.time_bin_size
             observ.update_observations_bins(time_bin_size=time_bin_size, inplace=True)
 
-        observ.update_parallel_bins(enc_settings.sampling_rate, inplace=True)
+        observ.update_parallel_bins(30000, inplace=True)
 
         observ.update_num_missing_future_bins(inplace=True)
 
-        observ_dask = dd.from_pandas(observ.get_no_multi_index(), chunksize=10000)
+        observ_dask = dd.from_pandas(observ.get_no_multi_index(), chunksize=30000)
         observ_grp = observ_dask.groupby('parallel_bin')
 
         observ_meta = [(key, 'f8') for key in [pos_col_format(ii, enc_settings.pos_num_bins)
@@ -262,17 +278,28 @@ class OfflinePPDecoder:
                                                          elec_grp_list=elec_grp_list,
                                                          prob_no_spike=prob_no_spike,
                                                          time_bin_size=time_bin_size,
-                                                         enc_settings=enc_settings,
-                                                         pos_col_names=pos_col_names),
+                                                         enc_settings=enc_settings),
                                        meta=observ_meta)
 
         dec_agg_results = observ_task.compute()
         dec_agg_results.sort_values('timestamp', inplace=True)
 
-        dec_agg_results['day'] = day
-        dec_agg_results['epoch'] = epoch
-        dec_agg_results['time'] = dec_agg_results['timestamp']/float(enc_settings.sampling_rate)
-        binned_observ = dec_agg_results.set_index(['day', 'epoch', 'timestamp', 'time'])
+        dec_new_ind = pd.MultiIndex.from_product([[day], [epoch], dec_agg_results['timestamp']])
+        lev = list(dec_new_ind.levels)
+        lab = list(dec_new_ind.labels)
+        lev.append(dec_agg_results['timestamp']/float(enc_settings.sampling_rate))
+        lab.append(range(len(dec_agg_results)))
+
+        dec_new_ind = pd.MultiIndex(levels=lev, labels=lab, names=['day', 'epoch', 'timestamp', 'time'])
+
+        dec_agg_results.set_index(dec_new_ind, inplace=True)
+
+        binned_observ = dec_agg_results
+
+        #dec_agg_results['day'] = day
+        #dec_agg_results['epoch'] = epoch
+        #dec_agg_results['time'] = dec_agg_results['timestamp']/float(enc_settings.sampling_rate)
+        #binned_observ = dec_agg_results.set_index(['day', 'epoch', 'timestamp', 'time'])
 
         # Smooth and normalize firing rate (conditional intensity function)
 
@@ -280,15 +307,20 @@ class OfflinePPDecoder:
 
     @staticmethod
     def _calc_observation_single_bin(spikes_in_parallel, elec_grp_list,
-                                     prob_no_spike, time_bin_size, enc_settings, pos_col_names):
+                                     prob_no_spike, time_bin_size, enc_settings):
 
         global_prob_no_spike = np.prod(list(prob_no_spike.values()), axis=0)
 
         results = []
         parallel_id = spikes_in_parallel['parallel_bin'].iloc[0]
-        parallel_grp = spikes_in_parallel.groupby('dec_bin')
+        dec_grp = spikes_in_parallel.groupby('dec_bin')
 
-        for dec_bin_ii, spikes_in_bin in parallel_grp:
+        pos_col_ind = spikes_in_parallel.columns.slice_locs(enc_settings.pos_col_names[0],
+                                                            enc_settings.pos_col_names[-1])
+        elec_grp_ind = spikes_in_parallel.columns.get_loc('elec_grp_id')
+        num_missing_ind = spikes_in_parallel.columns.get_loc('num_missing_bins')
+
+        for dec_bin_ii, spikes_in_bin in dec_grp:
             #print('parallel #{} dec #{}'.format(parallel_id, dec_bin_ii))
             obv_in_bin = np.ones(enc_settings.pos_num_bins)
 
@@ -296,9 +328,11 @@ class OfflinePPDecoder:
 
             elec_set = set()
 
-            for obv, elec_grp_id, num_missing_bins in zip(spikes_in_bin.loc[:, pos_col_names].values,
-                                                          spikes_in_bin.loc[:, 'elec_grp_id'].values,
-                                                          spikes_in_bin.loc[:, 'num_missing_bins'].values):
+            spike_bin_raw = spikes_in_bin.values
+
+            for obv, elec_grp_id, num_missing_bins in zip(spike_bin_raw[:, slice(*pos_col_ind)],
+                                                          spike_bin_raw[:, elec_grp_ind],
+                                                          spike_bin_raw[:, num_missing_ind]):
 
                 elec_set.add(elec_grp_id)
 
@@ -312,12 +346,12 @@ class OfflinePPDecoder:
             dec_bin_timestamp = spikes_in_bin['dec_bin_start'].iloc[0]
             results.append(np.concatenate([obv_in_bin, [dec_bin_timestamp, num_spikes, dec_bin_ii]]))
 
-            for missing_ii in range(num_missing_bins):
+            for missing_ii in range(int(num_missing_bins)):
                 results.append(np.concatenate([global_prob_no_spike, [dec_bin_timestamp+((missing_ii+1)*time_bin_size),
                                                                       0, dec_bin_ii+missing_ii+1]]))
 
         likelihoods = pd.DataFrame(np.vstack(results),
-                                   columns=pos_col_names+['timestamp', 'num_spikes', 'dec_bin'])
+                                   columns=enc_settings.pos_col_names+['timestamp', 'num_spikes', 'dec_bin'])
         return likelihoods
 
     @staticmethod
@@ -395,8 +429,7 @@ class OfflinePPDecoder:
 
         """
         num_spikes = binned_observ['num_spikes'].values
-        dec_est = binned_observ.loc[:, [pos_col_format(bin_id, enc_settings.pos_num_bins)
-                                        for bin_id in range(enc_settings.pos_num_bins)]].values
+        dec_est = binned_observ.loc[:, enc_settings.pos_col_names].values
         likelihoods = np.ones(dec_est.shape)
 
         for num_spikes, (dec_ind, dec_est_bin) in zip(num_spikes, enumerate(dec_est)):
@@ -416,9 +449,7 @@ class OfflinePPDecoder:
 
         # copy observ DataFrame and replace with likelihoods, preserving other columns
         likelihoods_df = binned_observ.copy()   # type: pd.DataFrame
-        likelihoods_df.loc[:, pos_col_format(0, enc_settings.pos_num_bins):
-                           pos_col_format(enc_settings.pos_num_bins-1,
-                                          enc_settings.pos_num_bins)] = likelihoods
+        likelihoods_df.loc[:, enc_settings.pos_column_slice()] = likelihoods
 
         return likelihoods_df
 
@@ -438,21 +469,37 @@ class OfflinePPDecoder:
                                           pos_col_format(enc_settings.pos_num_bins-1,
                                                          enc_settings.pos_num_bins)]
 
-        last_posterior = np.ones(enc_settings.pos_num_bins)
+        posteriors = OfflinePPDecoder._posterior_from_numpy(likelihoods_pos.values,
+                                                            transition_mat, enc_settings.pos_num_bins,
+                                                            enc_settings.pos_bin_delta)
 
-        posteriors = np.zeros(likelihoods_pos.shape)
-
-        for like_ii, like in enumerate(likelihoods_pos.values):
-            posteriors[like_ii, :] = like * (transition_mat * last_posterior).sum(axis=1)
-            posteriors[like_ii, :] = posteriors[like_ii, :] / (posteriors[like_ii, :].sum() *
-                                                               enc_settings.pos_bin_delta)
-            last_posterior = posteriors[like_ii, :]
+        # posteriors = pp_cy.calc_posterior_cy(likelihoods_pos.values.copy(order='C'),
+        #                                      transition_mat.copy(order='C'), enc_settings.pos_num_bins,
+        #                                      enc_settings.pos_bin_delta)
 
         # copy observ DataFrame and replace with likelihoods, preserving other columns
-        posteriors_df = likelihoods.copy()  # type: pd.DataFrame
-        posteriors_df.loc[:, pos_col_format(0, enc_settings.pos_num_bins):
-                          pos_col_format(enc_settings.pos_num_bins-1,
-                                         enc_settings.pos_num_bins)] = posteriors
+
+        posteriors_df = pd.DataFrame(posteriors, index=likelihoods.index,
+                                     columns=enc_settings.pos_col_names)
+
+        posteriors_df['num_spikes'] = likelihoods['num_spikes']
+        posteriors_df['dec_bin'] = likelihoods['dec_bin']
 
         return posteriors_df
 
+    @staticmethod
+    def _posterior_from_numpy(likelihoods, transition_mat, pos_num_bins, pos_delta):
+
+        last_posterior = np.ones(pos_num_bins)
+
+        posteriors = np.zeros(likelihoods.shape)
+
+        for like_ii, like in enumerate(likelihoods):
+            posteriors[like_ii, :] = like * np.matmul(transition_mat, last_posterior)
+            posteriors[like_ii, :] = posteriors[like_ii, :] / (posteriors[like_ii, :].sum() *
+                                                               pos_delta)
+            last_posterior = posteriors[like_ii, :]
+
+        # copy observ DataFrame and replace with likelihoods, preserving other columns
+
+        return posteriors

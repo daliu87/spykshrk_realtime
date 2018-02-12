@@ -103,8 +103,7 @@ class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
         pass
 
     def __repr__(self):
-        return "blar"
-        #return '<{}: {}, shape: ({})>'.format(self.__class__.__name__, self.uuid, self.shape)
+        return '<{}: {}, shape: ({})>'.format(self.__class__.__name__, self.uuid, self.shape)
 
 
 class DayEpochTimeSeries(DataFrameClass):
@@ -173,10 +172,10 @@ class DayEpochElecTimeChannelSeries(DayEpochTimeSeries):
             if not isinstance(data.index, pd.MultiIndex):
                 raise DataFormatError("DataFrame index must use MultiIndex as index.")
 
-            if not all([col in data.index.names for col in ['day', 'epoch', 'elec_grp',
+            if not all([col in data.index.names for col in ['day', 'epoch', 'elec_grp_id',
                                                             'timestamp', 'time', 'channel']]):
                 raise DataFormatError("DayEpochTimeSeries must have index with 6 levels named: "
-                                      "day, epoch, elec_grp, timestamp, time.")
+                                      "day, epoch, elec_grp_id, timestamp, time.")
 
         if index is not None and not isinstance(index, pd.MultiIndex):
             raise DataFormatError("Index to be set must be MultiIndex.")
@@ -194,9 +193,9 @@ class DayEpochElecTimeSeries(DayEpochTimeSeries):
             if not isinstance(data.index, pd.MultiIndex):
                 raise DataFormatError("DataFrame index must use MultiIndex as index.")
 
-            if not all([col in data.index.names for col in ['day', 'epoch', 'elec_grp', 'timestamp', 'time']]):
+            if not all([col in data.index.names for col in ['day', 'epoch', 'elec_grp_id', 'timestamp', 'time']]):
                 raise DataFormatError("DayEpochTimeSeries must have index with 6 levels named: "
-                                      "day, epoch, elec_grp, timestamp, time.")
+                                      "day, epoch, elec_grp_id, timestamp, time.")
 
         if index is not None and not isinstance(index, pd.MultiIndex):
             raise DataFormatError("Index to be set must be MultiIndex.")
@@ -223,6 +222,7 @@ class EncodeSettings:
         self.pos_lower = encoder_config['position']['lower']
         self.pos_num_bins = encoder_config['position']['bins']
         self.pos_bin_delta = ((self.pos_upper - self.pos_lower) / self.pos_num_bins)
+        self.pos_col_names = [pos_col_format(ii, self.pos_num_bins) for ii in range(self.pos_num_bins)]
 
         self.pos_bins = np.linspace(0, self.pos_bin_delta * (self.pos_num_bins - 1), self.pos_num_bins)
         self.pos_bin_edges = np.linspace(0, self.pos_bin_delta * self.pos_num_bins, self.pos_num_bins+1)
@@ -236,6 +236,16 @@ class EncodeSettings:
         self.mark_kernel_mean = encoder_config['mark_kernel']['mean']
         self.mark_kernel_std = encoder_config['mark_kernel']['std']
 
+    def pos_column_name(self, pos_ind):
+        return pos_col_format(pos_ind, self.pos_num_bins)
+
+    @property
+    def pos_column_slice(self):
+        return slice(self.pos_col_names[0], self.pos_col_names[-1])
+
+    @pos_column_slice.setter
+    def pos_column_slice(self, slice):
+        raise NotImplementedError
 
 class DecodeSettings:
     """
@@ -291,7 +301,7 @@ class SpikeFeatures(DayEpochElecTimeSeries):
     def from_numpy_single_epoch_elec(cls, day, epoch, elec_grp, timestamp, amps, sampling_rate):
         ind = pd.MultiIndex.from_arrays([[day]*len(timestamp), [epoch]*len(timestamp), [elec_grp]*len(timestamp),
                                          timestamp, timestamp/float(sampling_rate)],
-                                        names=['day', 'epoch', 'elec_grp', 'timestamp', 'time'])
+                                        names=['day', 'epoch', 'elec_grp_id', 'timestamp', 'time'])
 
         return cls(data=amps, index=ind)
 
@@ -651,8 +661,8 @@ class FlatLinearPosition(DayEpochTimeSeries):
         super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
                          history=history, **kwds)
 
-        if isinstance(data, pd.DataFrame) and 'linvel_flat' not in data.columns:
-            raise DataFormatError("Missing 'linvel_flat' column.")
+        #if isinstance(data, pd.DataFrame) and 'linvel_flat' not in data.columns:
+        #   raise DataFormatError("Missing 'linvel_flat' column.")
 
     @classmethod
     def create_default(cls, df, parent=None, **kwds):

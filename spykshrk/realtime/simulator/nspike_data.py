@@ -305,7 +305,7 @@ class SpkDataStream:
 
                     epoch_spk_time_reshape = np.tile(epoch_spk_time, (1, 4)).reshape(4 * len(epoch_spk_time))
                     epoch_spk_wave_ind = pd.MultiIndex.from_product([[day], [epoch], [tet], epoch_spk_time_reshape],
-                                                                    names=['day', 'epoch', 'elec_grp',
+                                                                    names=['day', 'epoch', 'elec_grp_id',
                                                                            'timestamp'])
 
                     epoch_spk_wave_df = pd.DataFrame(data=epoch_spk_wave_reshape, index=epoch_spk_wave_ind,
