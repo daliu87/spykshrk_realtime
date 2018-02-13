@@ -92,7 +92,7 @@ class Groupby:
 
     def __iter__(self):
         for inds in self.indices:
-            yield self.data[inds]
+            yield (inds[0], self.data[inds])
 
 
 

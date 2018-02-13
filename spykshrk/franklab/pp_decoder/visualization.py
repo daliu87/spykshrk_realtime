@@ -3,7 +3,9 @@ import matplotlib.pyplot as plt
 from matplotlib import patches
 import pandas as pd
 import numpy as np
+import holoviews as hv
 
+idx = pd.IndexSlice
 
 class MissingDataError(RuntimeError):
     pass
@@ -26,6 +28,11 @@ class DecodeVisualizer:
 
         if plt_range is None:
             plt_range = self.posteriors.get_time_range()
+        else:
+            if plt_range[0] == None:
+                plt_range[0] = self.posteriors.get_time_start()
+            if plt_range[1] == None:
+                plt_range[1] = self.posteriors.get_time_end()
 
         post_plot = self.posteriors.query('time > {} and time < {}'.
                                           format(*plt_range)).loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
@@ -70,7 +77,6 @@ class DecodeVisualizer:
 
         return ax
 
-
     @staticmethod
     def plot_stim_lockout(ax, stim_lock: StimLockout, plt_range, plt_height):
 
@@ -88,8 +94,17 @@ class DecodeVisualizer:
 class DecodeErrorVisualizer:
 
     @staticmethod
-    def plot_arms_error(dec_error, plt_range=None):
+    def plot_arms_error(error_table, plt_range=None):
+        error_bars = (error_table.loc[:, idx[:, ['plt_error_up',
+                                                 'plt_error_down']]].
+                      reindex(columns=pd.MultiIndex.from_product([['center','left','right'],
+                                                                  ['plt_error_up','plt_error_down']])))
 
-        plt.xlabel('seconds')
-        plt.ylabel("distance from arm's well")
-        plt.legend(['center arm', 'left arm', 'right arm'])
+        error_bars = np.reshape(error_bars.values, [len(error_bars),3,2])
+        error_bars = error_bars.transpose(1,2,0)
+
+        ds = hv.Dataset(error_table.loc[:, idx[:, 'real_pos']])
+        curves = ds.to(hv.Curve, vdim=hv.Dimension('real_pos'))
+
+        return curves
+

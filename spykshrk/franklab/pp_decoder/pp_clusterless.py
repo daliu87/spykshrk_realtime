@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import scipy as sp
 import scipy.signal
+import traceback
 import dask
 import dask.dataframe as dd
 
@@ -11,7 +12,7 @@ import multiprocessing as mp
 import functools
 import ipyparallel as ipp
 
-from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary
+from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary, Groupby
 from spykshrk.franklab.pp_decoder.data_containers import LinearPosition, SpikeObservation, EncodeSettings, \
     DecodeSettings, Posteriors, pos_col_format
 
@@ -260,7 +261,7 @@ class OfflinePPDecoder(object):
             time_bin_size = dec_settings.time_bin_size
             observ.update_observations_bins(time_bin_size=time_bin_size, inplace=True)
 
-        observ.update_parallel_bins(30000, inplace=True)
+        observ.update_parallel_bins(60000, inplace=True)
 
         observ.update_num_missing_future_bins(inplace=True)
 
@@ -312,13 +313,16 @@ class OfflinePPDecoder(object):
         global_prob_no_spike = np.prod(list(prob_no_spike.values()), axis=0)
 
         results = []
-        parallel_id = spikes_in_parallel['parallel_bin'].iloc[0]
-        dec_grp = spikes_in_parallel.groupby('dec_bin')
+        #parallel_id = spikes_in_parallel['parallel_bin'].iloc[0]
+        #dec_grp = spikes_in_parallel.groupby('dec_bin')
+
+        dec_grp = Groupby(spikes_in_parallel.values, spikes_in_parallel['dec_bin'].values)
 
         pos_col_ind = spikes_in_parallel.columns.slice_locs(enc_settings.pos_col_names[0],
                                                             enc_settings.pos_col_names[-1])
         elec_grp_ind = spikes_in_parallel.columns.get_loc('elec_grp_id')
         num_missing_ind = spikes_in_parallel.columns.get_loc('num_missing_bins')
+        dec_bin_start_ind = spikes_in_parallel.columns.get_loc('dec_bin_start')
 
         for dec_bin_ii, spikes_in_bin in dec_grp:
             #print('parallel #{} dec #{}'.format(parallel_id, dec_bin_ii))
@@ -328,8 +332,18 @@ class OfflinePPDecoder(object):
 
             elec_set = set()
 
-            spike_bin_raw = spikes_in_bin.values
+            spike_bin_raw = spikes_in_bin
 
+            """obv_in_bin = spike_bin_raw[:, slice(*pos_col_ind)].prod(axis=0)
+
+            for elec_grp_id in spike_bin_raw[:, elec_grp_ind]:
+                elec_set.add(elec_grp_id)
+                obv_in_bin *= prob_no_spike[elec_grp_id]
+
+            obv_in_bin = obv_in_bin / (np.sum(obv_in_bin) * enc_settings.pos_bin_delta)
+
+            num_missing_bins = spike_bin_raw[-1,num_missing_ind]
+            """
             for obv, elec_grp_id, num_missing_bins in zip(spike_bin_raw[:, slice(*pos_col_ind)],
                                                           spike_bin_raw[:, elec_grp_ind],
                                                           spike_bin_raw[:, num_missing_ind]):
@@ -343,7 +357,7 @@ class OfflinePPDecoder(object):
             for elec_grp_id in elec_set.symmetric_difference(elec_grp_list):
                 obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
 
-            dec_bin_timestamp = spikes_in_bin['dec_bin_start'].iloc[0]
+            dec_bin_timestamp = spike_bin_raw[0, dec_bin_start_ind]
             results.append(np.concatenate([obv_in_bin, [dec_bin_timestamp, num_spikes, dec_bin_ii]]))
 
             for missing_ii in range(int(num_missing_bins)):

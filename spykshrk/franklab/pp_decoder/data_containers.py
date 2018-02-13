@@ -147,6 +147,12 @@ class DayEpochTimeSeries(DataFrameClass):
     def get_time_range(self):
         return [self.index.get_level_values('time')[0], self.index.get_level_values('time')[-1]]
 
+    def get_time_start(self):
+        return self.index.get_level_values('time')[0]
+
+    def get_time_end(self):
+        return self.index.get_level_values('time')[-1]
+
     def get_relative_index(self, inplace=False):
         if inplace:
             ret_data = self
@@ -474,9 +480,14 @@ class SpikeObservation(DayEpochTimeSeries):
     content is the estimated probability that the spike and its marks will be observed in the
     encoding model.
     """
+
+    _metadata = DayEpochTimeSeries._metadata + ['observation_bin_size', 'parallel_bin_size']
+
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
         super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
                          history=history, **kwds)
+        self.parallel_bin_size = 0
+        self.observation_bin_size = 0
 
     @classmethod
     def create_default(cls, df, sampling_rate, parent=None, **kwds):
@@ -511,6 +522,11 @@ class SpikeObservation(DayEpochTimeSeries):
             df = self
         else:
             df = self.copy()
+
+        self.observation_bin_size = time_bin_size
+        if self.parallel_bin_size % self.observation_bin_size != 0:
+            raise DataFormatError('Parallel time bins must be a multiple of observation bin sizes.')
+
         dec_bins = np.floor((self.index.get_level_values('timestamp') -
                              self.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
         dec_bins_start = (int(self.index.get_level_values('timestamp')[0] / time_bin_size) *
@@ -526,6 +542,11 @@ class SpikeObservation(DayEpochTimeSeries):
             df = self
         else:
             df = self.copy()
+
+        self.parallel_bin_size = time_bin_size
+
+        if self.parallel_bin_size % self.observation_bin_size != 0:
+            raise DataFormatError('Parallel time bins must be a multiple of observation bin sizes.')
         parallel_bins = np.floor((self.index.get_level_values('timestamp') -
                                   self.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
         df['parallel_bin'] = parallel_bins
@@ -547,7 +568,7 @@ class SpikeObservation(DayEpochTimeSeries):
 
 class Posteriors(DayEpochTimeSeries):
 
-    _metadata = DataFrameClass._metadata + ['enc_settings']
+    _metadata = DayEpochTimeSeries._metadata + ['enc_settings']
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
         if 'enc_settings' in kwds:
