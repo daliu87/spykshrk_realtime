@@ -108,7 +108,10 @@ class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
 
 class DayEpochTimeSeries(DataFrameClass):
 
+    _metadata = DataFrameClass._metadata + ['sampling_rate']
+
     def __init__(self, **kwds):
+        self.sampling_rate = kwds['sampling_rate']
         data = kwds['data']
         index = kwds['index']
 
@@ -137,6 +140,11 @@ class DayEpochTimeSeries(DataFrameClass):
             raise DataFormatError("Index to be set must be MultiIndex.")
 
         super().__init__(**kwds)
+
+    @classmethod
+    @abstractclassmethod
+    def create_default(cls, df, sampling_rate, parent=None, **kwds):
+        pass
 
     def get_time(self):
         return self.index.get_level_values('time')
@@ -167,10 +175,59 @@ class DayEpochTimeSeries(DataFrameClass):
 
         return ret_data
 
+    def get_resampled(self, bin_size):
+        """
+        
+        Args:
+            bin_size: size of time 
+7
+        Returns (LinearPositionContainer): copy of self with times resampled using backfill.
+
+        """
+
+        def epoch_rebin_func(df):
+            day = df.index.get_level_values('day')[0]
+            epoch = df.index.get_level_values('epoch')[0]
+
+            new_timestamps = np.arange(df.index.get_level_values('timestamp')[0] +
+                                       (bin_size - df.index.get_level_values('timestamp')[0] % bin_size),
+                                       df.index.get_level_values('timestamp')[-1]+1, bin_size)
+            new_times = new_timestamps / float(self.sampling_rate)
+
+            new_indices = pd.MultiIndex.from_tuples(list(zip(
+                new_timestamps, new_times)), names=['timestamp', 'time'])
+
+            #df.set_index(df.index.get_level_values('timestamp'), inplace=True)
+            pos_data_bin_ids = np.arange(0, len(new_timestamps), 1)
+
+            pos_data_binned = df.loc[day, epoch].reindex(new_indices, method='ffill')
+            #pos_data_binned.set_index(new_timestamps)
+            pos_data_binned['bin'] = pos_data_bin_ids
+
+            return pos_data_binned
+
+        grp = self.groupby(level=['day', 'epoch'])
+
+        pos_data_rebinned = grp.apply(epoch_rebin_func)
+        return type(self)(pos_data_rebinned, history=self.history, **self.kwds)
+
+    def get_irregular_resampled(self, timestamps):
+
+        grp = self.groupby(level=['day', 'epoch'])
+        for (day, epoch), grp_df in grp:
+            ind = pd.MultiIndex.from_arrays([[day]*len(timestamps), [epoch]*len(timestamps),
+                                             timestamps, np.array(timestamps)/
+                                             float(self.sampling_rate)],
+                                            names=['day', 'epoch', 'timestamp', 'time'])
+
+            return grp_df.reindex(ind, method='ffill', fill_value=0)
+
 
 class DayEpochElecTimeChannelSeries(DayEpochTimeSeries):
 
-    def __init__(self, **kwds):
+    _metadata = DayEpochTimeSeries._metadata
+
+    def __init__(self, sampling_rate, **kwds):
         data = kwds['data']
         index = kwds['index']
 
@@ -186,12 +243,14 @@ class DayEpochElecTimeChannelSeries(DayEpochTimeSeries):
         if index is not None and not isinstance(index, pd.MultiIndex):
             raise DataFormatError("Index to be set must be MultiIndex.")
 
-        super().__init__(**kwds)
+        super().__init__(sampling_rate=sampling_rate, **kwds)
 
 
 class DayEpochElecTimeSeries(DayEpochTimeSeries):
 
-    def __init__(self, **kwds):
+    _metadata = DayEpochTimeSeries._metadata
+
+    def __init__(self, sampling_rate, **kwds):
         data = kwds['data']
         index = kwds['index']
 
@@ -206,7 +265,7 @@ class DayEpochElecTimeSeries(DayEpochTimeSeries):
         if index is not None and not isinstance(index, pd.MultiIndex):
             raise DataFormatError("Index to be set must be MultiIndex.")
 
-        super().__init__(**kwds)
+        super().__init__(sampling_rate=sampling_rate, **kwds)
 
 
 class EncodeSettings:
@@ -270,38 +329,46 @@ class DecodeSettings:
 
 class SpikeWaves(DayEpochElecTimeChannelSeries):
 
-    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
+    _metadata = DayEpochElecTimeChannelSeries._metadata
 
-        super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
+    def __init__(self, data=None, index=None, columns=None, dtype=None,
+                 copy=False, parent=None, history=None, sampling_rate=0, **kwds):
+
+        super().__init__(sampling_rate=sampling_rate, data=data, index=index, columns=columns,
+                         dtype=dtype, copy=copy, parent=parent,
                          history=history, **kwds)
 
     @classmethod
-    def create_default(cls, df, parent=None, **kwds):
+    def create_default(cls, df, sampling_rate, parent=None, **kwds):
         if parent is None:
             parent = df
 
-        return cls(df, parent=parent, **kwds)
+        return cls(sampling_rate=sampling_rate, df=df, parent=parent, **kwds)
 
     @classmethod
     def from_df(cls, df, enc_settings, parent=None, **kwds):
         df['time'] = df.index.get_level_values('timestamp') / float(enc_settings.sampling_rate)
         df.set_index('time', append=True, inplace=True)
         #df.index = df.index.swaplevel(4, 5)
-        return cls(data=df, enc_settings=enc_settings, parent=parent, **kwds)
+        return cls(sampling_rate=enc_settings.sampling_rate, data=df, enc_settings=enc_settings,
+                   parent=parent, **kwds)
 
 
 class SpikeFeatures(DayEpochElecTimeSeries):
 
-    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
-        super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
-                         history=history, **kwds)
+    _metadata = DayEpochElecTimeSeries._metadata
+
+    def __init__(self, data=None, index=None, columns=None, dtype=None,
+                 copy=False, parent=None, history=None, sampling_rate=0, **kwds):
+        super().__init__(sampling_rate=sampling_rate, data=data, index=index, columns=columns,
+                         dtype=dtype, copy=copy, parent=parent, history=history, **kwds)
 
     @classmethod
-    def create_default(cls, df, parent=None, **kwds):
+    def create_default(cls, df, sampling_rate, parent=None, **kwds):
         if parent is None:
             parent = df
 
-        return cls(df, parent=parent, **kwds)
+        return cls(sampling_rate=sampling_rate, data=df, parent=parent, **kwds)
 
     @classmethod
     def from_numpy_single_epoch_elec(cls, day, epoch, elec_grp, timestamp, amps, sampling_rate):
@@ -309,7 +376,7 @@ class SpikeFeatures(DayEpochElecTimeSeries):
                                          timestamp, timestamp/float(sampling_rate)],
                                         names=['day', 'epoch', 'elec_grp_id', 'timestamp', 'time'])
 
-        return cls(data=amps, index=ind)
+        return cls(sampling_rate=sampling_rate, data=amps, index=ind)
 
     def get_above_threshold(self, threshold):
         ind = np.nonzero(np.any(self.values > threshold, axis=1))
@@ -334,16 +401,21 @@ class LinearPosition(DayEpochTimeSeries):
     structure and PosMatDataStream to parse the linearized position files.
     """
 
-    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
-        super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
-                         history=history, **kwds)
+    _metadata = DayEpochTimeSeries._metadata + ['arm_coord']
+
+    def __init__(self, data=None, index=None, columns=None, dtype=None,
+                 copy=False, parent=None, history=None, sampling_rate=0, arm_coord=None, **kwds):
+        super().__init__(sampling_rate=sampling_rate, data=data, index=index, columns=columns,
+                         dtype=dtype, copy=copy, parent=parent, history=history, **kwds)
+
+        self.arm_coord = arm_coord
 
     @classmethod
-    def create_default(cls, df, parent=None, **kwds):
+    def create_default(cls, df, sampling_rate, arm_coord, parent=None, **kwds):
         if parent is None:
             parent = df
 
-        return cls.create_from_nspike_posmat(df, parent=parent, **kwds)
+        return cls(sampling_rate=sampling_rate, arm_coord=arm_coord, df=df, parent=parent, **kwds)
 
     @classmethod
     def from_nspike_posmat(cls, nspike_pos_data, enc_settings: EncodeSettings, parent=None):
@@ -357,7 +429,8 @@ class LinearPosition(DayEpochTimeSeries):
         if parent is None:
             parent = nspike_pos_data
 
-        return cls(data=nspike_pos_data, parent=parent, enc_settings=enc_settings)
+        return cls(sampling_rate=enc_settings.sampling_rate, arm_coord=enc_settings.arm_coordinates, 
+                   data=nspike_pos_data, parent=parent, enc_settings=enc_settings)
 
         # make sure there's a time field
 
@@ -384,53 +457,6 @@ class LinearPosition(DayEpochTimeSeries):
 
         return pos_data_simple
 
-    def get_resampled(self, bin_size):
-        """
-        
-        Args:
-            bin_size: size of time 
-7
-        Returns (LinearPositionContainer): copy of self with times resampled using backfill.
-
-        """
-
-        def epoch_rebin_func(df):
-            day = df.index.get_level_values('day')[0]
-            epoch = df.index.get_level_values('epoch')[0]
-
-            new_timestamps = np.arange(df.index.get_level_values('timestamp')[0] +
-                                       (bin_size - df.index.get_level_values('timestamp')[0] % bin_size),
-                                       df.index.get_level_values('timestamp')[-1]+1, bin_size)
-            new_times = new_timestamps / float(self.kwds['enc_settings'].sampling_rate)
-
-            new_indices = pd.MultiIndex.from_tuples(list(zip(
-                                                        new_timestamps, new_times)), names=['timestamp', 'time'])
-
-            #df.set_index(df.index.get_level_values('timestamp'), inplace=True)
-            pos_data_bin_ids = np.arange(0, len(new_timestamps), 1)
-
-            pos_data_binned = df.loc[day, epoch].reindex(new_indices, method='ffill')
-            #pos_data_binned.set_index(new_timestamps)
-            pos_data_binned['bin'] = pos_data_bin_ids
-
-            return pos_data_binned
-
-        grp = self.groupby(level=['day', 'epoch'])
-
-        pos_data_rebinned = grp.apply(epoch_rebin_func)
-        return type(self)(pos_data_rebinned, history=self.history, **self.kwds)
-
-    def get_irregular_resampled(self, timestamps):
-
-        grp = self.groupby(level=['day', 'epoch'])
-        for (day, epoch), grp_df in grp:
-            ind = pd.MultiIndex.from_arrays([[day]*len(timestamps), [epoch]*len(timestamps),
-                                             timestamps, np.array(timestamps)/
-                                             float(self.kwds['enc_settings'].sampling_rate)],
-                                            names=['day', 'epoch', 'timestamp', 'time'])
-
-            return grp_df.reindex(ind, method='ffill', fill_value=0)
-
     def get_mapped_single_axis(self):
         """
         Returns linearized position converted into a segmented 1-D representation.
@@ -445,16 +471,15 @@ class LinearPosition(DayEpochTimeSeries):
 
         center_flat = (self.query('@self.seg_idx.seg_idx == 1').
                        loc[:, [('lin_dist_well', 'well_center'),
-                               ('lin_vel', 'well_center')]]) + self.kwds['enc_settings'].arm_coordinates[0][0]
+                               ('lin_vel', 'well_center')]]) + self.arm_coord[0][0]
         left_flat = (self.query('@self.seg_idx.seg_idx == 2 | '
                                 '@self.seg_idx.seg_idx == 3').
                      loc[:, [('lin_dist_well', 'well_left'),
-                             ('lin_vel', 'well_left')]]) + self.kwds['enc_settings'].arm_coordinates[1][0]
+                             ('lin_vel', 'well_left')]]) + self.arm_coord[1][0]
         right_flat = (self.query('@self.seg_idx.seg_idx == 4 | '
                                  '@self.seg_idx.seg_idx == 5').
                       loc[:, [('lin_dist_well', 'well_right'),
-                              ('lin_vel', 'well_right')]]) + (self.kwds['enc_settings'].
-                                                              arm_coordinates[2][0])
+                              ('lin_vel', 'well_right')]]) + (self.arm_coord[2][0])
         center_flat.columns = ['linpos_flat', 'linvel_flat']
         left_flat.columns = ['linpos_flat', 'linvel_flat']
         right_flat.columns = ['linpos_flat', 'linvel_flat']
@@ -466,7 +491,8 @@ class LinearPosition(DayEpochTimeSeries):
 
 
         # reset history to remove intermediate query steps
-        return FlatLinearPosition.create_default(linpos_flat, parent=self)
+        return FlatLinearPosition.create_default(linpos_flat, self.sampling_rate,
+                                                 self.arm_coord, parent=self)
 
     def get_time_only_index(self):
         return self.reset_index(level=['day', 'epoch'])
@@ -483,9 +509,10 @@ class SpikeObservation(DayEpochTimeSeries):
 
     _metadata = DayEpochTimeSeries._metadata + ['observation_bin_size', 'parallel_bin_size']
 
-    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
-        super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
-                         history=history, **kwds)
+    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False,
+                 parent=None, history=None, sampling_rate=0, **kwds):
+        super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy,
+                         parent=parent, history=history, sampling_rate=sampling_rate, **kwds)
         self.parallel_bin_size = 0
         self.observation_bin_size = 0
 
@@ -494,9 +521,7 @@ class SpikeObservation(DayEpochTimeSeries):
         if parent is None:
             parent = df
 
-        enc_settings = AttrDict({'sampling_rate': sampling_rate})
-
-        return cls.from_realtime(df, enc_setting=enc_settings, parent=parent, **kwds)
+        return cls(sampling_rate=sampling_rate, data=df, parent=parent, **kwds)
 
     @classmethod
     def from_realtime(cls, spike_dec, day, epoch, enc_settings, parent=None, **kwds):
@@ -505,17 +530,11 @@ class SpikeObservation(DayEpochTimeSeries):
 
         start_timestamp = spike_dec['timestamp'][0]
         spike_dec['time'] = spike_dec['timestamp'] / float(enc_settings.sampling_rate)
-        return cls(spike_dec.set_index(pd.MultiIndex.from_arrays([[day]*len(spike_dec), [epoch]*len(spike_dec),
-                                                                  spike_dec['timestamp'], spike_dec['time']],
-                                                                 names=['day', 'epoch', 'timestamp', 'time'])),
+        return cls(sampling_rate=enc_settings.sampling_rate,
+                   data=spike_dec.set_index(pd.MultiIndex.from_arrays([[day]*len(spike_dec), [epoch]*len(spike_dec),
+                                                                       spike_dec['timestamp'], spike_dec['time']],
+                                                                      names=['day', 'epoch', 'timestamp', 'time'])),
                    parent=parent, **kwds)
-
-    @classmethod
-    def from_df(cls, df, parent=None, **kwds):
-        if parent is None:
-            parent = df
-
-        return cls(data=df, parent=parent, **kwds)
 
     def update_observations_bins(self, time_bin_size, inplace=False):
         if inplace:
@@ -570,18 +589,22 @@ class Posteriors(DayEpochTimeSeries):
 
     _metadata = DayEpochTimeSeries._metadata + ['enc_settings']
 
-    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
-        if 'enc_settings' in kwds:
-            self.enc_settings = kwds['enc_settings']
-        super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
-                         history=history, **kwds)
+    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None,
+                 sampling_rate=0, enc_settings=None, **kwds):
+        self.enc_settings = enc_settings
+        super().__init__(sampling_rate=sampling_rate, data=data, index=index, columns=columns,
+                         dtype=dtype, copy=copy, parent=parent, history=history, **kwds)
+
+    @property
+    def _constructor(self):
+        return functools.partial(type(self), history=self.history, **self.kwds)
 
     @classmethod
-    def create_default(cls, df, parent=None, **kwds):
+    def create_default(cls, df, enc_settings, parent=None, **kwds):
         if parent is None:
             parent = df
 
-        return cls.from_dataframe(df, parent=parent, **kwds)
+        return cls(df, parent=parent, enc_settings=enc_settings, **kwds)
 
     @classmethod
     def from_dataframe(cls, posterior: pd.DataFrame, index=None, columns=None, parent=None,
@@ -636,6 +659,8 @@ class Posteriors(DayEpochTimeSeries):
 
 class StimLockout(DataFrameClass):
 
+    _metadata = DataFrameClass._metadata
+
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
         super().__init__(data, index, columns, dtype, copy, parent, history, **kwds)
 
@@ -676,21 +701,30 @@ class StimLockout(DataFrameClass):
         return type(self)(sel)
 
 
-class FlatLinearPosition(DayEpochTimeSeries):
+class FlatLinearPosition(LinearPosition):
 
-    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
-        super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
-                         history=history, **kwds)
+    _metadata = LinearPosition._metadata + ['arm_coord']
 
+    def __init__(self, data=None, index=None, columns=None, dtype=None,
+                 copy=False, parent=None, history=None, sampling_rate=0, arm_coord=None, **kwds):
+        super().__init__(sampling_rate=sampling_rate, arm_coord=arm_coord, data=data, index=index, columns=columns,
+                         dtype=dtype, copy=copy, parent=parent, history=history, **kwds)
+
+        self.arm_coord = arm_coord
         #if isinstance(data, pd.DataFrame) and 'linvel_flat' not in data.columns:
         #   raise DataFormatError("Missing 'linvel_flat' column.")
 
     @classmethod
-    def create_default(cls, df, parent=None, **kwds):
+    def create_default(cls, df, sampling_rate, arm_coord, parent=None, **kwds):
         if parent is None:
             parent = df
 
-        return cls(df, parent=parent, **kwds)
+        return cls(df, parent=parent, sampling_rate=sampling_rate, arm_coord=arm_coord, **kwds)
+
+    @classmethod
+    def from_nspike_posmat(cls, nspike_pos_data, enc_settings: EncodeSettings, parent=None):
+        return LinearPosition.from_nspike_posmat(nspike_pos_data, enc_settings, parent).get_mapped_single_axis()
+
 
     @classmethod
     def from_numpy_single_epoch(cls, day, epoch, timestamp, lin_pos, lin_vel, sampling_rate):
@@ -707,3 +741,6 @@ class FlatLinearPosition(DayEpochTimeSeries):
 
     def get_mapped_single_axis(self):
         return self
+
+    def get_pd_no_multiindex(self):
+        self.set_index(pd.Index(self.index.get_level_values('timestamp'), name='timestamp'))

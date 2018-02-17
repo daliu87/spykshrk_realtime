@@ -68,6 +68,7 @@ def simplify_pos_pandas(pos_data):
 class Groupby:
     def __init__(self, data, keys):
         self.data = data
+        self.keys = keys
         _, self.keys_as_int = np.unique(keys, return_inverse=True)
         self.n_keys = max(self.keys_as_int)
         self.set_indices()
@@ -92,7 +93,7 @@ class Groupby:
 
     def __iter__(self):
         for inds in self.indices:
-            yield (inds[0], self.data[inds])
+            yield (self.keys[inds[0]], self.data[inds])
 
 
 

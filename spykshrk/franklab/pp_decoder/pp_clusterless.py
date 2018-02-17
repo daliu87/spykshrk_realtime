@@ -2,21 +2,86 @@ import pandas as pd
 import numpy as np
 import scipy as sp
 import scipy.signal
-import traceback
 import dask
 import dask.dataframe as dd
 
-from numba import jit, autojit
-
-import multiprocessing as mp
 import functools
 import ipyparallel as ipp
 
-from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary, Groupby
+from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary, normal_pdf_int_lookup, Groupby
 from spykshrk.franklab.pp_decoder.data_containers import LinearPosition, SpikeObservation, EncodeSettings, \
     DecodeSettings, Posteriors, pos_col_format
 
 import spykshrk.franklab.pp_decoder.pp_clusterless_cy as pp_cy
+
+
+class OfflinePPEncoder(object):
+
+    def __init__(self, linflat, spk_amp, speed_thresh, encode_settings: EncodeSettings):
+        self.linflat = linflat
+        self.spk_amp = spk_amp
+        self.speed_thresh = speed_thresh
+        self.encode_settings = encode_settings
+
+    def run_encoder(self):
+        occ, _ = np.histogram(a=self.linflat['linpos_flat'], bins=self.encode_settings.pos_bin_edges, normed=True)
+        occ = np.convolve(occ, self.encode_settings.pos_kernel)[int(len(occ)/2):int(len(occ)*3/2)]
+
+        grp = self.spk_amp.groupby('elec_grp_id')
+        observations = {}
+        task = []
+        chunksize = 2000
+        for tet_id, spk_tet in grp:
+            spk_tet.index = spk_tet.index.droplevel('elec_grp_id')
+            tet_lin_pos = (self.linflat.get_irregular_resampled(spk_tet.index.get_level_values('timestamp'))
+                           .get_mapped_single_axis())
+
+            # Velocity threshold on spikes and position
+            tet_lin_pos_thresh = tet_lin_pos.get_above_velocity(self.speed_thresh)
+            spk_tet_thresh = spk_tet.reindex(tet_lin_pos_thresh.index)
+            # Decode from all spikes
+            dask_spk_tet = dd.from_pandas(spk_tet.get_simple_index(), chunksize=chunksize)
+
+            df_meta = pd.DataFrame([], columns=[pos_col_format(ii, self.encode_settings.pos_num_bins)
+                                                for ii in range(self.encode_settings.pos_num_bins)])
+
+            # Setup decode of all spikes from encoding of velocity threshold spikes
+            task.append(dask_spk_tet.map_partitions(functools.partial(self.compute_observ_tet, enc_spk=spk_tet_thresh,
+                                                                      tet_lin_pos=tet_lin_pos_thresh, occupancy=occ,
+                                                                      encode_settings=self.encode_settings),
+                                                    meta=df_meta))
+
+        results = dask.compute(*task)
+        return results
+
+    def compute_observ_tet(self, dec_spk, enc_spk, tet_lin_pos, occupancy, encode_settings):
+
+        pos_distrib_tet = sp.stats.norm.pdf(np.expand_dims(encode_settings.pos_bins, 0),
+                                            np.expand_dims(tet_lin_pos['linpos_flat'],1),
+                                            encode_settings.pos_kernel_std)
+
+        mark_contrib = normal_pdf_int_lookup(np.expand_dims(dec_spk, 1),
+                                             np.expand_dims(enc_spk,0),
+                                             encode_settings.mark_kernel_std)
+
+        all_contrib = np.prod(mark_contrib, axis=2)
+
+        del mark_contrib
+
+        observ = np.matmul(all_contrib, pos_distrib_tet)
+
+        del all_contrib
+
+        # occupancy normalize
+        observ = observ / (occupancy + 1e-10)
+
+        # normalize each row
+        observ = observ / observ.sum(axis=1)[:, np.newaxis]
+
+        ret_df = pd.DataFrame(observ, index=dec_spk.index,
+                              columns=[pos_col_format(pos_ii, observ.shape[1])
+                                       for pos_ii in range(observ.shape[1])])
+        return ret_df
 
 class OfflinePPDecoder(object):
     """
@@ -111,7 +176,7 @@ class OfflinePPDecoder(object):
 
     def recalc_posterior(self):
         self.posteriors = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
-        self.posteriors_obj = Posteriors.from_dataframe(self.posteriors, encode_settings=self.encode_settings)
+        self.posteriors_obj = Posteriors(self.posteriors, enc_settings=self.encode_settings)
 
     @staticmethod
     def calc_learned_state_trans_mat(linpos_simple, enc_settings, dec_settings):
@@ -344,6 +409,7 @@ class OfflinePPDecoder(object):
 
             num_missing_bins = spike_bin_raw[-1,num_missing_ind]
             """
+            # Contribution of each spike
             for obv, elec_grp_id, num_missing_bins in zip(spike_bin_raw[:, slice(*pos_col_ind)],
                                                           spike_bin_raw[:, elec_grp_ind],
                                                           spike_bin_raw[:, num_missing_ind]):
@@ -354,6 +420,7 @@ class OfflinePPDecoder(object):
                 obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
                 obv_in_bin = obv_in_bin / (np.sum(obv_in_bin) * enc_settings.pos_bin_delta)
 
+            # Contribution for electrodes that no spikes in this bin
             for elec_grp_id in elec_set.symmetric_difference(elec_grp_list):
                 obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
 
@@ -428,44 +495,6 @@ class OfflinePPDecoder(object):
             prob_no_spike[tet_id] = np.exp(-dec_settings.time_bin_size/enc_settings.sampling_rate * tet_fr / occupancy)
 
         return prob_no_spike
-
-    @staticmethod
-    def calc_likelihood(binned_observ: pd.DataFrame, prob_no_spike, enc_settings: EncodeSettings):
-        """
-        
-        Args:
-            binned_observ (pd.DataFrame): Observation distribution per time bin, from calc_observation_intensity(...).
-            prob_no_spike (dict[int, np.array]): Dictionary of probability that no spike occured per tetrode, from
-                calc_prob_no_spike(...).
-            enc_settings (EncodeSettings): Realtime encoding settings.
-
-        Returns (pd.DataFrame): The evaluated likelihood function per time bin.
-
-        """
-        num_spikes = binned_observ['num_spikes'].values
-        dec_est = binned_observ.loc[:, enc_settings.pos_col_names].values
-        likelihoods = np.ones(dec_est.shape)
-
-        for num_spikes, (dec_ind, dec_est_bin) in zip(num_spikes, enumerate(dec_est)):
-            if num_spikes > 0:
-                likelihoods[dec_ind, :] = dec_est_bin
-
-                for prob_no in prob_no_spike.values():
-                    likelihoods[dec_ind, :] *= prob_no
-            else:
-
-                for prob_no in prob_no_spike.values():
-                    likelihoods[dec_ind, :] *= prob_no
-
-            # Normalize
-            likelihoods[dec_ind, :] = likelihoods[dec_ind, :] / (likelihoods[dec_ind, :].sum() *
-                                                                 enc_settings.pos_bin_delta)
-
-        # copy observ DataFrame and replace with likelihoods, preserving other columns
-        likelihoods_df = binned_observ.copy()   # type: pd.DataFrame
-        likelihoods_df.loc[:, enc_settings.pos_column_slice()] = likelihoods
-
-        return likelihoods_df
 
     @staticmethod
     def calc_posterior(likelihoods, transition_mat, enc_settings: EncodeSettings):

@@ -1,6 +1,7 @@
 
 import matplotlib.pyplot as plt
 from matplotlib import patches
+import functools
 import pandas as pd
 import numpy as np
 import holoviews as hv
@@ -93,18 +94,58 @@ class DecodeVisualizer:
 
 class DecodeErrorVisualizer:
 
-    @staticmethod
-    def plot_arms_error(error_table, plt_range=None):
-        error_bars = (error_table.loc[:, idx[:, ['plt_error_up',
-                                                 'plt_error_down']]].
-                      reindex(columns=pd.MultiIndex.from_product([['center','left','right'],
-                                                                  ['plt_error_up','plt_error_down']])))
+    arms = ['center', 'left', 'right']
 
-        error_bars = np.reshape(error_bars.values, [len(error_bars),3,2])
-        error_bars = error_bars.transpose(1,2,0)
+    def __init__(self, error_table):
+        self.error_table = error_table
 
-        ds = hv.Dataset(error_table.loc[:, idx[:, 'real_pos']])
-        curves = ds.to(hv.Curve, vdim=hv.Dimension('real_pos'))
+        self.arm_error_tables = {}
+        for arm in self.arms:
 
-        return curves
+            arm_table = error_table.loc[:, idx[arm, ['real_pos', 'plt_error_up', 'plt_error_down']]]
+            arm_table.columns = arm_table.columns.droplevel(0)
+            arm_table = arm_table.reset_index(level=['time']).reindex(columns=['time','real_pos', 'plt_error_up',
+                                                                               'plt_error_down'])
 
+            self.arm_error_tables[arm] = hv.Table(arm_table.dropna(), kdims='time',
+                                                  vdims=['real_pos', 'plt_error_up', 'plt_error_down'])
+
+    def plot_arms_error(self, start_time=None, interval=None):
+
+        error_plots = {}
+        real_pos_plots = {}
+
+        for arm, arm_table in self.arm_error_tables.items():
+
+            if not (start_time is None or interval is None):
+                arm_table = arm_table[start_time: start_time+interval]
+
+            error_plots[arm] = hv.ErrorBars(arm_table, kdims='time',
+                                            vdims=['real_pos', 'plt_error_up', 'plt_error_down'])
+            real_pos_plots[arm] = arm_table.to.points(kdims=['time', 'real_pos'], vdims=['real_pos'])
+
+            error_plots[arm].opts(plot={'apply_extent': (start_time, None, start_time+interval, None)})
+            real_pos_plots[arm].opts(plot={'apply_extent': (start_time, None, start_time+interval, None)})
+
+        errorbar_overlay = hv.NdOverlay(error_plots)
+        errorbar_overlay.opts(plot={'apply_extent': (start_time, None, start_time+interval, None)})
+
+        overlay = hv.NdOverlay(real_pos_plots, kdims=['arm'])
+
+        overlay.opts(plot={'apply_extent': (start_time, None, start_time+interval, None)})
+        plot = overlay * errorbar_overlay
+        plot.opts(plot={'apply_extent': (start_time, None, start_time+interval, None)})
+        return plot
+
+    def plot_arms_error_dmap(self, slide_interval, plot_interval=None):
+
+        if plot_interval is None:
+            plot_interval = slide_interval
+
+        dmap = hv.DynamicMap(functools.partial(self.plot_arms_error, interval=plot_interval),
+                             kdims=[hv.Dimension('start_time',
+                                                 values=np.arange(self.error_table.index.get_level_values('time')[0],
+                                                                  self.error_table.index.get_level_values('time')[-1],
+                                                                  slide_interval))])
+
+        return dmap
