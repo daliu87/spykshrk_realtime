@@ -59,7 +59,7 @@ class LinearDecodeError:
 
     @staticmethod
     def calc_error_for_plot(dec_est):
-        dec_est.loc[:, 'error'] = dec_est['real_pos'] - dec_est['est_pos']
+        dec_est.loc[:, 'error'] = dec_est['est_pos'] - dec_est['real_pos']
         dec_est.loc[:, 'abs_error'] = np.abs(dec_est['error'])
         dec_est.loc[:, 'plt_error_up'] = dec_est['error']
         dec_est.loc[dec_est['error'] < 0, 'plt_error_up'] = 0

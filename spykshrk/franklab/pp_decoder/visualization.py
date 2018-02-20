@@ -100,6 +100,10 @@ class DecodeErrorVisualizer:
         self.error_table = error_table
 
         self.arm_error_tables = {}
+
+        maxlist = []
+        minlist = []
+
         for arm in self.arms:
 
             arm_table = error_table.loc[:, idx[arm, ['real_pos', 'plt_error_up', 'plt_error_down']]]
@@ -108,7 +112,13 @@ class DecodeErrorVisualizer:
                                                                                'plt_error_down'])
 
             self.arm_error_tables[arm] = hv.Table(arm_table.dropna(), kdims='time',
-                                                  vdims=['real_pos', 'plt_error_up', 'plt_error_down'])
+                                                  vdims=['real_pos', 'plt_error_down', 'plt_error_up'])
+
+            maxlist.append(max(self.arm_error_tables[arm]['real_pos'] + self.arm_error_tables[arm]['plt_error_up']))
+            minlist.append(min(self.arm_error_tables[arm]['real_pos'] + self.arm_error_tables[arm]['plt_error_down']))
+
+        self.min_pos = min(minlist)
+        self.max_pos = max(maxlist)
 
     def plot_arms_error(self, start_time=None, interval=None):
 
@@ -121,20 +131,17 @@ class DecodeErrorVisualizer:
                 arm_table = arm_table[start_time: start_time+interval]
 
             error_plots[arm] = hv.ErrorBars(arm_table, kdims='time',
-                                            vdims=['real_pos', 'plt_error_up', 'plt_error_down'])
+                                            vdims=['real_pos', 'plt_error_down', 'plt_error_up'],
+                                            extents=(start_time, self.min_pos, start_time+interval, self.max_pos))
+            error_plots[arm].redim(time={'range': (start_time, start_time+interval)})
             real_pos_plots[arm] = arm_table.to.points(kdims=['time', 'real_pos'], vdims=['real_pos'])
 
-            error_plots[arm].opts(plot={'apply_extent': (start_time, None, start_time+interval, None)})
-            real_pos_plots[arm].opts(plot={'apply_extent': (start_time, None, start_time+interval, None)})
 
         errorbar_overlay = hv.NdOverlay(error_plots)
-        errorbar_overlay.opts(plot={'apply_extent': (start_time, None, start_time+interval, None)})
 
         overlay = hv.NdOverlay(real_pos_plots, kdims=['arm'])
 
-        overlay.opts(plot={'apply_extent': (start_time, None, start_time+interval, None)})
-        plot = overlay * errorbar_overlay
-        plot.opts(plot={'apply_extent': (start_time, None, start_time+interval, None)})
+        plot = errorbar_overlay
         return plot
 
     def plot_arms_error_dmap(self, slide_interval, plot_interval=None):
