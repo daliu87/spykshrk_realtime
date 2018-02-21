@@ -5,6 +5,7 @@ import functools
 import pandas as pd
 import numpy as np
 import holoviews as hv
+import functools
 
 idx = pd.IndexSlice
 
@@ -22,36 +23,24 @@ class DecodeVisualizer:
                  linpos: LinearPosition=None, relative=False):
         self.posteriors = posteriors
         self.linpos = linpos
+        self.linflat = linpos.get_mapped_single_axis()
         self.enc_settings = enc_settings
         self.relative = relative
 
-    def plot_decode_image(self, plt_range=None, x_tick=1.0):
+    def plot_decode_image(self, time, plt_range=10, lookahead=5, lookbehind=5):
 
-        if plt_range is None:
-            plt_range = self.posteriors.get_time_range()
-        else:
-            if plt_range[0] == None:
-                plt_range[0] = self.posteriors.get_time_start()
-            if plt_range[1] == None:
-                plt_range[1] = self.posteriors.get_time_end()
+        behind_time = max(time-lookbehind, self.posteriors.index.get_level_values('time')[0])
+        img_sel = self.posteriors.get_distribution_view().query('time > {} and time < {}'.
+                                                                format(behind_time,
+                                                                       time+plt_range+lookahead)).values.T
+        img_sel = np.flip(img_sel, axis=0)
+        img = hv.Image(img_sel, bounds=(behind_time, 0, time+plt_range+lookahead, self.enc_settings.pos_bins[-1]),
+                       kdims=['time (sec)', 'linpos (cm)'], vdims=['probability'],
+                       extents=(time, None, time + plt_range, None))
 
-        post_plot = self.posteriors.query('time > {} and time < {}'.
-                                          format(*plt_range)).loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
-                                                                  pos_col_format(self.enc_settings.pos_num_bins-1,
-                                                                  self.enc_settings.pos_num_bins)]
+        img = img.redim(probability={'range': (0, 0.5)})
 
-        ax = plt.imshow(post_plot.values.T, extent=[plt_range[0], plt_range[1], 0, self.enc_settings.pos_bins[-1]],
-                        origin='lower', aspect='auto', cmap='hot', zorder=0, vmax=0.3)
-
-        plt.xticks(np.arange(plt_range[0], plt_range[1], x_tick))
-
-        plt.colorbar()
-        ax.axes.set_facecolor('black')
-
-        plt.xlabel('seconds')
-        plt.ylabel('1D pos map')
-
-        return ax
+        return img
 
     def plot_arm_boundaries(self, plt_range):
         plt.plot(plt_range, [self.enc_settings.arm_coordinates[0][0]]*2, '--', color='0.4', zorder=1)
@@ -63,20 +52,31 @@ class DecodeVisualizer:
 
         plt.ylim([self.enc_settings.arm_coordinates[0][0] - 5, self.enc_settings.arm_coordinates[2][1] + 15])
 
-    def plot_linear_pos(self, plt_range=None, alpha=0.5):
+    def plot_linear_pos(self, time, plt_range=10, lookahead=5, lookbehind=5):
+        behind_time = max(time-lookbehind, self.posteriors.index.get_level_values('time')[0])
+        linflat_sel = self.linflat.query('time > {} and time < {}'.
+                                         format(behind_time, time+plt_range+lookahead))['linpos_flat']
+        linflat_sel_data = linflat_sel.values
+        linflat_sel_time = linflat_sel.index.get_level_values('time')
+        pos = hv.Points((linflat_sel_time, linflat_sel_data), kdims=['sec', 'linpos'],
+                        extents=(time, None, time + plt_range, None))
+        return pos
 
-        if self.linpos is None:
-            raise MissingDataError('Missing linpos data, never set.')
-        if plt_range is None:
-            plt_range = self.posteriors.get_time_range()
+    def plot_all(self, time, plt_range=10, lookahead=5, lookbehind=5):
 
-        linpos_sing = self.linpos.get_mapped_single_axis()
+        img = self.plot_decode_image(time, plt_range, lookahead, lookbehind)
+        pos = self.plot_linear_pos(time, plt_range, lookahead, lookbehind)
 
-        self.linpos_sel = linpos_sing.loc[:, ['linpos_flat']].query('time > {} and time < {}'.format(*plt_range))
-        ax = plt.plot(self.linpos_sel.index.get_level_values('time'), self.linpos_sel.values, 'co', zorder=2, markersize=6,
-                      alpha=alpha)
+        return img * pos
 
-        return ax
+    def plot_all_dynamic(self, slide=10, plt_range=10, lookahead=5, lookbehind=5):
+        dmap = hv.DynamicMap(functools.partial(self.plot_all, plt_range=plt_range, lookahead=lookahead,
+                                               lookbehind=lookbehind),
+                             kdims=hv.Dimension('time',
+                                                values=np.arange(self.posteriors.index.get_level_values('time')[0],
+                                                                 self.posteriors.index.get_level_values('time')[-1],
+                                                                 slide)))
+        return dmap
 
     @staticmethod
     def plot_stim_lockout(ax, stim_lock: StimLockout, plt_range, plt_height):
@@ -120,29 +120,38 @@ class DecodeErrorVisualizer:
         self.min_pos = min(minlist)
         self.max_pos = max(maxlist)
 
-    def plot_arms_error(self, start_time=None, interval=None):
+    def plot_arms_error(self, start_time=None, interval=None, lookahead=0, lookbehind=0):
 
         error_plots = {}
         real_pos_plots = {}
+        joint_pos_plots = {}
 
         for arm, arm_table in self.arm_error_tables.items():
 
             if not (start_time is None or interval is None):
                 arm_table = arm_table[start_time: start_time+interval]
 
+            if len(arm_table) == 0:
+                # dummy table
+                arm_table = hv.Table([[start_time,self.max_pos,0,0]], kdims=['time'],
+                                     vdims=['real_pos','plt_error_down','plt_error_up'])
             error_plots[arm] = hv.ErrorBars(arm_table, kdims='time',
                                             vdims=['real_pos', 'plt_error_down', 'plt_error_up'],
                                             extents=(start_time, self.min_pos, start_time+interval, self.max_pos))
-            error_plots[arm].redim(time={'range': (start_time, start_time+interval)})
-            real_pos_plots[arm] = arm_table.to.points(kdims=['time', 'real_pos'], vdims=['real_pos'])
+            #error_plots[arm].redim(time={'range': (start_time, start_time+interval)})
+            #real_pos_plots[arm] = arm_table.to.points(kdims=['time', 'real_pos'], vdims=['real_pos'],
+            #                                          extents=(start_time, self.min_pos,
+            #                                                   start_time+interval, self.max_pos))
+            #joint_pos_plots[arm] = real_pos_plots[arm] * error_plots[arm]
 
 
-        errorbar_overlay = hv.NdOverlay(error_plots)
+        errorbar_overlay = hv.NdOverlay(error_plots, kdims=['arm'])
 
-        overlay = hv.NdOverlay(real_pos_plots, kdims=['arm'])
 
-        plot = errorbar_overlay
-        return plot
+
+        return errorbar_overlay
+        #return overlay
+        #return errorbar_overlay
 
     def plot_arms_error_dmap(self, slide_interval, plot_interval=None):
 
