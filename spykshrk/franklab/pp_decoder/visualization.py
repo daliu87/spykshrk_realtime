@@ -5,6 +5,10 @@ import functools
 import pandas as pd
 import numpy as np
 import holoviews as hv
+from holoviews.operation.datashader import datashade, aggregate, shade, regrid, dynspread
+from holoviews.operation import decimate
+import datashader as ds
+
 import functools
 
 idx = pd.IndexSlice
@@ -27,20 +31,31 @@ class DecodeVisualizer:
         self.enc_settings = enc_settings
         self.relative = relative
 
-    def plot_decode_image(self, time, plt_range=10, lookahead=5, lookbehind=5):
+    def plot_decode_image(self, time, x_range=None, y_range=None, plt_range=10):
 
-        behind_time = max(time-lookbehind, self.posteriors.index.get_level_values('time')[0])
-        img_sel = self.posteriors.get_distribution_view().query('time > {} and time < {}'.
-                                                                format(behind_time,
-                                                                       time+plt_range+lookahead)).values.T
+        sel_range = [time, time+plt_range]
+
+        img_sel = self.posteriors.values.T
         img_sel = np.flip(img_sel, axis=0)
-        img = hv.Image(img_sel, bounds=(behind_time, 0, time+plt_range+lookahead, self.enc_settings.pos_bins[-1]),
-                       kdims=['time (sec)', 'linpos (cm)'], vdims=['probability'],
-                       extents=(time, None, time + plt_range, None))
+        img = hv.Image(img_sel, bounds=(self.posteriors.index.get_level_values('time')[0], 0,
+                                        self.posteriors.index.get_level_values('time')[-1],
+                                        self.enc_settings.pos_bins[-1]),
+                       kdims=['time (sec)', 'linpos (cm)'], vdims=['probability'],)
 
         img = img.redim(probability={'range': (0, 0.5)})
+        #img.extents = (sel_range[0], 0, sel_range[1], self.enc_settings.pos_bins[-1])
 
-        return img
+        if (x_range is None):
+            x_range = [time, time+plt_range]
+
+        if (y_range is None):
+            y_range = [0, self.enc_settings.pos_bins[-1]]
+
+        rgb = shade(regrid(img, aggregator='mean', dynamic=False, x_range=x_range, y_range=y_range),
+                    cmap=plt.get_cmap('hot'), normalization='linear', dynamic=False)
+
+        rgb.extents = (sel_range[0], 0, sel_range[1], self.enc_settings.pos_bins[-1])
+        return rgb
 
     def plot_arm_boundaries(self, plt_range):
         plt.plot(plt_range, [self.enc_settings.arm_coordinates[0][0]]*2, '--', color='0.4', zorder=1)
@@ -52,30 +67,43 @@ class DecodeVisualizer:
 
         plt.ylim([self.enc_settings.arm_coordinates[0][0] - 5, self.enc_settings.arm_coordinates[2][1] + 15])
 
-    def plot_linear_pos(self, time, plt_range=10, lookahead=5, lookbehind=5):
-        behind_time = max(time-lookbehind, self.posteriors.index.get_level_values('time')[0])
-        linflat_sel = self.linflat.query('time > {} and time < {}'.
-                                         format(behind_time, time+plt_range+lookahead))['linpos_flat']
-        linflat_sel_data = linflat_sel.values
-        linflat_sel_time = linflat_sel.index.get_level_values('time')
+    def plot_linear_pos(self, time, x_range=None, y_range=None, plt_range=10):
+        linflat_sel_data = self.linflat['linpos_flat'].values
+        linflat_sel_time = self.linflat.index.get_level_values('time')
         pos = hv.Points((linflat_sel_time, linflat_sel_data), kdims=['sec', 'linpos'],
                         extents=(time, None, time + plt_range, None))
+
         return pos
 
-    def plot_all(self, time, plt_range=10, lookahead=5, lookbehind=5):
+    def plot_shade_linear_pos(self, time, x_range=None, y_range=None, plt_range=10):
+        linflat_sel_data = self.linflat['linpos_flat'].values
+        linflat_sel_time = self.linflat.index.get_level_values('time')
+        pos = hv.Points((linflat_sel_time, linflat_sel_data), kdims=['sec', 'linpos'],
+                        extents=(time, None, time + plt_range, None))
 
-        img = self.plot_decode_image(time, plt_range, lookahead, lookbehind)
-        pos = self.plot_linear_pos(time, plt_range, lookahead, lookbehind)
+        if x_range is None:
+            x_range = (time, time+plt_range)
+        if y_range is None:
+            y_range = (0, self.enc_settings.pos_bins[-1])
+        rgb = dynspread(datashade(pos, dynamic=False, x_range=x_range, y_range=y_range,
+                                  agg=ds.reductions.mean, cmap=['#8888FF']), max_px=1, threshold=0.3)
+        rgb.extents = (time, 0, time+plt_range, self.enc_settings.pos_bins[-1])
+        return rgb
+
+    def plot_all(self, time=None, x_range=None, y_range=None, plt_range=10):
+
+        img = self.plot_decode_image(time, x_range, y_range, plt_range)
+        pos = self.plot_linear_pos(time, x_range, y_range, plt_range)
 
         return img * pos
 
-    def plot_all_dynamic(self, slide=10, plt_range=10, lookahead=5, lookbehind=5):
-        dmap = hv.DynamicMap(functools.partial(self.plot_all, plt_range=plt_range, lookahead=lookahead,
-                                               lookbehind=lookbehind),
+    def plot_all_dynamic(self, stream, slide=10, plt_range=10):
+        dmap = hv.DynamicMap(functools.partial(self.plot_all, plt_range=plt_range),
                              kdims=hv.Dimension('time',
                                                 values=np.arange(self.posteriors.index.get_level_values('time')[0],
                                                                  self.posteriors.index.get_level_values('time')[-1],
-                                                                 slide)))
+                                                                 slide)),
+                             streams=[stream])
         return dmap
 
     @staticmethod
