@@ -42,7 +42,7 @@ class DecodeVisualizer:
                                         self.enc_settings.pos_bins[-1]),
                        kdims=['time (sec)', 'linpos (cm)'], vdims=['probability'],)
 
-        img = img.redim(probability={'range': (0, 0.5)})
+        img = img.redim(probability={'range': (0, 0.3)})
         #img.extents = (sel_range[0], 0, sel_range[1], self.enc_settings.pos_bins[-1])
 
         if (x_range is None):
@@ -51,7 +51,8 @@ class DecodeVisualizer:
         if (y_range is None):
             y_range = [0, self.enc_settings.pos_bins[-1]]
 
-        rgb = shade(regrid(img, aggregator='mean', dynamic=False, x_range=x_range, y_range=y_range),
+        rgb = shade(regrid(img, aggregator='mean', dynamic=False,
+                           x_range=x_range, y_range=y_range),
                     cmap=plt.get_cmap('hot'), normalization='linear', dynamic=False)
 
         rgb.extents = (sel_range[0], 0, sel_range[1], self.enc_settings.pos_bins[-1])
@@ -157,7 +158,8 @@ class DecodeErrorVisualizer:
         for arm, arm_table in self.arm_error_tables.items():
 
             if not (start_time is None or interval is None):
-                arm_table = arm_table[start_time: start_time+interval]
+                #arm_table = arm_table[start_time: start_time+interval]
+                pass
 
             if len(arm_table) == 0:
                 # dummy table
@@ -166,20 +168,17 @@ class DecodeErrorVisualizer:
             error_plots[arm] = hv.ErrorBars(arm_table, kdims='time',
                                             vdims=['real_pos', 'plt_error_down', 'plt_error_up'],
                                             extents=(start_time, self.min_pos, start_time+interval, self.max_pos))
-            #error_plots[arm].redim(time={'range': (start_time, start_time+interval)})
-            #real_pos_plots[arm] = arm_table.to.points(kdims=['time', 'real_pos'], vdims=['real_pos'],
-            #                                          extents=(start_time, self.min_pos,
-            #                                                   start_time+interval, self.max_pos))
+            error_plots[arm].redim(time={'range': (start_time, start_time+interval)})
+            real_pos_plots[arm] = arm_table.to.points(kdims=['time', 'real_pos'], vdims=['real_pos'],
+                                                      extents=(start_time, self.min_pos,
+                                                               start_time+interval, self.max_pos))
             #joint_pos_plots[arm] = real_pos_plots[arm] * error_plots[arm]
 
+        errorbar_overlay = hv.NdOverlay(error_plots, kdims='arm')
+        errorbars = hv.NdOverlay(error_plots, kdims='arm')
+        points = hv.NdOverlay(real_pos_plots, kdims='arm')
 
-        errorbar_overlay = hv.NdOverlay(error_plots, kdims=['arm'])
-
-
-
-        return errorbar_overlay
-        #return overlay
-        #return errorbar_overlay
+        return errorbars * points
 
     def plot_arms_error_dmap(self, slide_interval, plot_interval=None):
 

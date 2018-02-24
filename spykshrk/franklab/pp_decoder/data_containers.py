@@ -8,6 +8,14 @@ import uuid
 from spykshrk.franklab.pp_decoder.util import gaussian, AttrDict
 
 
+def partialclass(cls, *args, **kwds):
+
+    class NewCls(cls):
+        __init__ = functools.partialmethod(cls.__init__, *args, **kwds)
+
+    return NewCls
+
+
 class DataFormatError(RuntimeError):
     pass
 
@@ -17,19 +25,27 @@ def pos_col_format(ind, num_bins):
 
 
 class SeriesClass(pd.Series):
+    _metadata = pd.Series._metadata + ['history', 'kwds']
+
+    def __init__(self, data=None, index=None, dtype=None, name=None,
+                 copy=False, fastpath=False, history=None, **kwds):
+        super().__init__(data=data, index=index, dtype=dtype, name=name, copy=copy, fastpath=fastpath)
+        self.history = history
+        self.kwds = kwds
 
     @property
     def _constructor(self):
-        return self.__class__
+        return partialclass(type(self), history=self.history, **self.kwds)
 
     @property
     def _constructor_expanddim(self):
-        return DataFrameClass
+        # TODO: DataFrameClass is abstract, shouldn't be created
+        return partialclass(DataFrameClass, history=self.history, **self.kwds)
 
 
 class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
 
-    _metadata = ['kwds', 'history']
+    _metadata = pd.DataFrame._metadata + ['kwds', 'history']
     _internal_names = pd.DataFrame._internal_names + ['uuid']
     _internal_names_set = set(_internal_names)
 
@@ -85,9 +101,9 @@ class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
     @property
     def _constructor(self):
         if hasattr(self, 'history'):
-            return functools.partial(type(self), history=self.history, **self.kwds)
+            return partialclass(type(self), history=self.history, **self.kwds)
         else:
-            return type(self)
+            return type(self, **self.kwds)
 
     @property
     def _constructor_sliced(self):
@@ -312,6 +328,7 @@ class EncodeSettings:
     def pos_column_slice(self, slice):
         raise NotImplementedError
 
+
 class DecodeSettings:
     """
     Mapping of decoding parameters from realtime configuration into class attributes for easy access.
@@ -404,18 +421,22 @@ class LinearPosition(DayEpochTimeSeries):
     _metadata = DayEpochTimeSeries._metadata + ['arm_coord']
 
     def __init__(self, data=None, index=None, columns=None, dtype=None,
-                 copy=False, parent=None, history=None, sampling_rate=0, arm_coord=None, **kwds):
+                 copy=False, parent=None, history=None, sampling_rate=0, **kwds):
         super().__init__(sampling_rate=sampling_rate, data=data, index=index, columns=columns,
                          dtype=dtype, copy=copy, parent=parent, history=history, **kwds)
 
-        self.arm_coord = arm_coord
+        try:
+            self.arm_coord = kwds['arm_coord']
+        except KeyError:
+            # Likely called with a blockmanager called, which shouldn't propagate
+            self.arm_coord = None
 
     @classmethod
-    def create_default(cls, df, sampling_rate, arm_coord, parent=None, **kwds):
+    def create_default(cls, df, sampling_rate, parent=None, **kwds):
         if parent is None:
             parent = df
 
-        return cls(sampling_rate=sampling_rate, arm_coord=arm_coord, df=df, parent=parent, **kwds)
+        return cls(sampling_rate=sampling_rate, df=df, parent=parent, **kwds)
 
     @classmethod
     def from_nspike_posmat(cls, nspike_pos_data, enc_settings: EncodeSettings, parent=None):
@@ -433,6 +454,14 @@ class LinearPosition(DayEpochTimeSeries):
                    data=nspike_pos_data, parent=parent, enc_settings=enc_settings)
 
         # make sure there's a time field
+
+    # @property
+    # def _constructor(self):
+    #     #construct_func = super()._constructor(self)
+    #     print(type(self), self.arm_coord)
+    #     return functools.partial(type(self), history=self.history, **self.kwds)
+
+        #return functools.partial(construct_func, arm_coord=self.arm_coord)
 
     def get_pd_no_multiindex(self):
         """
@@ -471,15 +500,18 @@ class LinearPosition(DayEpochTimeSeries):
 
         center_flat = (self.query('@self.seg_idx.seg_idx == 1').
                        loc[:, [('lin_dist_well', 'well_center'),
-                               ('lin_vel', 'well_center')]]) + self.arm_coord[0][0]
+                               ('lin_vel', 'well_center')]])
+        center_flat[('lin_dist_well', 'well_center')] += self.arm_coord[0][0]
         left_flat = (self.query('@self.seg_idx.seg_idx == 2 | '
                                 '@self.seg_idx.seg_idx == 3').
                      loc[:, [('lin_dist_well', 'well_left'),
-                             ('lin_vel', 'well_left')]]) + self.arm_coord[1][0]
+                             ('lin_vel', 'well_left')]])
+        left_flat[('lin_dist_well', 'well_left')] += self.arm_coord[1][0]
         right_flat = (self.query('@self.seg_idx.seg_idx == 4 | '
                                  '@self.seg_idx.seg_idx == 5').
                       loc[:, [('lin_dist_well', 'well_right'),
-                              ('lin_vel', 'well_right')]]) + (self.arm_coord[2][0])
+                              ('lin_vel', 'well_right')]])
+        right_flat[('lin_dist_well', 'well_right')] += self.arm_coord[2][0]
         center_flat.columns = ['linpos_flat', 'linvel_flat']
         left_flat.columns = ['linpos_flat', 'linvel_flat']
         right_flat.columns = ['linpos_flat', 'linvel_flat']
@@ -590,14 +622,19 @@ class Posteriors(DayEpochTimeSeries):
     _metadata = DayEpochTimeSeries._metadata + ['enc_settings']
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None,
-                 sampling_rate=0, enc_settings=None, **kwds):
-        self.enc_settings = enc_settings
+                 sampling_rate=0, **kwds):
+
+        try:
+            self.enc_settings = kwds['enc_settings']
+        except KeyError:
+            self.enc_settings = None
+
         super().__init__(sampling_rate=sampling_rate, data=data, index=index, columns=columns,
                          dtype=dtype, copy=copy, parent=parent, history=history, **kwds)
 
-    @property
-    def _constructor(self):
-        return functools.partial(type(self), history=self.history, **self.kwds)
+    #@property
+    #def _constructor(self):
+    #    return functools.partial(type(self), history=self.history, **self.kwds)
 
     @classmethod
     def create_default(cls, df, enc_settings, parent=None, **kwds):
@@ -706,11 +743,10 @@ class FlatLinearPosition(LinearPosition):
     _metadata = LinearPosition._metadata + ['arm_coord']
 
     def __init__(self, data=None, index=None, columns=None, dtype=None,
-                 copy=False, parent=None, history=None, sampling_rate=0, arm_coord=None, **kwds):
-        super().__init__(sampling_rate=sampling_rate, arm_coord=arm_coord, data=data, index=index, columns=columns,
+                 copy=False, parent=None, history=None, sampling_rate=0, **kwds):
+        super().__init__(sampling_rate=sampling_rate, data=data, index=index, columns=columns,
                          dtype=dtype, copy=copy, parent=parent, history=history, **kwds)
 
-        self.arm_coord = arm_coord
         #if isinstance(data, pd.DataFrame) and 'linvel_flat' not in data.columns:
         #   raise DataFormatError("Missing 'linvel_flat' column.")
 
