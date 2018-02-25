@@ -35,7 +35,7 @@ class DecodeVisualizer:
 
         sel_range = [time, time+plt_range]
 
-        img_sel = self.posteriors.values.T
+        img_sel = self.posteriors.get_distribution_view().values.T
         img_sel = np.flip(img_sel, axis=0)
         img = hv.Image(img_sel, bounds=(self.posteriors.index.get_level_values('time')[0], 0,
                                         self.posteriors.index.get_level_values('time')[-1],
@@ -43,7 +43,7 @@ class DecodeVisualizer:
                        kdims=['time (sec)', 'linpos (cm)'], vdims=['probability'],)
 
         img = img.redim(probability={'range': (0, 0.3)})
-        #img.extents = (sel_range[0], 0, sel_range[1], self.enc_settings.pos_bins[-1])
+        img.extents = (sel_range[0], 0, sel_range[1], self.enc_settings.pos_bins[-1])
 
         if (x_range is None):
             x_range = [time, time+plt_range]
