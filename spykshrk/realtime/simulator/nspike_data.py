@@ -12,11 +12,15 @@ from array import array
 
 from scipy.io import loadmat
 
+import spykshrk.franklab.filterframework_util as ff_util
+
 import os.path
 from glob import glob
 import math
 
 from spykshrk.realtime.datatypes import LFPPoint, LinearPosPoint, SpikePoint
+
+from spykshrk.util import AttrDict
 
 idx = pd.IndexSlice
 
@@ -226,6 +230,27 @@ class AnimalInfo:
             path_list.append((day, day_path[0]))
         return path_list
 
+    def get_ripplecons_paths(self):
+
+        path_list = []
+        for day in self.days:
+            anim_prefix = self.name[0:3].title()
+            day_glob = os.path.join(self.base_dir, anim_prefix.title()[0:3],
+                                    '%sripplescons%02d.mat' % (self.name[0:3].lower(), day))
+            day_path = glob(day_glob)
+            # directory sanity check
+            if len(day_path) < 1:
+                print('WARNING: %s day %02d does not have file %sripplescons%02d.mat'
+                      % (self.name, day, self.name[0:3].lower(), day))
+                continue
+            elif len(day_path) > 1:
+                print(('WARNING: %s day %02d has multiple directories %sripplescons%02d.mat' +
+                       'which should not happen...')
+                      % (self.name, day, self.name[0:3].lower(), day))
+
+            path_list.append((day, day_path[0]))
+        return path_list
+
     def num_epochs(self, day):
         time_day = self.times[day]
         return np.size(time_day, 0)
@@ -252,6 +277,39 @@ class AnimalInfo:
                                      'epoch being processed')
 
         return time[epoch][0], time[epoch][1]
+
+
+class RipplesConsData:
+
+    def __init__(self, anim: AnimalInfo, ripcons_area_ind=0):
+        self.data = pd.DataFrame()
+        self.anim = anim
+        self.days = set()
+        self.mat_list = []
+        self.raw_list = []
+        path_list = anim.get_ripplecons_paths()
+
+        for path in path_list:
+            day = path[0]
+            self.days.add(day)
+            self.mat_list.append(loadmat(path[1])['ripplescons'])
+            self.raw_list.append(ff_util.parse_filterframework_cells(self.mat_list[-1]))
+
+        self.raw = ff_util.merge_filterframework_cells(self.raw_list)
+
+        for day, raw_day in self.raw.items():
+            for epoch in self.anim.epochs:
+                raw_epoch = raw_day[epoch]
+                rip_cons = raw_epoch[ripcons_area_ind]
+                rip_cons_data = {'starttime': rip_cons.starttime,
+                                 'endtime': rip_cons.endtime,
+                                 'maxthresh': rip_cons.maxthresh}
+                rip_cons_pd = pd.DataFrame(rip_cons_data,
+                                           index=pd.MultiIndex.from_product([[day], [epoch],
+                                                                             range(len(rip_cons.starttime))],
+                                                                            names=['day', 'epoch', 'event']))
+                rip_cons_pd = rip_cons_pd[['starttime', 'endtime', 'maxthresh']]
+                self.data = self.data.append(rip_cons_pd)
 
 
 class SpkDataStream:

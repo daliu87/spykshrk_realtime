@@ -5,7 +5,8 @@ from abc import ABC, ABCMeta, abstractclassmethod, abstractmethod
 from itertools import product
 import uuid
 
-from spykshrk.franklab.pp_decoder.util import gaussian, AttrDict
+from spykshrk.franklab.pp_decoder.util import gaussian
+from spykshrk.util import AttrDict
 
 
 def partialclass(cls, *args, **kwds):
