@@ -56,14 +56,12 @@ def merge_filterframework_cells(data_list):
     if all([isinstance(data, AttrDict) for data in data_list]):
         for data in data_list:
             key_collision = set(merged.keys()).intersection(data.keys())
-            print('col', key_collision)
             # resolve by looking at next level
             for key in key_collision:
                 resolved = merge_filterframework_cells([merged[key], data[key]])
                 merged[key] = resolved
 
             to_update = set(data.keys()).difference(merged.keys())
-            print('up', to_update)
             for key in to_update:
                 merged[key] = data[key]
 

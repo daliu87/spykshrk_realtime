@@ -76,7 +76,9 @@ class DecodeVisualizer:
 
         return pos
 
-    def plot_shade_linear_pos(self, time, x_range=None, y_range=None, plt_range=10):
+
+
+    def plot_ds_linear_pos(self, time, x_range=None, y_range=None, plt_range=10):
         linflat_sel_data = self.linflat['linpos_flat'].values
         linflat_sel_time = self.linflat.index.get_level_values('time')
         pos = hv.Points((linflat_sel_time, linflat_sel_data), kdims=['sec', 'linpos'],

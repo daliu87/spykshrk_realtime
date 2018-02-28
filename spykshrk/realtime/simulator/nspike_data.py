@@ -19,6 +19,7 @@ from glob import glob
 import math
 
 from spykshrk.realtime.datatypes import LFPPoint, LinearPosPoint, SpikePoint
+from spykshrk.franklab.pp_decoder.data_containers import RippleTimes, UnitTime
 
 from spykshrk.util import AttrDict
 
@@ -310,6 +311,7 @@ class RipplesConsData:
                                                                             names=['day', 'epoch', 'event']))
                 rip_cons_pd = rip_cons_pd[['starttime', 'endtime', 'maxthresh']]
                 self.data = self.data.append(rip_cons_pd)
+                self.data_obj = RippleTimes.create_default(df=self.data, time_unit=UnitTime.SEC)
 
 
 class SpkDataStream:

@@ -4,9 +4,18 @@ import functools
 from abc import ABC, ABCMeta, abstractclassmethod, abstractmethod
 from itertools import product
 import uuid
+import enum
 
 from spykshrk.franklab.pp_decoder.util import gaussian
-from spykshrk.util import AttrDict
+from spykshrk.util import AttrDict, EnumMapping
+
+
+class UnitTime(EnumMapping):
+    SEC = 1
+    SECOND = 1
+    SAMPLE = 2
+    MS = 3
+    MILLISECOND = 3
 
 
 def partialclass(cls, *args, **kwds):
@@ -121,6 +130,28 @@ class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
 
     def __repr__(self):
         return '<{}: {}, shape: ({})>'.format(self.__class__.__name__, self.uuid, self.shape)
+
+
+class DayEpochEvent(DataFrameClass):
+    _metadata = DataFrameClass._metadata + ['time_unit']
+
+    def __init__(self, **kwds):
+        self.time_unit = kwds['time_unit']  # type: UnitTime
+        data = kwds['data']
+        index = kwds['index']
+
+        if isinstance(data, pd.DataFrame):
+            if not isinstance(data.index, pd.MultiIndex):
+                raise DataFormatError("DataFrame index must use MultiIndex as index.")
+
+            if not all([col in data.index.names for col in ['day', 'epoch', 'event']]):
+                raise DataFormatError("DayEpochTimeSeries must have index with 3 levels named: "
+                                      "day, epoch, event.")
+
+        if index is not None and not isinstance(index, pd.MultiIndex):
+            raise DataFormatError("Index to be set must be MultiIndex.")
+
+        super().__init__(**kwds)
 
 
 class DayEpochTimeSeries(DataFrameClass):
@@ -451,7 +482,7 @@ class LinearPosition(DayEpochTimeSeries):
         if parent is None:
             parent = nspike_pos_data
 
-        return cls(sampling_rate=enc_settings.sampling_rate, arm_coord=enc_settings.arm_coordinates, 
+        return cls(sampling_rate=enc_settings.sampling_rate, arm_coord=enc_settings.arm_coordinates,
                    data=nspike_pos_data, parent=parent, enc_settings=enc_settings)
 
         # make sure there's a time field
@@ -693,6 +724,20 @@ class Posteriors(DayEpochTimeSeries):
     def get_distribution_view(self):
         return self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
                         pos_col_format(self.enc_settings.pos_num_bins-1, self.enc_settings.pos_num_bins)]
+
+
+class RippleTimes(DayEpochEvent):
+
+    def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None, **kwds):
+        super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
+                         history=history, **kwds)
+
+    @classmethod
+    def create_default(cls, df, time_unit: UnitTime, parent=None, **kwds):
+        if parent is None:
+            parent = df
+
+        return cls(data=df, time_unit=time_unit, parent=parent, **kwds)
 
 
 class StimLockout(DataFrameClass):

@@ -1,5 +1,5 @@
 import numpy as np
-
+import enum
 
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
@@ -36,3 +36,17 @@ class Groupby:
     def __iter__(self):
         for inds in self.indices:
             yield (self.keys[inds[0]], self.data[inds])
+
+
+class EnumMapping(enum.Enum):
+    def __eq__(self, other):
+        if isinstance(other, str):
+            try:
+                return self == self.__getattr(other)
+            except AttributeError:
+                return False
+        else:
+            return self.value == other
+
+
+
