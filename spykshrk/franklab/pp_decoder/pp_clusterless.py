@@ -23,10 +23,14 @@ class OfflinePPEncoder(object):
         self.spk_amp = spk_amp
         self.speed_thresh = speed_thresh
         self.encode_settings = encode_settings
+        self.calc_occupancy()
+
+    def calc_occupancy(self):
+        occ, _ = np.histogram(a=self.linflat['linpos_flat'], bins=self.encode_settings.pos_bin_edges, normed=True)
+        self.occupancy = np.convolve(occ, self.encode_settings.pos_kernel)[int(len(occ)/2):int(len(occ)*3/2)]
+        return self.occupancy
 
     def run_encoder(self):
-        occ, _ = np.histogram(a=self.linflat['linpos_flat'], bins=self.encode_settings.pos_bin_edges, normed=True)
-        occ = np.convolve(occ, self.encode_settings.pos_kernel)[int(len(occ)/2):int(len(occ)*3/2)]
 
         grp = self.spk_amp.groupby('elec_grp_id')
         observations = {}
@@ -48,7 +52,8 @@ class OfflinePPEncoder(object):
 
             # Setup decode of all spikes from encoding of velocity threshold spikes
             task.append(dask_spk_tet.map_partitions(functools.partial(self.compute_observ_tet, enc_spk=spk_tet_thresh,
-                                                                      tet_lin_pos=tet_lin_pos_thresh, occupancy=occ,
+                                                                      tet_lin_pos=tet_lin_pos_thresh,
+                                                                      occupancy=self.occupancy,
                                                                       encode_settings=self.encode_settings),
                                                     meta=df_meta))
 
@@ -58,11 +63,11 @@ class OfflinePPEncoder(object):
     def compute_observ_tet(self, dec_spk, enc_spk, tet_lin_pos, occupancy, encode_settings):
 
         pos_distrib_tet = sp.stats.norm.pdf(np.expand_dims(encode_settings.pos_bins, 0),
-                                            np.expand_dims(tet_lin_pos['linpos_flat'],1),
+                                            np.expand_dims(tet_lin_pos['linpos_flat'], 1),
                                             encode_settings.pos_kernel_std)
 
         mark_contrib = normal_pdf_int_lookup(np.expand_dims(dec_spk, 1),
-                                             np.expand_dims(enc_spk,0),
+                                             np.expand_dims(enc_spk, 0),
                                              encode_settings.mark_kernel_std)
 
         all_contrib = np.prod(mark_contrib, axis=2)
@@ -77,6 +82,10 @@ class OfflinePPEncoder(object):
         observ = observ / (occupancy + 1e-10)
 
         # normalize each row
+        observ_sum = observ.sum(axis=1)
+        observ_sum_zero = observ_sum == 0
+        observ[observ_sum_zero, :] = 1/(self.encode_settings.pos_bins[-1] - self.encode_settings.pos_bins[0])
+        observ_sum[observ_sum_zero] = 1
         observ = observ / observ.sum(axis=1)[:, np.newaxis]
 
         ret_df = pd.DataFrame(observ, index=dec_spk.index,
@@ -125,7 +134,6 @@ class OfflinePPDecoder(object):
 
         self.parallel = parallel
 
-        self.binned_observ = None
         self.firing_rate = None
         self.occupancy = None
         self.prob_no_spike = None

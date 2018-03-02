@@ -209,6 +209,9 @@ class DayEpochTimeSeries(DataFrameClass):
     def get_time_end(self):
         return self.index.get_level_values('time')[-1]
 
+    def get_time_total(self):
+        return self.get_time_end() - self.get_time_start()
+
     def get_relative_index(self, inplace=False):
         if inplace:
             ret_data = self
@@ -725,6 +728,15 @@ class Posteriors(DayEpochTimeSeries):
         return self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
                         pos_col_format(self.enc_settings.pos_num_bins-1, self.enc_settings.pos_num_bins)]
 
+    def get_pos_range(self):
+        return self.enc_settings.pos_bins[0], self.enc_settings.pos_bins[-1]
+
+    def get_pos_start(self):
+        return self.enc_settings.pos_bins[0]
+
+    def get_pos_end(self):
+        return self.enc_settings.pos_bins[-1]
+
 
 class RippleTimes(DayEpochEvent):
 
@@ -819,7 +831,7 @@ class FlatLinearPosition(LinearPosition):
     def get_above_velocity(self, threshold):
 
         # explicitly return copy convert weakref, for pickling
-        return pd.DataFrame(self.query('linvel_flat > @threshold'))
+        return pd.DataFrame(self.query('abs(linvel_flat) >= @threshold'))
 
     def get_mapped_single_axis(self):
         return self
