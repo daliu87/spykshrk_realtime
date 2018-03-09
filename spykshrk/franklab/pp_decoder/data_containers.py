@@ -148,10 +148,19 @@ class DayEpochEvent(DataFrameClass):
                 raise DataFormatError("DayEpochTimeSeries must have index with 3 levels named: "
                                       "day, epoch, event.")
 
+            if not all([col in data.columns for col in ['starttime', 'endtime']]):
+                raise DataFormatError("RippleTimes must contain columns 'starttime' and 'endtime'.")
+
         if index is not None and not isinstance(index, pd.MultiIndex):
             raise DataFormatError("Index to be set must be MultiIndex.")
 
         super().__init__(**kwds)
+
+    def get_range_view(self):
+        return self[['starttime', 'endtime']]
+
+    def get_num_events(self):
+        return len(self)
 
 
 class DayEpochTimeSeries(DataFrameClass):
@@ -272,6 +281,18 @@ class DayEpochTimeSeries(DataFrameClass):
                                             names=['day', 'epoch', 'timestamp', 'time'])
 
             return grp_df.reindex(ind, method='ffill', fill_value=0)
+
+    def apply_time_event(self, time_ranges: DayEpochEvent, event_mask_name='event_grp'):
+        grouping = np.full(len(self), -1)
+        time_index = self.index.get_level_values('time')
+        for event_id, (range_start, range_end) in zip(time_ranges.index.get_level_values('event'),
+                                                       time_ranges.get_range_view().values):
+            range_mask = (time_index > range_start) & (time_index < range_end)
+            grouping[range_mask] = event_id
+
+        self[event_mask_name] = grouping
+
+        return self
 
 
 class DayEpochElecTimeChannelSeries(DayEpochTimeSeries):
@@ -744,12 +765,19 @@ class RippleTimes(DayEpochEvent):
         super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy, parent=parent,
                          history=history, **kwds)
 
+        if isinstance(data, pd.DataFrame):
+            if not 'maxthresh' in data.columns:
+                raise DataFormatError("RippleTimes must have 'maxthresh' column.")
+
     @classmethod
     def create_default(cls, df, time_unit: UnitTime, parent=None, **kwds):
         if parent is None:
             parent = df
 
         return cls(data=df, time_unit=time_unit, parent=parent, **kwds)
+
+    def get_above_maxthresh(self, threshold):
+        return self.query('maxthresh >= @threshold')
 
 
 class StimLockout(DataFrameClass):

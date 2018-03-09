@@ -1,4 +1,4 @@
-
+import math
 import matplotlib.pyplot as plt
 from matplotlib import patches
 import functools
@@ -11,31 +11,42 @@ import datashader as ds
 
 import functools
 
+from spykshrk.franklab.pp_decoder.data_containers import pos_col_format, Posteriors, LinearPosition, \
+    EncodeSettings, StimLockout, RippleTimes
+
 idx = pd.IndexSlice
 
 class MissingDataError(RuntimeError):
     pass
 
 
-from spykshrk.franklab.pp_decoder.data_containers import pos_col_format, Posteriors, LinearPosition, \
-    EncodeSettings, StimLockout, RippleTimes
+class VisualizationConfigError(RuntimeError):
+    pass
 
 
 class DecodeVisualizer:
 
     def __init__(self, posteriors: Posteriors, enc_settings: EncodeSettings,
                  linpos: LinearPosition=None, riptimes: RippleTimes=None, relative=False):
+        self.time_dim_name = 'time (s)'
+        self.pos_dim_name = 'linpos (cm)'
+        self.val_dim_name = 'probability'
+
         self.posteriors = posteriors
         self.linpos = linpos
         self.riptimes = riptimes
+        if riptimes is not None:
+            self.posteriors.apply_time_event(riptimes, event_mask_name='ripple_grp')
         self.linflat = linpos.get_mapped_single_axis()
+        if riptimes is not None:
+            self.linflat.apply_time_event(riptimes, event_mask_name='ripple_grp')
         self.enc_settings = enc_settings
         self.relative = relative
         self.post_img = hv.Image(np.flip(self.posteriors.get_distribution_view().values.T, axis=0),
                                  bounds=(self.posteriors.get_time_start(), self.posteriors.get_pos_start(),
                                          self.posteriors.get_time_end(),
                                          self.posteriors.get_pos_end()),
-                                 kdims=['time (sec)', 'linpos (cm)'], vdims=['probability'],)
+                                 kdims=[self.time_dim_name, self.pos_dim_name], vdims=[self.val_dim_name])
         self.post_img = self.post_img.redim(probability={'range': (0, 0.3)})
 
     def plot_decode_image(self, time, x_range=None, y_range=None, plt_range=10):
@@ -53,8 +64,6 @@ class DecodeVisualizer:
         #x_range[1] += plt_range
         x_range[0] = max(x_range[0], self.posteriors.get_time_start())
         x_range[1] = min(x_range[1], self.posteriors.get_time_end())
-        print(x_range)
-
 
         # post_time = self.posteriors.index.get_level_values('time')
         # img_sel = self.posteriors.get_distribution_view().query("(time > @x_range[0]) & (time < @x_range[1])").values.T
@@ -69,8 +78,9 @@ class DecodeVisualizer:
         # img.extents = (sel_range[0], 0, sel_range[1], self.enc_settings.pos_bins[-1])
         self.post_img.extents = (sel_range[0], 0, sel_range[1], self.enc_settings.pos_bins[-1])
 
-        rgb = (regrid(self.post_img, aggregator='mean', dynamic=False,
-                           x_range=x_range, y_range=y_range))
+        rgb = shade(regrid(self.post_img, aggregator='mean', dynamic=False,
+                           x_range=x_range, y_range=y_range), cmap=plt.get_cmap('hot'),
+                    normalization='linear', dynamic=False)
         # rgb = shade(regrid(self.post_img, aggregator='mean', dynamic=False,
         #                    x_range=x_range, y_range=y_range, y_sampling=1, x_sampling=0.001),
         #             cmap=plt.get_cmap('hot'), normalization='linear', dynamic=False)
@@ -78,7 +88,7 @@ class DecodeVisualizer:
         rgb.extents = (sel_range[0], 0, sel_range[1], self.enc_settings.pos_bins[-1])
         return rgb
 
-    def plot_ripples(self, time, x_range=None, y_range=None, plt_range=10):
+    def highlight_ripples(self, time, x_range=None, y_range=None, plt_range=10):
 
         def rect(starttime, endtime, pos_min, pos_max):
             return {('x', 'y'): [(starttime, pos_min), (endtime, pos_min), (endtime, pos_max), (starttime, pos_max)]}
@@ -93,7 +103,7 @@ class DecodeVisualizer:
         if plt_range is None:
             plt_range = self.posteriors.get_time_total() - time
         if x_range is None:
-            x_range = self.posteriors.get_time_range()
+            x_range = (time, time + plt_range)
         if y_range is None:
             y_range = self.posteriors.get_pos_range()
 
@@ -102,9 +112,13 @@ class DecodeVisualizer:
         for arm in self.enc_settings.arm_coordinates:
             for bound in arm:
 
-                line = hv.Curve((self.posteriors.get_time_range(), [bound]*2),
-                                extents=(time, None, time + plt_range, None)).opts(style={'line_dash': 'dashed',
-                                                                                          'line_color': 'grey'})
+                #line = hv.Curve((x_range, [bound]*2)).opts(style={'line_dash': 'dashed', 'line_color': 'grey'})
+                line = hv.Curve((x_range, [bound]*2),
+                                extents=(x_range[0], None, x_range[1], None),
+                                group='arm_bound').opts(style={'color': '#AAAAAA',
+                                                               'line_dash': 'dashed',
+                                                               'line_color': 'grey',
+                                                               'linestyle': '--'})
                 lines *= line
 
         return lines
@@ -112,25 +126,10 @@ class DecodeVisualizer:
     def plot_linear_pos(self, time, x_range=None, y_range=None, plt_range=10):
         linflat_sel_data = self.linflat['linpos_flat'].values
         linflat_sel_time = self.linflat.index.get_level_values('time')
-        pos = hv.Points((linflat_sel_time, linflat_sel_data), kdims=['sec', 'linpos'],
+        pos = hv.Points((linflat_sel_time, linflat_sel_data), kdims=[self.time_dim_name, self.pos_dim_name],
                         extents=(time, None, time + plt_range, None))
 
         return pos
-
-    def plot_ds_linear_pos(self, time, x_range=None, y_range=None, plt_range=10):
-        linflat_sel_data = self.linflat['linpos_flat'].values
-        linflat_sel_time = self.linflat.index.get_level_values('time')
-        pos = hv.Points((linflat_sel_time, linflat_sel_data), kdims=['sec', 'linpos'],
-                        extents=(time, None, time + plt_range, None))
-
-        if x_range is None:
-            x_range = (time, time+plt_range)
-        if y_range is None:
-            y_range = (0, self.enc_settings.pos_bins[-1])
-        rgb = dynspread(datashade(pos, dynamic=False, x_range=x_range, y_range=y_range,
-                                  agg=ds.reductions.mean, cmap=['#8888FF']), max_px=1, threshold=0.3)
-        rgb.extents = (time, 0, time+plt_range, self.enc_settings.pos_bins[-1])
-        return rgb
 
     def plot_all(self, time=None, x_range=None, y_range=None, plt_range=10):
         out = hv.Overlay()
@@ -139,10 +138,10 @@ class DecodeVisualizer:
         out *= img
         pos = self.plot_linear_pos(time, x_range, y_range, plt_range)
         out *= pos
-        arms = self.plot_arm_boundaries(time, x_range, y_range, plt_range)
-        out *= arms
+        #arms = self.plot_arm_boundaries(time, x_range, y_range, plt_range)
+        #out *= arms
         if self.riptimes is not None:
-            rips = self.plot_ripples(time, x_range, y_range, plt_range)
+            rips = self.highlight_ripples(time, x_range, y_range, plt_range)
             out *= rips
         return out
 
@@ -159,7 +158,67 @@ class DecodeVisualizer:
                              streams=[stream])
         return dmap
 
+    def plot_ripple(self, rip_ind):
+        rip_post = self.posteriors.query('ripple_grp == @rip_ind').get_distribution_view()
+        rip_time = rip_post.index.get_level_values('time')
+        rip_img = hv.Image(np.flip(rip_post.values.T, axis=0),
+                           bounds=(0, self.enc_settings.pos_bins[0],
+                                                      rip_time[-1]-rip_time[0], self.enc_settings.pos_bins[-1]),
+                           kdims=[self.time_dim_name, self.pos_dim_name], vdims=[self.val_dim_name])
 
+        rip_img = rip_img.redim(probability={'range': (0, 0.3)})
+
+        return rip_img
+
+    def plot_ripple_linflat(self, rip_ind):
+        linflat_ripple = self.linflat.query('ripple_grp == @rip_ind')
+        linflat_ripple_time = (np.array(linflat_ripple.index.get_level_values('time')) -
+                               self.riptimes.query('event == @rip_ind')['starttime'].values)
+        plt = hv.Points((linflat_ripple_time, linflat_ripple['linpos_flat'].values),
+                        kdims=[self.time_dim_name, self.pos_dim_name])
+        #plt = plt.opts(style={'marker': '*', 'color': '#AAAAFF', 'size': 14})
+        return plt
+
+    def plot_ripple_all(self, rip_ind):
+        rip_plt = self.plot_ripple(rip_ind)
+        x_range = rip_plt.range(self.time_dim_name)
+        y_range = rip_plt.range(self.pos_dim_name)
+        arm_plt = self.plot_arm_boundaries(time=x_range[0], x_range=x_range, y_range=y_range)
+        lin_plt = self.plot_ripple_linflat(rip_ind)
+        return lin_plt * rip_plt * arm_plt
+
+    def plot_ripple_dynamic(self):
+        dmap = hv.DynamicMap(self.plot_ripple_all,
+                             kdims=hv.Dimension('rip_ind', range=(0, self.riptimes.get_num_events())))
+
+        return dmap
+
+    def plot_ripple_grid(self, num_x=3, num_y=None, return_list=True):
+        if num_y is None:
+            num_y = int(math.ceil(len(self.riptimes) / float(num_x)))
+
+        plt_grp_size = num_x * num_y
+        plt_num_grps = int(math.ceil(self.riptimes.get_num_events()/plt_grp_size))
+        plot_list = []
+
+        rip_ids = self.riptimes.index.get_level_values('event')
+        rip_plt_grps = [[rip_ids[(grp_id * plt_grp_size) + entry_ind] for entry_ind in
+                         range(min([len(rip_ids) - plt_grp_size * grp_id, plt_grp_size]))]
+                         for grp_id in range(plt_num_grps)]
+
+        if (len(rip_plt_grps) > 1) and (return_list is False):
+            raise VisualizationConfigError("Can't set return_list=False when grid cannot hold all plots.")
+
+        if return_list:
+            for rip_plt_grp in rip_plt_grps:
+                lay = hv.NdLayout({rip_id: self.plot_ripple_all(rip_id) for rip_id in rip_plt_grp}).cols(num_x)
+                plot_list.append(lay)
+
+            return plot_list
+
+        else:
+            lay = hv.NdLayout({rip_id: self.plot_ripple_all(rip_id) for rip_id in rip_plt_grps[0]}).cols(num_x)
+            return lay
 
     @staticmethod
     def plot_stim_lockout(ax, stim_lock: StimLockout, plt_range, plt_height):

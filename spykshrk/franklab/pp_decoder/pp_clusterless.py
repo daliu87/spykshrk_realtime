@@ -13,8 +13,6 @@ from spykshrk.util import Groupby
 from spykshrk.franklab.pp_decoder.data_containers import LinearPosition, SpikeObservation, EncodeSettings, \
     DecodeSettings, Posteriors, pos_col_format
 
-import spykshrk.franklab.pp_decoder.pp_clusterless_cy as pp_cy
-
 
 class OfflinePPEncoder(object):
 
