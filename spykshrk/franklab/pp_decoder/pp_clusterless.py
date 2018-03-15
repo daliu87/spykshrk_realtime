@@ -33,7 +33,7 @@ class OfflinePPEncoder(object):
         grp = self.spk_amp.groupby('elec_grp_id')
         observations = {}
         task = []
-        chunksize = 2000
+        chunksize = 1000
         for tet_id, spk_tet in grp:
             spk_tet.index = spk_tet.index.droplevel('elec_grp_id')
             tet_lin_pos = (self.linflat.get_irregular_resampled(spk_tet.index.get_level_values('timestamp'))

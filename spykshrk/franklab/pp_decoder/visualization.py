@@ -138,8 +138,8 @@ class DecodeVisualizer:
         out *= img
         pos = self.plot_linear_pos(time, x_range, y_range, plt_range)
         out *= pos
-        #arms = self.plot_arm_boundaries(time, x_range, y_range, plt_range)
-        #out *= arms
+        arms = self.plot_arm_boundaries(time, x_range, y_range, plt_range)
+        out *= arms
         if self.riptimes is not None:
             rips = self.highlight_ripples(time, x_range, y_range, plt_range)
             out *= rips

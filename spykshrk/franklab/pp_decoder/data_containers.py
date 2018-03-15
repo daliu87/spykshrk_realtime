@@ -162,6 +162,15 @@ class DayEpochEvent(DataFrameClass):
     def get_num_events(self):
         return len(self)
 
+    def find_events(self, times):
+        event_id_list = []
+        for time in times:
+            res = self.query('starttime < @time and endtime > @time')
+            id_list = res.index.get_level_values('event')
+            event_id_list.extend(id_list)
+
+        return event_id_list
+
 
 class DayEpochTimeSeries(DataFrameClass):
 
@@ -488,11 +497,11 @@ class LinearPosition(DayEpochTimeSeries):
             self.arm_coord = None
 
     @classmethod
-    def create_default(cls, df, sampling_rate, parent=None, **kwds):
+    def create_default(cls, df, sampling_rate, arm_coord, parent=None, **kwds):
         if parent is None:
             parent = df
 
-        return cls(sampling_rate=sampling_rate, df=df, parent=parent, **kwds)
+        return cls(df=df, sampling_rate=sampling_rate, arm_coord=arm_coord, parent=parent, **kwds)
 
     @classmethod
     def from_nspike_posmat(cls, nspike_pos_data, enc_settings: EncodeSettings, parent=None):
@@ -849,12 +858,13 @@ class FlatLinearPosition(LinearPosition):
 
 
     @classmethod
-    def from_numpy_single_epoch(cls, day, epoch, timestamp, lin_pos, lin_vel, sampling_rate):
+    def from_numpy_single_epoch(cls, day, epoch, timestamp, lin_pos, lin_vel, sampling_rate, arm_coord):
         time = timestamp/float(sampling_rate)
         return cls(pd.DataFrame(list(zip(lin_pos, lin_vel)), columns=['linpos_flat', 'linvel_flat'],
                                 index=pd.MultiIndex.from_arrays([[day]*len(timestamp), [epoch]*len(timestamp),
                                                                  timestamp, time],
-                                                                names=['day', 'epoch', 'timestamp', 'time'])))
+                                                                names=['day', 'epoch', 'timestamp', 'time'])),
+                   sampling_rate=sampling_rate, arm_coord=arm_coord)
 
     def get_above_velocity(self, threshold):
 
