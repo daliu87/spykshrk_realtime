@@ -2,26 +2,19 @@
 Defines classes necessary to access and stream NSpike animal's data.
 
 """
+import itertools
+import os.path
+from array import array
+from glob import glob
+from struct import unpack
+
 import numpy as np
 import pandas as pd
-import xarray as xr
-import itertools
-
-from struct import unpack
-from array import array
-
 from scipy.io import loadmat
 
 import spykshrk.franklab.filterframework_util as ff_util
-
-import os.path
-from glob import glob
-import math
-
+from spykshrk.franklab.data_containers import RippleTimes, UnitTime
 from spykshrk.realtime.datatypes import LFPPoint, LinearPosPoint, SpikePoint
-from spykshrk.franklab.pp_decoder.data_containers import RippleTimes, UnitTime
-
-from spykshrk.util import AttrDict
 
 idx = pd.IndexSlice
 

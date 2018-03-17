@@ -1,17 +1,14 @@
+import functools
 import math
-import matplotlib.pyplot as plt
-from matplotlib import patches
-import functools
-import pandas as pd
-import numpy as np
+
 import holoviews as hv
-from holoviews.operation.datashader import datashade, aggregate, shade, regrid, dynspread
-from holoviews.operation import decimate
-import datashader as ds
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from holoviews.operation.datashader import shade, regrid
+from matplotlib import patches
 
-import functools
-
-from spykshrk.franklab.pp_decoder.data_containers import pos_col_format, Posteriors, LinearPosition, \
+from spykshrk.franklab.data_containers import Posteriors, LinearPosition, \
     EncodeSettings, StimLockout, RippleTimes
 
 idx = pd.IndexSlice
