@@ -4,6 +4,7 @@ import scipy as sp
 import scipy.signal
 import dask
 import dask.dataframe as dd
+import logging
 
 import functools
 import ipyparallel as ipp
@@ -13,15 +14,32 @@ from spykshrk.util import Groupby
 from spykshrk.franklab.pp_decoder.data_containers import LinearPosition, SpikeObservation, EncodeSettings, \
     DecodeSettings, Posteriors, pos_col_format
 
+logger = logging.getLogger(__name__)
 
 class OfflinePPEncoder(object):
 
-    def __init__(self, linflat, spk_amp, speed_thresh, encode_settings: EncodeSettings):
+    def __init__(self, linflat, spk_amp, speed_thresh, encode_settings: EncodeSettings,
+                 dask_worker_memory=None, dask_memory_utilization=0.5, dask_chunksize=None):
+
+        if dask_worker_memory is None and dask_chunksize is None:
+            raise TypeError('OfflinePPEncoder requires either dask_memory or dask_chunksize to be set.')
+        if dask_worker_memory is not None and dask_chunksize is not None:
+            raise TypeError('OfflinePPEncoder only allows one to be set, dask_memory or dask_chunksize.')
+        if dask_chunksize is not None:
+            self.dask_chunksize = dask_chunksize
+        if dask_worker_memory is not None:
+            memory_per_dec = (len(spk_amp) * np.sum([np.dtype(dtype).itemsize for dtype in spk_amp.dtypes]))
+            self.dask_chunksize = np.int(dask_memory_utilization * dask_worker_memory / memory_per_dec)
+            logger.info('Dask chunksize: {}'.format(self.dask_chunksize))
+            logger.info('Memory utilization at: {:0.1f}%'.format(dask_memory_utilization * 100))
+            logger.info('Expected worker memory usage: {:0.2f} MB'.format(self.dask_chunksize * memory_per_dec / 2**20))
+
         self.linflat = linflat
         self.spk_amp = spk_amp
         self.speed_thresh = speed_thresh
         self.encode_settings = encode_settings
         self.calc_occupancy()
+
 
     def calc_occupancy(self):
         occ, _ = np.histogram(a=self.linflat['linpos_flat'], bins=self.encode_settings.pos_bin_edges, normed=True)
@@ -29,6 +47,11 @@ class OfflinePPEncoder(object):
         return self.occupancy
 
     def run_encoder(self):
+        task = self.setup_encoder_dask()
+        results = dask.compute(*task)
+        return results
+
+    def setup_encoder_dask(self):
 
         grp = self.spk_amp.groupby('elec_grp_id')
         observations = {}
@@ -55,8 +78,7 @@ class OfflinePPEncoder(object):
                                                                       encode_settings=self.encode_settings),
                                                     meta=df_meta))
 
-        results = dask.compute(*task)
-        return results
+        return task
 
     def compute_observ_tet(self, dec_spk, enc_spk, tet_lin_pos, occupancy, encode_settings):
 
