@@ -55,7 +55,6 @@ class OfflinePPEncoder(object):
         grp = self.spk_amp.groupby('elec_grp_id')
         observations = {}
         task = []
-        chunksize = 1000
         for tet_id, spk_tet in grp:
             spk_tet.index = spk_tet.index.droplevel('elec_grp_id')
             tet_lin_pos = (self.linflat.get_irregular_resampled(spk_tet.index.get_level_values('timestamp'))
@@ -65,7 +64,7 @@ class OfflinePPEncoder(object):
             tet_lin_pos_thresh = tet_lin_pos.get_above_velocity(self.speed_thresh)
             spk_tet_thresh = spk_tet.reindex(tet_lin_pos_thresh.index)
             # Decode from all spikes
-            dask_spk_tet = dd.from_pandas(spk_tet.get_simple_index(), chunksize=chunksize)
+            dask_spk_tet = dd.from_pandas(spk_tet.get_simple_index(), chunksize=self.dask_chunksize)
 
             df_meta = pd.DataFrame([], columns=[pos_col_format(ii, self.encode_settings.pos_num_bins)
                                                 for ii in range(self.encode_settings.pos_num_bins)])

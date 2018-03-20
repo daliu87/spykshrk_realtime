@@ -45,6 +45,7 @@ class DecodeVisualizer:
                                          self.posteriors.get_pos_end()),
                                  kdims=[self.time_dim_name, self.pos_dim_name], vdims=[self.val_dim_name])
         self.post_img = self.post_img.redim(probability={'range': (0, 0.3)})
+        self._last_dyn_plt_time = 0
 
     def plot_decode_image(self, time, x_range=None, y_range=None, plt_range=10):
 
@@ -111,7 +112,7 @@ class DecodeVisualizer:
 
                 #line = hv.Curve((x_range, [bound]*2)).opts(style={'line_dash': 'dashed', 'line_color': 'grey'})
                 line = hv.Curve((x_range, [bound]*2),
-                                extents=(x_range[0], None, x_range[1], None),
+                                #extents=(x_range[0], None, x_range[1], None),
                                 group='arm_bound').opts(style={'color': '#AAAAAA',
                                                                'line_dash': 'dashed',
                                                                'line_color': 'grey',
@@ -129,6 +130,11 @@ class DecodeVisualizer:
         return pos
 
     def plot_all(self, time=None, x_range=None, y_range=None, plt_range=10):
+        print(time, x_range, y_range, plt_range)
+        if self._last_dyn_plt_time != time:
+            x_range = (time, time+plt_range)
+            y_range = self.posteriors.get_pos_range()
+
         out = hv.Overlay()
 
         img = self.plot_decode_image(time, x_range, y_range, plt_range)
@@ -140,6 +146,8 @@ class DecodeVisualizer:
         if self.riptimes is not None:
             rips = self.highlight_ripples(time, x_range, y_range, plt_range)
             out *= rips
+
+        self._last_dyn_plt_time = time
         return out
 
     def plot_all_dynamic(self, stream, slide=10, plt_range=10, values=None):
