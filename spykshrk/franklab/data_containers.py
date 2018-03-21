@@ -709,8 +709,7 @@ class Posteriors(DayEpochTimeSeries):
         return cls(df, parent=parent, enc_settings=enc_settings, **kwds)
 
     @classmethod
-    def from_dataframe(cls, posterior: pd.DataFrame, index=None, columns=None, parent=None,
-                       encode_settings=None, **kwds):
+    def from_dataframe(cls, posterior: pd.DataFrame, encode_settings, index=None, columns=None, parent=None, **kwds):
         if parent is None:
             parent = posterior
 
