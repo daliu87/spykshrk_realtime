@@ -5,6 +5,7 @@ from abc import ABC, ABCMeta, abstractclassmethod, abstractmethod
 from itertools import product
 import uuid
 import enum
+import os
 
 from spykshrk.franklab.pp_decoder.util import gaussian
 from spykshrk.util import AttrDict, EnumMapping
@@ -127,6 +128,39 @@ class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
     @abstractclassmethod
     def create_default(cls, df, parent=None, **kwd):
         pass
+
+    def to_dataframe(self):
+        return pd.DataFrame(self)
+
+    def _to_hdf_store(self, direc, filename, hdf_base, hdf_grps, hdf_label):
+        with pd.HDFStore(os.path.join(direc, filename), 'w') as store:
+            main_path = os.path.join(hdf_base, hdf_grps, hdf_label)
+            store[main_path] = self.to_dataframe()
+            save_history = []
+            for hist_en in self.history:
+                try:
+                    save_history.append((type(hist_en), hist_en.uuid))
+                except AttributeError:
+                    save_history.append((type(hist_en), repr(hist_en)))
+
+            main_storer = store.get_storer(main_path)
+            main_storer.attrs.history = save_history
+            main_storer.attrs.kwds = self.kwds
+            main_storer.attrs.classtype = type(self)
+
+
+    @classmethod
+    def _from_hdf_store(cls, direc, filename, hdf_base, hdf_grps, hdf_label):
+        with pd.HDFStore(os.path.join(direc, filename), 'r') as store:
+            main_path = os.path.join(hdf_base, hdf_grps, hdf_label)
+            dataframe = store[main_path]
+            main_storer = store.get_storer(main_path)
+            save_history = main_storer.attrs.history
+            kwds = main_storer.attrs.kwds
+            newcls = main_storer.attrs.classtype
+
+            return newcls(data=dataframe, history=save_history, kwds=kwds)
+
 
     def __repr__(self):
         return '<{}: {}, shape: ({})>'.format(self.__class__.__name__, self.uuid, self.shape)
