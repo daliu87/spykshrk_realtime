@@ -21,8 +21,9 @@ class UnitTime(EnumMapping):
 
 def partialclass(cls, *args, **kwds):
 
-    class NewCls(cls):
-        __init__ = functools.partialmethod(cls.__init__, *args, **kwds)
+    NewCls = type('_' + cls.__name__, (cls,),
+                  {'__init__': functools.partialmethod(cls.__init__, *args, **kwds),
+                   '__module__': __name__})
 
     return NewCls
 
@@ -54,7 +55,7 @@ class SeriesClass(pd.Series):
         return partialclass(DataFrameClass, history=self.history, **self.kwds)
 
 
-class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
+class DataFrameClass(pd.DataFrame):
 
     _metadata = pd.DataFrame._metadata + ['kwds', 'history']
     _internal_names = pd.DataFrame._internal_names + ['uuid']
@@ -148,7 +149,6 @@ class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
             main_storer.attrs.kwds = self.kwds
             main_storer.attrs.classtype = type(self)
 
-
     @classmethod
     def _from_hdf_store(cls, direc, filename, hdf_base, hdf_grps, hdf_label):
         with pd.HDFStore(os.path.join(direc, filename), 'r') as store:
@@ -160,7 +160,6 @@ class DataFrameClass(pd.DataFrame, metaclass=ABCMeta):
             newcls = main_storer.attrs.classtype
 
             return newcls(data=dataframe, history=save_history, kwds=kwds)
-
 
     def __repr__(self):
         return '<{}: {}, shape: ({})>'.format(self.__class__.__name__, self.uuid, self.shape)
@@ -736,14 +735,15 @@ class Posteriors(DayEpochTimeSeries):
     #    return functools.partial(type(self), history=self.history, **self.kwds)
 
     @classmethod
-    def create_default(cls, df, enc_settings, parent=None, **kwds):
+    def create_default(cls, df, enc_settings, dec_settings, parent=None, **kwds):
         if parent is None:
             parent = df
 
-        return cls(df, parent=parent, enc_settings=enc_settings, **kwds)
+        return cls(df, parent=parent, enc_settings=enc_settings, dec_settings=dec_settings, **kwds)
 
     @classmethod
-    def from_dataframe(cls, posterior: pd.DataFrame, encode_settings, index=None, columns=None, parent=None, **kwds):
+    def from_dataframe(cls, posterior: pd.DataFrame, encode_settings, dec_settings,
+                       index=None, columns=None, parent=None, **kwds):
         if parent is None:
             parent = posterior
 
@@ -751,7 +751,7 @@ class Posteriors(DayEpochTimeSeries):
             posterior.set_index(index)
         if columns is not None:
             posterior.columns = columns
-        return cls(data=posterior, parent=parent, enc_settings=encode_settings, **kwds)
+        return cls(data=posterior, parent=parent, enc_settings=encode_settings, dec_settings=dec_settings, **kwds)
 
     @classmethod
     def from_numpy(cls, posterior, day, epoch, timestamps, times, columns=None, parent=None, encode_settings=None):
@@ -902,7 +902,7 @@ class FlatLinearPosition(LinearPosition):
     def get_above_velocity(self, threshold):
 
         # explicitly return copy convert weakref, for pickling
-        return pd.DataFrame(self.query('abs(linvel_flat) >= @threshold'))
+        return self.query('abs(linvel_flat) >= @threshold')
 
     def get_mapped_single_axis(self):
         return self
