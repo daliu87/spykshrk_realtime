@@ -52,7 +52,9 @@ class OfflinePPEncoder(object):
         return self.occupancy
 
     def run_encoder(self):
+        logging.info("Setting up encoder dask task.")
         task = self.setup_encoder_dask()
+        logging.info("Running compute tasks on dask workers.")
         results = dask.compute(*task)
         return results
 
@@ -209,7 +211,8 @@ class OfflinePPDecoder(object):
 
     def recalc_posterior(self):
         self.posteriors = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
-        self.posteriors_obj = Posteriors(self.posteriors, enc_settings=self.encode_settings)
+        self.posteriors_obj = Posteriors.from_dataframe(self.posteriors, enc_settings=self.encode_settings,
+                                                        dec_settings=self.decode_settings)
 
     @staticmethod
     def calc_learned_state_trans_mat(linpos_simple, enc_settings, dec_settings):

@@ -13,3 +13,12 @@ warnings.showwarning = _showwarning
 
 class FrankLabDeprecationWarning(Warning):
     pass
+
+
+class ConstructorWarning(UserWarning):
+    pass
+
+
+class OverridingAttributeWarning(UserWarning):
+    pass
+

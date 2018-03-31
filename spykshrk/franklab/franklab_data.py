@@ -27,7 +27,7 @@ class FrankFileFormatWarning(RuntimeWarning):
 
 class FrankFilenameParser:
 
-    frank_filename_re = re.compile('^(\d*)_([a-zA-Z0-9]*)_(\w*)\.(\w*)$')
+    frank_filename_re = re.compile('^(?:(\d*)_){0,1}(?:([a-zA-Z0-9]*)_{0,1})(\w*)\.(\w*)$')
 
     def __init__(self, filename_str):
         self.filename = filename_str
@@ -36,11 +36,12 @@ class FrankFilenameParser:
         if filename_match is not None:
             filename_groups = filename_match.groups()
             self.date = filename_groups[0]
-            try:
-                self.date_expand = FrankFilenameParser.expand_date_str(self.date)
-            except ValueError:
-                raise FrankFileFormatError('Filename ({}) date field ({}) is not a true date.'.
-                                           format(self.filename, self.date))
+            if self.date is not None and self.date != '':
+                try:
+                    self.date_expand = FrankFilenameParser.expand_date_str(self.date)
+                except ValueError:
+                    raise FrankFileFormatError('Filename ({}) date field ({}) is not a true date.'.
+                                               format(self.filename, self.date))
 
             self.anim_name = filename_groups[1]
             self.datatype = filename_groups[2]
