@@ -292,6 +292,24 @@ class DayEpochTimeSeries(DataFrameClass):
 
         return ret_data
 
+    def update_default_bins(self, time_bin_size, inplace=False):
+        if inplace:
+            df = self
+        else:
+            df = self.copy()
+
+        self.default_bin_size = time_bin_size
+
+        bins = np.floor((self.index.get_level_values('timestamp') -
+                         self.index.get_level_values('timestamp')[0]) / time_bin_size).astype('int')
+        bins_start = (int(self.index.get_level_values('timestamp')[0] / time_bin_size) *
+                          time_bin_size + bins * time_bin_size)
+        df['bin'] = bins
+        df['bin_start'] = bins_start
+
+        #df.update_num_missing_future_bins(inplace=True)
+        return df
+
     def get_resampled(self, bin_size):
         """
         
