@@ -143,9 +143,10 @@ class DataFrameClass(pd.DataFrame):
         return pd.DataFrame(self)
 
     def _to_hdf_store(self, direc, filename, hdf_base, hdf_grps, hdf_label):
-        with pd.HDFStore(os.path.join(direc, filename), 'w') as store:
+        with pd.HDFStore(os.path.join(direc, filename), 'a') as store:
             main_path = os.path.join(hdf_base, hdf_grps, hdf_label)
-            store[main_path] = self.to_dataframe()
+            store.put(main_path, self.to_dataframe(), format='t')
+            #store[main_path] = self.to_dataframe()
             save_history = []
             for hist_en in self.history:
                 try:
@@ -160,8 +161,8 @@ class DataFrameClass(pd.DataFrame):
             main_storer.attrs.classtype = type(self)
 
     @classmethod
-    def _from_hdf_store(cls, direc, filename, hdf_base, hdf_grps, hdf_label):
-        with pd.HDFStore(os.path.join(direc, filename), 'r') as store:
+    def _from_hdf_store(cls, file_path, hdf_base, hdf_grps, hdf_label):
+        with pd.HDFStore(file_path, 'r') as store:
             main_path = os.path.join(hdf_base, hdf_grps, hdf_label)
             dataframe = store[main_path]
             main_storer = store.get_storer(main_path)
@@ -759,6 +760,8 @@ class Posteriors(DayEpochTimeSeries):
 
         self.dec_settings = dec_settings
 
+        self.sampling_rate = sampling_rate
+
         if issubclass(type(data), DataFrameClass):
             if self.enc_settings is not None:
                 warnings.warn(OverridingAttributeWarning('enc_setting found in {} will be '
@@ -771,6 +774,14 @@ class Posteriors(DayEpochTimeSeries):
                                                          'overwritten by constructor value'.format(data)))
             else:
                 self.dec_settings = data.kwds['dec_settings']
+
+            if self.sampling_rate is not None:
+                warnings.warn(OverridingAttributeWarning('sampling_rate found in {} will be '
+                                                         'overwritten by constructor value'.format(data)))
+
+            else:
+                self.sampling_rate = data.kwds['sampling_rate']
+
 
         super().__init__(sampling_rate=sampling_rate, data=data, index=index, columns=columns,
                          dtype=dtype, copy=copy, parent=parent, history=history, enc_settings=self.enc_settings,

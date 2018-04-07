@@ -5,6 +5,8 @@ import pandas as pd
 import warnings
 import numpy as np
 
+from spykshrk.franklab.data_containers import DataFrameClass
+
 from abc import ABCMeta, abstractmethod
 
 try:
@@ -64,8 +66,13 @@ class FrankAnimalInfo:
         return list(self.data_paths['date'].unique())
 
     def get_data_path(self, date, datatype):
-        path = self.data_paths[(self.data_paths['datatype'] == datatype) &
-                               (self.data_paths['date'] == date)]
+
+        if date is None:
+            path = self.data_paths[(self.data_paths['datatype'] == datatype) &
+                                   (self.data_paths['date'].isna())]
+        else:
+            path = self.data_paths[(self.data_paths['datatype'] == datatype) &
+                                   (self.data_paths['date'] == date)]
 
         if len(path) < 1:
             raise FrankFileFormatError('Animal ({}) missing ({}) data for date ({}).'.format(self.anim_name,
@@ -79,6 +86,9 @@ class FrankAnimalInfo:
                                                                                                  date))
 
         return path.iloc[0].path
+
+    def get_all_datatype(self, datatype):
+        return self.data_paths.query('datatype == @datatype')
 
     @staticmethod
     def _get_analysis_dir(base_dir, anim_name):
@@ -107,8 +117,44 @@ class FrankAnimalInfo:
 
         return path_df
 
+    @staticmethod
+    def _get_hdf_path_components(path):
+        hdf_group_re = re.compile('^(/[a-zA-Z0-9]*)([a-zA-Z0-9/]*?)(/[a-zA-Z0-9]*)$')
+        return hdf_group_re.match(path).groups()
+
     def get_base_name(self, date, datatype):
         return date + '_' + self.anim_name + '_' + datatype + '.h5'
+
+
+class FrankDataInfo:
+    def __init__(self, anim: FrankAnimalInfo, datatype):
+        self.datatype_paths = anim.get_all_datatype(datatype)
+
+        datatype_key_list = []
+        for path_row in self.datatype_paths.itertuples():
+            with pd.HDFStore(path_row.path) as data_store:
+                for key in data_store.keys():
+                    entry = [path_row.Index]
+                    entry.extend(self._split_hdf_group(key))
+                    datatype_key_list.append(entry)
+
+        self.entries = pd.DataFrame(datatype_key_list, columns=['file_ind', 'base', 'group', 'label'])
+
+    def load_single_dataset_ind(self, ind):
+        data_entry = self.entries.loc[ind]
+        hdf_filename = self.datatype_paths.loc[data_entry['file_ind']]['path']
+        data = DataFrameClass._from_hdf_store(hdf_filename, data_entry['base'],
+                                              data_entry['group'], data_entry['label'])
+        return data
+
+    @staticmethod
+    def _split_hdf_group(group_str):
+        grp_split = re.compile('^(/[a-zA-Z0-9]*)/([a-zA-Z0-9/]*?)/([a-zA-Z0-9]*)$')
+        grp_match = grp_split.match(group_str)
+        if grp_match is None:
+            raise FrankFileFormatError('HDF group ({}) cannot be parsed into [base]/[group]/[label].'.format(group_str))
+
+        return grp_match.groups()
 
 
 class BaseData(metaclass=ABCMeta):

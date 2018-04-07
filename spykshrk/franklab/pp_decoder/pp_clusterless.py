@@ -144,7 +144,6 @@ class OfflinePPDecoder(object):
         """
         self.lin_obj = lin_obj
         self.observ_obj = observ_obj
-        self.observ_obj = observ_obj
         self.encode_settings = encode_settings
         self.decode_settings = decode_settings
         self.which_trans_mat = which_trans_mat
