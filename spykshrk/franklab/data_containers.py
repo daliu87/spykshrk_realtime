@@ -142,8 +142,8 @@ class DataFrameClass(pd.DataFrame):
     def to_dataframe(self):
         return pd.DataFrame(self)
 
-    def _to_hdf_store(self, direc, filename, hdf_base, hdf_grps, hdf_label):
-        with pd.HDFStore(os.path.join(direc, filename), 'a') as store:
+    def _to_hdf_store(self, file_path, hdf_base, hdf_grps, hdf_label):
+        with pd.HDFStore(file_path, 'a') as store:
             main_path = os.path.join(hdf_base, hdf_grps, hdf_label)
             store.put(main_path, self.to_dataframe(), format='t')
             #store[main_path] = self.to_dataframe()
@@ -177,7 +177,23 @@ class DataFrameClass(pd.DataFrame):
         return '<{}: {}, shape: ({})>'.format(self.__class__.__name__, self.uuid, self.shape)
 
 
-class DayEpochEvent(DataFrameClass):
+class DayDataFrame(DataFrameClass):
+    def __init__(self, **kwds):
+        data = kwds['data']
+        index = kwds['index']
+
+        if isinstance(data, pd.DataFrame):
+
+            if not ('day' in data.index.names):
+                raise DataFormatError("DayEpochTimeSeries must have index named day.")
+
+        super().__init__(**kwds)
+
+    def get_days(self):
+        return self.index.get_level_values('day').unique()
+
+
+class DayEpochEvent(DayDataFrame):
     _metadata = DataFrameClass._metadata + ['time_unit']
 
     def __init__(self, **kwds):
@@ -217,7 +233,7 @@ class DayEpochEvent(DataFrameClass):
         return event_id_list
 
 
-class DayEpochTimeSeries(DataFrameClass):
+class DayEpochTimeSeries(DayDataFrame):
 
     _metadata = DataFrameClass._metadata + ['sampling_rate']
 

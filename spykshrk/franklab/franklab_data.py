@@ -27,6 +27,10 @@ class FrankFileFormatWarning(RuntimeWarning):
     pass
 
 
+class FrankHDFFormatError(RuntimeError):
+    pass
+
+
 class FrankFilenameParser:
 
     frank_filename_re = re.compile('^(?:(\d*)_){0,1}(?:([a-zA-Z0-9]*)_{0,1})(\w*)\.(\w*)$')
@@ -87,8 +91,14 @@ class FrankAnimalInfo:
 
         return path.iloc[0].path
 
+    def get_avaliable_datatypes(self):
+        return self.data_paths['datatype'].unique()
+
     def get_all_datatype(self, datatype):
         return self.data_paths.query('datatype == @datatype')
+
+    def get_datatype_info(self, datatype):
+        return FrankDataInfo(self, datatype)
 
     @staticmethod
     def _get_analysis_dir(base_dir, anim_name):
@@ -135,10 +145,16 @@ class FrankDataInfo:
             with pd.HDFStore(path_row.path) as data_store:
                 for key in data_store.keys():
                     entry = [path_row.Index]
+                    entry.append(path_row.date)
                     entry.extend(self._split_hdf_group(key))
                     datatype_key_list.append(entry)
+                    key_storer = data_store.get_storer(key)
+                    classtype = key_storer.attrs.classtype
+                    entry.append(classtype.__name__)
+                    entry.append(classtype)
 
-        self.entries = pd.DataFrame(datatype_key_list, columns=['file_ind', 'base', 'group', 'label'])
+        self.entries = pd.DataFrame(datatype_key_list, columns=['file_ind', 'date', 'base', 'group', 'label',
+                                                                'classtype_str', 'classtype'])
 
     def load_single_dataset_ind(self, ind):
         data_entry = self.entries.loc[ind]
@@ -147,14 +163,96 @@ class FrankDataInfo:
                                               data_entry['group'], data_entry['label'])
         return data
 
+    def save_single_data(self, base, group, label, data, overwrite=False):
+        if isinstance(data, DataFrameClass):
+
+            try:
+                dates = data.get_days()
+            except AttributeError:
+                dates = None
+
+            if dates is not None:
+                if all([date in self.entries['date'].unique() for date in dates]):
+                    # split dates into appropriate file
+                    data_date_grp = data.groupby('day')
+                    for date, data_date in data_date_grp:
+                        file_path = self.datatype_paths.query('date == @date').path[0]
+                        entry_collision = []
+                        if overwrite:
+                            data_date._to_hdf_store(file_path, base, group, label)
+                        else:
+                            if self.has_entry(base, group, label, date):
+                                entry_collision.append((date, base, group, label))
+                            else:
+                                data_date._to_hdf_store(file_path, base, group, label)
+                elif [None] == self.entries['date'].unique():
+                    file_path = self.datatype_paths.query('date != date').path[0]
+                    data._to_hdf_store(file_path, base, group, label)
+                else:
+                    raise FrankHDFFormatError('Date from data ({}) do not match dates '
+                                              'from file ({}).'.format(dates, self.entries['date'].unique()))
+
+
+    def get_file_entry_from_ind(self, ind):
+        return self.datatype_paths.loc[ind]
+
+    def get_date_from_ind(self, ind):
+        return self.get_file_entry_from_ind(ind).date[0]
+
+    def has_entry(self, base, group, label, date=None):
+
+        if date is None:
+            en_match = self.entries.query('base == @os.path.normpath(@base) and '
+                                          'group == @os.path.normpath(@group) and '
+                                          'label == @os.path.normpath(@label) and '
+                                          'date != date')
+        else:
+            en_match = self.entries.query('base == @os.path.normpath(@base) and '
+                                          'group == @os.path.normpath(@group) and '
+                                          'label == @os.path.normpath(@label) and '
+                                          'date == @date')
+
+        if len(en_match) == 1:
+            return True
+        elif len(en_match) == 0:
+            return False
+        else:
+            raise FrankHDFFormatError('Dataset ({}) ({}) ({}) ({}) has duplicate entry in table.  FrankDataInfo or '
+                                      'underlying may be corrupt,'.format(date, base, group, label))
+
+    def get_entry(self, base, group, label, date=None):
+        if date is None:
+            en_match = self.entries.query('base == @os.path.normpath(@base) and '
+                                          'group == @os.path.normpath(@group) and '
+                                          'label == @os.path.normpath(@label) and '
+                                          'date != date')
+        else:
+            en_match = self.entries.query('base == @os.path.normpath(@base) and '
+                                          'group == @os.path.normpath(@group) and '
+                                          'label == @os.path.normpath(@label) and '
+                                          'date == @date')
+
+        if len(en_match) == 1:
+            return en_match
+        elif len(en_match) == 0:
+            return None
+        else:
+            raise FrankHDFFormatError('Dataset ({}) ({}) ({}) ({}) has duplicate entry in table.  FrankDataInfo or '
+                                      'underlying may be corrupt,'.format(date, base, group, label))
+
+    def get_entry_path(self, base, group, label, date=None):
+        return self.get_entry(base, group, label, date).path[0]
+
     @staticmethod
     def _split_hdf_group(group_str):
         grp_split = re.compile('^(/[a-zA-Z0-9]*)/([a-zA-Z0-9/]*?)/([a-zA-Z0-9]*)$')
         grp_match = grp_split.match(group_str)
         if grp_match is None:
             raise FrankFileFormatError('HDF group ({}) cannot be parsed into [base]/[group]/[label].'.format(group_str))
+        groups = grp_match.groups()
+        groups = [os.path.normcase(path) for path in groups]
 
-        return grp_match.groups()
+        return groups
 
 
 class BaseData(metaclass=ABCMeta):
