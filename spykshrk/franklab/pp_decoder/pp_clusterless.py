@@ -82,7 +82,7 @@ class OfflinePPEncoder(object):
 
         pos_distrib_tet = sp.stats.norm.pdf(np.expand_dims(encode_settings.pos_bins, 0),
                                             np.expand_dims(tet_lin_pos['linpos_flat'], 1),
-                                            encode_settings.pos_kernel_std)
+                                            (encode_settings.pos_kernel_std))
 
         mark_contrib = normal_pdf_int_lookup(np.expand_dims(dec_spk, 1),
                                              np.expand_dims(enc_spk, 0),
@@ -500,7 +500,7 @@ class OfflinePPDecoder(object):
 
         occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
 
-        occupancy += 1e10
+        occupancy += 1e-10
 
         return occupancy
 
