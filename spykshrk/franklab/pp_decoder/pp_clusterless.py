@@ -508,7 +508,7 @@ class OfflinePPDecoder(object):
 
         occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
 
-        occupancy += 1e10
+        occupancy += 1e-10
 
         return occupancy
 
