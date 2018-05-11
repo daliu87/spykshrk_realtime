@@ -9,6 +9,7 @@ import os
 import warnings
 
 from spykshrk.franklab.warnings import ConstructorWarning, OverridingAttributeWarning
+from spykshrk.franklab.errors import HDFKeyExistsError
 
 from spykshrk.franklab.pp_decoder.util import gaussian
 from spykshrk.util import AttrDict, EnumMapping
@@ -61,12 +62,12 @@ class SeriesClass(pd.Series):
 
 class DataFrameClass(pd.DataFrame):
 
-    _metadata = pd.DataFrame._metadata + ['kwds', 'history']
+    _metadata = pd.DataFrame._metadata + ['kwds', 'history', 'desc']
     _internal_names = pd.DataFrame._internal_names + ['uuid']
     _internal_names_set = set(_internal_names)
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None,
-                 custom_uuid=None, **kwds):
+                 custom_uuid=None, desc='', **kwds):
         """
         
         Args:
@@ -87,6 +88,8 @@ class DataFrameClass(pd.DataFrame):
             self.uuid = custom_uuid
 
         self.kwds = kwds
+
+        self.desc = desc
 
         if history is not None:
             self.history = list(history)
@@ -142,9 +145,12 @@ class DataFrameClass(pd.DataFrame):
     def to_dataframe(self):
         return pd.DataFrame(self)
 
-    def _to_hdf_store(self, file_path, hdf_base, hdf_grps, hdf_label):
+    def _to_hdf_store(self, file_path, hdf_base, hdf_grps, hdf_label, overwrite=False):
         with pd.HDFStore(file_path, 'a') as store:
             main_path = os.path.join(hdf_base, hdf_grps, hdf_label)
+            if main_path in store.keys() and not overwrite:
+                raise HDFKeyExistsError('HDF key {} exists in file {}. '
+                                        'Either rename key or set overwrite flag'.format(main_path, file_path))
             store.put(main_path, self.to_dataframe(), format='t')
             #store[main_path] = self.to_dataframe()
             save_history = []
@@ -189,12 +195,9 @@ class DayDataFrame(DataFrameClass):
 
         super().__init__(**kwds)
 
-    def get_days(self):
-        return self.index.get_level_values('day').unique()
-
 
 class DayEpochEvent(DayDataFrame):
-    _metadata = DataFrameClass._metadata + ['time_unit']
+    _metadata = DayDataFrame._metadata + ['time_unit']
 
     def __init__(self, **kwds):
         self.time_unit = kwds['time_unit']  # type: UnitTime
@@ -235,7 +238,7 @@ class DayEpochEvent(DayDataFrame):
 
 class DayEpochTimeSeries(DayDataFrame):
 
-    _metadata = DataFrameClass._metadata + ['sampling_rate']
+    _metadata = DayDataFrame._metadata + ['sampling_rate']
 
     def __init__(self, **kwds):
 
@@ -308,6 +311,9 @@ class DayEpochTimeSeries(DayDataFrame):
                                                   self.index.get_level_values('timestamp')[0]), inplace=True)
 
         return ret_data
+
+    def get_days(self):
+        return self.index.get_level_values('day').unique()
 
     def update_default_bins(self, time_bin_size, inplace=False):
         if inplace:

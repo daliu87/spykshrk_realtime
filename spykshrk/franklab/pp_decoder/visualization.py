@@ -111,12 +111,10 @@ class DecodeVisualizer:
             for bound in arm:
 
                 #line = hv.Curve((x_range, [bound]*2)).opts(style={'line_dash': 'dashed', 'line_color': 'grey'})
-                line = hv.Curve((x_range, [bound]*2),
-                                #extents=(x_range[0], None, x_range[1], None),
-                                group='arm_bound').opts(style={'color': '#AAAAAA',
-                                                               'line_dash': 'dashed',
-                                                               'line_color': 'grey',
-                                                               'linestyle': '--'})
+                line = hv.Curve((x_range, [bound]*2)).opts(style={'color': '#AAAAAA',
+                                                                  'line_dash': 'dashed',
+                                                                  'line_color': 'grey',
+                                                                  'linestyle': '--'})
                 lines *= line
 
         return lines
@@ -169,7 +167,8 @@ class DecodeVisualizer:
         rip_img = hv.Image(np.flip(rip_post.values.T, axis=0),
                            bounds=(0, self.enc_settings.pos_bins[0],
                                                       rip_time[-1]-rip_time[0], self.enc_settings.pos_bins[-1]),
-                           kdims=[self.time_dim_name, self.pos_dim_name], vdims=[self.val_dim_name])
+                           kdims=[self.time_dim_name, self.pos_dim_name], vdims=[self.val_dim_name],
+                           label='ripple_decode: ', group=str(rip_ind))
 
         rip_img = rip_img.redim(probability={'range': (0, 0.3)})
 
@@ -190,7 +189,7 @@ class DecodeVisualizer:
         y_range = rip_plt.range(self.pos_dim_name)
         arm_plt = self.plot_arm_boundaries(time=x_range[0], x_range=x_range, y_range=y_range)
         lin_plt = self.plot_ripple_linflat(rip_ind)
-        return lin_plt * rip_plt * arm_plt
+        return hv.Overlay([lin_plt, rip_plt, arm_plt], label='ripple_decode', group=str(rip_ind))
 
     def plot_ripple_dynamic(self):
         dmap = hv.DynamicMap(self.plot_ripple_all,
@@ -216,13 +215,14 @@ class DecodeVisualizer:
 
         if return_list:
             for rip_plt_grp in rip_plt_grps:
-                lay = hv.NdLayout({rip_id: self.plot_ripple_all(rip_id) for rip_id in rip_plt_grp}).cols(num_x)
+                lay = hv.Layout([self.plot_ripple_all(rip_id) for rip_id in rip_plt_grp]).cols(num_x)
+
                 plot_list.append(lay)
 
             return plot_list
 
         else:
-            lay = hv.NdLayout({rip_id: self.plot_ripple_all(rip_id) for rip_id in rip_plt_grps[0]}).cols(num_x)
+            lay = hv.Layout({rip_id: self.plot_ripple_all(rip_id) for rip_id in rip_plt_grps[0]}).cols(num_x)
             return lay
 
     @staticmethod

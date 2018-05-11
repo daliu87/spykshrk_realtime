@@ -140,6 +140,11 @@ class FrankDataInfo:
     def __init__(self, anim: FrankAnimalInfo, datatype):
         self.datatype_paths = anim.get_all_datatype(datatype)
 
+        self.entries = None
+
+        self.reload_entries()
+
+    def reload_entries(self):
         datatype_key_list = []
         for path_row in self.datatype_paths.itertuples():
             with pd.HDFStore(path_row.path) as data_store:

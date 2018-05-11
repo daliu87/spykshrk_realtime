@@ -1,0 +1,3 @@
+
+class HDFKeyExistsError(RuntimeError):
+    pass
