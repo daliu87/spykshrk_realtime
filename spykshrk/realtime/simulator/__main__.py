@@ -15,6 +15,11 @@ from time import sleep
 import time
 import json
 
+from spikegadgets import trodesnetwork as tnp
+
+class PythonClient(tnp.AbstractModuleClient):
+    pass
+
 
 def main(argv):
     # parse the command line arguments
@@ -87,6 +92,17 @@ def main(argv):
     output_config = open(os.path.join(config['files']['output_dir'], config['files']['prefix'] + '.config.json'), 'w')
     json.dump(config, output_config, indent=4)
 
+
+    # configure trodes network highfreqdatatypes
+    network = PythonClient("PythonRank"+str(rank), config['trodes_network']['address'],config['trodes_network']['port'])
+    if network.initialize() != 0:
+        print("Network could not successfully initialize")
+        del network
+        quit()
+
+    config['trodes_network']['networkobject'] = network
+
+
     # MPI node management
 
     if rank == config['rank']['supervisor']:
@@ -109,5 +125,8 @@ def main(argv):
     if rank == config['rank']['decoder']:
         decoding_proc = decoder_process.DecoderProcess(comm=comm, rank=rank, config=config)
         decoding_proc.main_loop()
+
+    #delete network at end of main() (currently does not automatically delete. takes some effort to implement via boost python)
+    del network
 
 main(sys.argv[1:])

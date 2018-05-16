@@ -14,6 +14,7 @@ import spykshrk.realtime.simulator.sim_databuffer as sim_databuffer
 from spykshrk.realtime import binary_record
 import spykshrk.realtime.timing_system as timing_system
 
+from spikegadgets import trodesnetwork as tnp
 
 class SimulatorError(RuntimeError):
     pass
@@ -43,6 +44,104 @@ class PauseAllStreamMessages(rt_logging.PrintableMessage):
 class SimTrodeListMessage(rt_logging.PrintableMessage):
     def __init__(self, trode_list):
         self.trode_list = trode_list
+
+class TrodesDataReceiver(realtime_base.DataSourceReceiver):
+    """Class that receives data from trodes using its network api
+    """
+    def __init__(self, comm: MPI.Comm, rank, config, datatype):
+        super().__init__(comm=comm, rank=rank, config=config, datatype=datatype)
+        self.start = False
+        self.stop = False
+
+        self.network = config['trodes_network']['networkobject'] 
+        if self.datatype is datatypes.Datatypes.LFP:
+            self.DataPointCls = datatypes.LFPPoint
+
+        elif self.datatype is datatypes.Datatypes.SPIKES:
+            self.DataPointCls = datatypes.SpikePoint
+
+        elif self.datatype is datatypes.Datatypes.LINEAR_POSITION:
+            self.DataPointCls = datatypes.LinearPosPoint
+
+        else:
+            raise SimulatorError('{} is not a valid datatype.'.format(self.datatype))
+
+    def register_datatype_channel(self, channel):
+        if self.datatype is datatypes.Datatypes.LFP:
+            self.datastream = self.network.subscribeLFPData(300, [str(channel)])
+            self.datastream.initialize()
+            self.buf = self.datastream.create_numpy_array()
+            
+        elif self.datatype is datatypes.Datatypes.SPIKES:
+            self.datastream = self.network.subscribeSpikesData(300, [str(channel)+',0'])
+            self.datastream.initialize()
+            self.buf = self.datastream.create_numpy_array()
+            
+        elif self.datatype is datatypes.Datatypes.LINEAR_POSITION:
+            self.datastream = self.network.subscribeHigHFreqData('PositionData', 'CameraModule', 20)
+            self.datastream.initialize()
+            ndtype = datastream.getDataType().dataFormat
+            nbytesize = datastream.getDataType().byteSize
+            bytesbuf = memoryview(bytes(nbytesize))
+            self.buf = np.frombuffer(bytesbuf, dtype=np.dtype(ndtype))
+            
+        else:
+            raise SimulatorError('{} is not a valid datatype.'.format(self.datatype))
+        
+        self.channel = channel
+        
+    def start_all_streams(self):
+        self.start = True
+
+    def stop_all_streams(self):
+        self.start = False
+
+    def stop_iterator(self):
+        self.stop = True
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.stop:
+            raise StopIteration()
+
+        if not self.start:
+            return None
+
+        n = self.datastream.available(0)
+
+        if n:
+            timestamp = 0
+            byteswritten = 0
+            systime = tnp.systemTimeMSecs()
+            if self.datatype is datatypes.Datatypes.LFP:
+                timestamp = self.datastream.getData() #Data is array of int16_t's of lfp values (should be one value)
+                self.DataPointCls.timestamp = timestamp
+                self.DataPointCls.ntrode_index = self.channel
+                self.DataPointCls.elec_grp_id = self.channel
+                self.DataPointCls.data = self.buf[0] #[(value)]
+                
+            elif self.datatype is datatypes.Datatypes.SPIKES:
+                timestamp = self.datastream.getData() #Data is [(ntrode, cluster, timestamp, [0-159 data - (i,data)] ) ]
+                self.DataPointCls.timestamp = timestamp
+                self.DataPointCls.elec_grp_id = self.channel
+                self.data = self.buf[0][3][:,1] # have to get the data([0][3]), then grab only y column
+                
+            elif self.datatype is datatypes.Datatypes.LINEAR_POSITION:
+                byteswritten = self.datastream.readData(self.buf) #Data is [(timestamp, linear segment, position, x location, y location)]
+                self.DataPointCls.timestamp = self.buf[0][0]
+                self.DataPointCls.segment = self.buf[0][1]
+                self.DataPointCls.position = self.buf[0][2]
+
+            # Option to return timing message but disabled
+            timing_message = None
+            data_message = self.DataPointCls
+            return data_message, timing_message
+
+        else:
+            return None
+
 
 
 class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
