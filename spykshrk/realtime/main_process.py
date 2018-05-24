@@ -24,6 +24,40 @@ import sys
 #     print('Warning: Attribute Error ({}), disabling IPython TerminalPdb.'.format(err))
 #     bp = lambda: None
 
+from spikegadgets import trodesnetwork as tnp
+
+class MainProcessClient(tnp.AbstractModuleClient):
+    def __init__(self, name, addr, port, main_manager, config):
+        super().__init__(name, addr, port)
+        self.main_manager = main_manager
+        self.config = config
+        self.started = False
+        self.ntrode_list_sent = False
+        self.terminated = False
+    def recv_file_open(self, filename):
+        pass
+
+    def recv_file_close(self):
+        pass
+
+    def recv_acquisition(self, command, timestamp):
+        if command == tnp.acq_PLAY:
+            if not self.ntrode_list_sent:
+                self.main_manager.handle_ntrode_list(self.config['trodes_network']['tetrodes'])
+                self.started = True
+
+        if command == tnp.acq_STOP:
+            if not self.terminated:
+                self.main_manager.trigger_termination()
+                self.started = False
+                self.terminated = True
+
+
+    def recv_quit(self):
+        if not self.terminated:
+            self.main_manager.trigger_termination()
+            self.terminated = True
+
 
 class MainProcess(realtime_base.RealtimeProcess):
 
@@ -46,8 +80,13 @@ class MainProcess(realtime_base.RealtimeProcess):
 
         self.manager = MainSimulatorManager(rank=rank, config=config, parent=self, send_interface=self.send_interface,
                                             stim_decider=self.stim_decider)
-        self.recv_interface = MainSimulatorMPIRecvInterface(comm=comm, rank=rank,
-                                                            config=config, main_manager=self.manager)
+        self.networkclient = MainProcessClient("SpykshrkMainProc", config['trodes_network']['address'],config['trodes_network']['port'], self.manager, self.config)
+        if self.networkclient.initialize() != 0:
+            print("Network could not successfully initialize")
+            del self.networkclient
+            quit()
+        # self.recv_interface = MainSimulatorMPIRecvInterface(comm=comm, rank=rank,
+        #                                                     config=config, main_manager=self.manager)
 
         self.terminate = False
 
@@ -84,6 +123,7 @@ class MainProcess(realtime_base.RealtimeProcess):
             self.data_recv.__next__()
 
         self.class_log.info("Main Process Main reached end, exiting.")
+        del self.networkclient
 
 
 class StimDeciderMPISendInterface(realtime_base.RealtimeMPIClass):
@@ -415,7 +455,7 @@ class MainSimulatorManager(rt_logging.LoggingClass):
 
     def handle_ntrode_list(self, trode_list):
 
-        self.class_log.debug("Received ntrode list from simulator {:}.".format(trode_list))
+        self.class_log.debug("Received ntrode list {:}.".format(trode_list))
 
         self._ripple_ranks_startup(trode_list)
         self._encoder_rank_startup(trode_list)

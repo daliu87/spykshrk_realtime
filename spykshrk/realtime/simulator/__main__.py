@@ -93,7 +93,13 @@ def main(argv):
     json.dump(config, output_config, indent=4)
 
 
-    # configure trodes network highfreqdatatypes
+    # MPI node management
+    if rank == config['rank']['supervisor']:
+        # Supervisor node
+        main_proc = main_process.MainProcess(comm=comm, rank=rank, config=config)
+        main_proc.main_loop()
+
+    # configure trodes network highfreqdatatypes (main supervisor process has own client)
     network = PythonClient("PythonRank"+str(rank), config['trodes_network']['address'],config['trodes_network']['port'])
     if network.initialize() != 0:
         print("Network could not successfully initialize")
@@ -102,13 +108,6 @@ def main(argv):
 
     config['trodes_network']['networkobject'] = network
 
-
-    # MPI node management
-
-    if rank == config['rank']['supervisor']:
-        # Supervisor node
-        main_proc = main_process.MainProcess(comm=comm, rank=rank, config=config)
-        main_proc.main_loop()
 
     if rank in config['rank']['ripples']:
         ripple_proc = ripple_process.RippleProcess(comm, rank, config=config)
