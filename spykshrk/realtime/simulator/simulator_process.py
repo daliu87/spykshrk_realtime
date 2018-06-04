@@ -53,7 +53,7 @@ class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
         super().__init__(comm=comm, rank=rank, config=config, datatype=datatype)
         self.start = False
         self.stop = False
-        
+        self.timestamp = 0
         self.network = config['trodes_network']['networkobject'] 
         if self.datatype is datatypes.Datatypes.LFP:
             self.DataPointCls = datatypes.LFPPoint
@@ -77,6 +77,8 @@ class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
             self.datastream = self.network.subscribeLFPData(300, channels)
             self.datastream.initialize()
             self.buf = self.datastream.create_numpy_array()
+            self.curntrode = -1
+            self.subbedntrodes = len(channels)
             
         elif self.datatype is datatypes.Datatypes.SPIKES:
             channels = []
@@ -119,34 +121,48 @@ class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
         if not self.start:
             return None
 
+        #if is lfp and curntrode is less than total subbed ntrodes
+        if self.datatype is datatypes.Datatypes.LFP:
+            # if haven't gotten anything yet, curntrode = -1. if already sent all in one packet, curntrode = subbedntrodes
+            if self.curntrode > 0 and self.curntrode < self.subbedntrodes:
+                pt = datatypes.LFPPoint(self.timestamp.trodes_timestamp, self.channel[self.curntrode], self.channel[self.curntrode], self.buf[self.curntrode])
+                self.curntrode = self.curntrode + 1
+                return pt, None
+        
+        
         n = self.datastream.available(0)
         if n:
-            timestamp = 0
             byteswritten = 0
             systime = tnp.systemTimeMSecs()
             if self.datatype is datatypes.Datatypes.LFP:
-                timestamp = self.datastream.getData() #Data is array of int16_t's of lfp values (should be one value)
-                self.DataPointCls.timestamp = timestamp
-                self.DataPointCls.ntrode_index = self.channel
-                self.DataPointCls.elec_grp_id = self.channel
-                self.DataPointCls.data = self.buf[0] #[(value)]
+                self.timestamp = self.datastream.getData()
+                # self.DataPointCls.timestamp = timestamp.trodes_timestamp
+                # self.DataPointCls.ntrode_index = self.channel
+                # self.DataPointCls.elec_grp_id = self.channel
+                # self.DataPointCls.data = self.buf[0] #[(value)]
+                self.curntrode = 0
+                pt = datatypes.LFPPoint(self.timestamp.trodes_timestamp, self.channel[self.curntrode], self.channel[self.curntrode], self.buf[self.curntrode])
+                self.curntrode = 1
+                return pt, None
                 
             elif self.datatype is datatypes.Datatypes.SPIKES:
-                timestamp = self.datastream.getData() #Data is [(ntrode, cluster, timestamp, [0-159 data - (i,data)] ) ]
-                self.DataPointCls.timestamp = timestamp
-                self.DataPointCls.elec_grp_id = self.channel
-                self.data = self.buf[0][3][:,1] # have to get the data([0][3]), then grab only y column
+                self.timestamp = self.datastream.getData() #Data is [(ntrode, cluster, timestamp, [0-159 data - (i,data)] ) ]
+                # self.DataPointCls.timestamp = timestamp.trodes_timestamp
+                # self.DataPointCls.elec_grp_id = self.channel
+                # self.data = self.buf[0][3][:,1] # have to get the data([0][3]), then grab only y column
+                return datatypes.SpikePoint(self.timestamp, self.channel, self.buf[0][3][:,1]), None
                 
             elif self.datatype is datatypes.Datatypes.LINEAR_POSITION:
                 byteswritten = self.datastream.readData(self.buf) #Data is [(timestamp, linear segment, position, x location, y location)]
                 self.DataPointCls.timestamp = self.buf[0][0]
                 self.DataPointCls.segment = self.buf[0][1]
                 self.DataPointCls.position = self.buf[0][2]
+                return datatypes.CameraModulePoint(self.buf[0][0], self.buf[0][1], self.buf[0][2]), None
 
-            # Option to return timing message but disabled
-            timing_message = None
-            data_message = self.DataPointCls
-            return data_message, timing_message
+            # # Option to return timing message but disabled
+            # timing_message = None
+            # data_message = self.DataPointCls
+            # return self.DataPointCls, timing_message
 
         else:
             return None

@@ -113,9 +113,9 @@ def main(argv):
         ripple_proc = ripple_process.RippleProcess(comm, rank, config=config)
         ripple_proc.main_loop()
 
-    if rank == config['rank']['simulator']:
-        simulator_proc = simulator_process.SimulatorProcess(comm, rank, config=config)
-        simulator_proc.main_loop()
+    # if rank == config['rank']['simulator']:
+    #     simulator_proc = simulator_process.SimulatorProcess(comm, rank, config=config)
+    #     simulator_proc.main_loop()
 
     if rank in config['rank']['encoders']:
         encoding_proc = encoder_process.EncoderProcess(comm, rank, config=config)

@@ -45,6 +45,7 @@ class MainProcessClient(tnp.AbstractModuleClient):
             if not self.ntrode_list_sent:
                 self.main_manager.handle_ntrode_list(self.config['trodes_network']['tetrodes'])
                 self.started = True
+                self.ntrode_list_sent = True
 
         if command == tnp.acq_STOP:
             if not self.terminated:
@@ -119,7 +120,7 @@ class MainProcess(realtime_base.RealtimeProcess):
                     self.manager.synchronize_time()
                     last_time_bin = current_time_bin
 
-            self.recv_interface.__next__()
+            # self.recv_interface.__next__()
             self.data_recv.__next__()
 
         self.class_log.info("Main Process Main reached end, exiting.")
@@ -462,7 +463,7 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         self._decoder_rank_startup(trode_list)
         self._stim_decider_startup()
 
-        self._writer_startup()
+        # self._writer_startup()
         self._turn_on_datastreams()
 
     def register_rec_type_message(self, message):
