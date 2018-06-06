@@ -1,14 +1,6 @@
 {
     "datasource": "simulator",
-    "simulator": {
-        "nspike_animal_info": {
-            "base_dir": "/home/kevin/spikegadgets/dansproject/test/",
-            "name": "test",
-            "days": [2],
-            "epochs": [1], 
-           "tetrodes": [5, 11, 12, 13]
-        }
-    }, 
+
 
     "rank": {
         "supervisor": 0,

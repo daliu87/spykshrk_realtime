@@ -21,6 +21,14 @@ class PythonClient(tnp.AbstractModuleClient):
     def __init__(self, config, rank):
         super().__init__("PythonRank"+str(rank), config['trodes_network']['address'],config['trodes_network']['port'])
         self.rank = rank
+        self.registered = False
+    def registerTerminateCallback(self, callback):
+        self.terminate = callback
+        self.registered = True
+
+    def recv_acquisition(self, command, timestamp):
+        if command == tnp.acq_STOP and self.registered:
+            self.terminate()
     # def recv_quit(self):
         # print("PythonClient ", str(rank), " received quit")
 
