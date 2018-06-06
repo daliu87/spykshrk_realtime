@@ -112,19 +112,19 @@ class MainProcess(realtime_base.RealtimeProcess):
 
         while not self.terminate:
 
-            # Synchronize rank times
-            if self.manager.time_sync_on:
-                current_time_bin = int(time.time())
+            # # Synchronize rank times
+            # if self.manager.time_sync_on:
+            #     current_time_bin = int(time.time())
 
-                if current_time_bin >= last_time_bin+10:
-                    self.manager.synchronize_time()
-                    last_time_bin = current_time_bin
+            #     if current_time_bin >= last_time_bin+10:
+            #         self.manager.synchronize_time()
+            #         last_time_bin = current_time_bin
 
             # self.recv_interface.__next__()
             self.data_recv.__next__()
 
-        self.class_log.info("Main Process Main reached end, exiting.")
         del self.networkclient
+        self.class_log.info("Main Process Main reached end, exiting.")
 
 
 class StimDeciderMPISendInterface(realtime_base.RealtimeMPIClass):

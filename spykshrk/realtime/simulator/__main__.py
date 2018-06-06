@@ -18,7 +18,11 @@ import json
 from spikegadgets import trodesnetwork as tnp
 
 class PythonClient(tnp.AbstractModuleClient):
-    pass
+    def __init__(self, config, rank):
+        super().__init__("PythonRank"+str(rank), config['trodes_network']['address'],config['trodes_network']['port'])
+        self.rank = rank
+    # def recv_quit(self):
+        # print("PythonClient ", str(rank), " received quit")
 
 
 def main(argv):
@@ -98,34 +102,36 @@ def main(argv):
         # Supervisor node
         main_proc = main_process.MainProcess(comm=comm, rank=rank, config=config)
         main_proc.main_loop()
+    else:
+        # configure trodes network highfreqdatatypes (main supervisor process has own client)
+        network = PythonClient(config, rank)
+        if network.initialize() != 0:
+            print("Network could not successfully initialize")
+            del network
+            quit()
 
-    # configure trodes network highfreqdatatypes (main supervisor process has own client)
-    network = PythonClient("PythonRank"+str(rank), config['trodes_network']['address'],config['trodes_network']['port'])
-    if network.initialize() != 0:
-        print("Network could not successfully initialize")
+        config['trodes_network']['networkobject'] = network
+
+
+        if rank in config['rank']['ripples']:
+            ripple_proc = ripple_process.RippleProcess(comm, rank, config=config)
+            ripple_proc.main_loop()
+
+        # if rank == config['rank']['simulator']:
+        #     simulator_proc = simulator_process.SimulatorProcess(comm, rank, config=config)
+        #     simulator_proc.main_loop()
+
+        if rank in config['rank']['encoders']:
+            encoding_proc = encoder_process.EncoderProcess(comm, rank, config=config)
+            encoding_proc.main_loop()
+
+        if rank == config['rank']['decoder']:
+            decoding_proc = decoder_process.DecoderProcess(comm=comm, rank=rank, config=config)
+            decoding_proc.main_loop()
+
+        #delete network at end of main() (currently does not automatically delete. takes some effort to implement via boost python)
         del network
-        quit()
 
-    config['trodes_network']['networkobject'] = network
-
-
-    if rank in config['rank']['ripples']:
-        ripple_proc = ripple_process.RippleProcess(comm, rank, config=config)
-        ripple_proc.main_loop()
-
-    # if rank == config['rank']['simulator']:
-    #     simulator_proc = simulator_process.SimulatorProcess(comm, rank, config=config)
-    #     simulator_proc.main_loop()
-
-    if rank in config['rank']['encoders']:
-        encoding_proc = encoder_process.EncoderProcess(comm, rank, config=config)
-        encoding_proc.main_loop()
-
-    if rank == config['rank']['decoder']:
-        decoding_proc = decoder_process.DecoderProcess(comm=comm, rank=rank, config=config)
-        decoding_proc.main_loop()
-
-    #delete network at end of main() (currently does not automatically delete. takes some effort to implement via boost python)
-    del network
+    print(str(rank), " finished main")
 
 main(sys.argv[1:])
