@@ -350,7 +350,7 @@ class DayEpochTimeSeries(DataFrameClass):
         """
         timestamps input is a dataframe with day, epoch, timestamp, time, as multiindex.
         """
-	if len(timestamps) > 0:
+        if len(timestamps) > 0:
             import pandas as pd
             timestampsort = timestamps.reset_index().sort_values(['day', 'epoch', 'timestamp'])
             linpossort = self.reset_index().sort_values(['day','epoch','timestamp']).drop('time', axis=1)
@@ -913,8 +913,8 @@ class FlatLinearPosition(LinearPosition):
         super().__init__(sampling_rate=sampling_rate, data=data, index=index, columns=columns,
                          dtype=dtype, copy=copy, parent=parent, history=history, **kwds)
 
-	if isinstance(data, pd.DataFrame) and 'linvel_flat' not in data.columns:
-		raise DataFormatError("Missing 'linvel_flat' column.")
+        if isinstance(data, pd.DataFrame) and 'linvel_flat' not in data.columns:
+            raise DataFormatError("Missing 'linvel_flat' column.")
 
     @classmethod
     def create_default(cls, df, sampling_rate, arm_coord, parent=None, **kwds):
