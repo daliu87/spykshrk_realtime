@@ -347,16 +347,23 @@ class DayEpochTimeSeries(DataFrameClass):
         return type(self)(pos_data_rebinned, history=self.history, **self.kwds)
 
     def get_irregular_resampled(self, timestamps):
-
-        grp = self.groupby(level=['day', 'epoch'])
-        for (day, epoch), grp_df in grp:
-            ind = pd.MultiIndex.from_arrays([[day]*len(timestamps), [epoch]*len(timestamps),
-                                             timestamps, np.array(timestamps)/
-                                             float(self.sampling_rate)],
-                                            names=['day', 'epoch', 'timestamp', 'time'])
-
-            return grp_df.reindex(ind, method='ffill', fill_value=0)
-
+        """
+        timestamps input is a dataframe with day, epoch, timestamp, time, as multiindex.
+        """
+	if len(timestamps) > 0:
+            import pandas as pd
+            timestampsort = timestamps.reset_index().sort_values(['day', 'epoch', 'timestamp'])
+            linpossort = self.reset_index().sort_values(['day','epoch','timestamp']).drop('time', axis=1)
+            result = pd.merge_asof(timestampsort, linpossort,
+                on='timestamp',
+                by=['day', 'epoch'],
+                direction='nearest').set_index(['day','epoch','timestamp'])
+            result = result.set_index('time', append=True).loc[:,['linpos_flat', 'linvel_flat', 'seg_idx']]
+            return FlatLinearPosition.create_default(result,
+                sampling_rate=self.sampling_rate, arm_coord=self.arm_coord)
+        else:
+            return result
+    
     def apply_time_event(self, time_ranges: DayEpochEvent, event_mask_name='event_grp'):
         grouping = np.full(len(self), -1)
         time_index = self.index.get_level_values('time')
@@ -429,7 +436,7 @@ class EncodeSettings:
 
         self.sampling_rate = encoder_config['sampling_rate']
         self.arm_coordinates = encoder_config['position']['arm_pos']
-
+        
         self.pos_upper = encoder_config['position']['upper']
         self.pos_lower = encoder_config['position']['lower']
         self.pos_num_bins = encoder_config['position']['bins']
@@ -616,46 +623,6 @@ class LinearPosition(DayEpochTimeSeries):
         pos_data_simple = pos_data_simple.set_index('timestamp')
 
         return pos_data_simple
-
-    def get_mapped_single_axis(self):
-        """
-        Returns linearized position converted into a segmented 1-D representation.
-        
-        Returns (pd.DataFrame): Segmented 1-D linear position.
-
-        """
-
-        invalid = self.query('@self.seg_idx.seg_idx == 0')
-        invalid_flat = pd.DataFrame([[0, 0] for _ in range(len(invalid))],
-                                    columns=['linpos_flat', 'linvel_flat'], index=invalid.index)
-
-        center_flat = (self.query('@self.seg_idx.seg_idx == 1').
-                       loc[:, [('lin_dist_well', 'well_center'),
-                               ('lin_vel', 'well_center')]])
-        center_flat[('lin_dist_well', 'well_center')] += self.arm_coord[0][0]
-        left_flat = (self.query('@self.seg_idx.seg_idx == 2 | '
-                                '@self.seg_idx.seg_idx == 3').
-                     loc[:, [('lin_dist_well', 'well_left'),
-                             ('lin_vel', 'well_left')]])
-        left_flat[('lin_dist_well', 'well_left')] += self.arm_coord[1][0]
-        right_flat = (self.query('@self.seg_idx.seg_idx == 4 | '
-                                 '@self.seg_idx.seg_idx == 5').
-                      loc[:, [('lin_dist_well', 'well_right'),
-                              ('lin_vel', 'well_right')]])
-        right_flat[('lin_dist_well', 'well_right')] += self.arm_coord[2][0]
-        center_flat.columns = ['linpos_flat', 'linvel_flat']
-        left_flat.columns = ['linpos_flat', 'linvel_flat']
-        right_flat.columns = ['linpos_flat', 'linvel_flat']
-
-        linpos_flat = pd.concat([invalid_flat, center_flat, left_flat, right_flat]) # type: pd.DataFrame
-        linpos_flat = linpos_flat.sort_index()
-
-        linpos_flat['seg_idx'] = self.seg_idx.seg_idx
-
-
-        # reset history to remove intermediate query steps
-        return FlatLinearPosition.create_default(linpos_flat, self.sampling_rate,
-                                                 self.arm_coord, parent=self)
 
     def get_time_only_index(self):
         return self.reset_index(level=['day', 'epoch'])
@@ -946,8 +913,8 @@ class FlatLinearPosition(LinearPosition):
         super().__init__(sampling_rate=sampling_rate, data=data, index=index, columns=columns,
                          dtype=dtype, copy=copy, parent=parent, history=history, **kwds)
 
-        #if isinstance(data, pd.DataFrame) and 'linvel_flat' not in data.columns:
-        #   raise DataFormatError("Missing 'linvel_flat' column.")
+	if isinstance(data, pd.DataFrame) and 'linvel_flat' not in data.columns:
+		raise DataFormatError("Missing 'linvel_flat' column.")
 
     @classmethod
     def create_default(cls, df, sampling_rate, arm_coord, parent=None, **kwds):
@@ -973,10 +940,27 @@ class FlatLinearPosition(LinearPosition):
     def get_above_velocity(self, threshold):
 
         # explicitly return copy convert weakref, for pickling
-        return self.query('abs(linvel_flat) >= @threshold')
+        return self.query('abs(linvel_flat) >= @threshold'), (self.linvel_flat >= threshold).values
 
     def get_mapped_single_axis(self):
-        return self
+        """
+        Returns linearized position converted into a segmented 1-D representation, spaced out.
+        
+        Returns (pd.DataFrame): Segmented 1-D linear position.
+
+        """
+
+        invalid = -self.linpos_flat.max() #negative range for invalid pos
+        centeroffset = self.arm_coord[0][0]
+        leftoffset = centeroffset + (self.arm_coord[1][0]-self.arm_coord[0][1])
+        rightoffset = leftoffset + (self.arm_coord[1][1]-self.arm_coord[1][0]) + (self.arm_coord[2][0]-self.arm_coord[1][1])
+
+        linmap = {0:invalid,1:centeroffset,2:leftoffset,3:leftoffset,4:rightoffset,5:rightoffset}
+        linpos_out = self.copy()
+        linpos_out['linpos_flat_unmapped'] = self['linpos_flat'] #backup
+        linpos_out['linpos_flat'] = self.linpos_flat + self.seg_idx.map(linmap)
+        
+        return FlatLinearPosition.create_default(linpos_out, self.sampling_rate, self.arm_coord, parent=self)
 
     def get_pd_no_multiindex(self):
         self.set_index(pd.Index(self.index.get_level_values('timestamp'), name='timestamp'))
