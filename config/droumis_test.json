@@ -74,7 +74,7 @@
         "sampling_rate": 100000,
         "mark_kernel": {
             "mean": 0,
-            "std": 25,
+            "std": 20,
             "lower": -1024,
             "upper": 1024,
             "interval": 1

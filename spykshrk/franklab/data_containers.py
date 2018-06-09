@@ -350,6 +350,7 @@ class DayEpochTimeSeries(DataFrameClass):
         """
         timestamps input is a dataframe with day, epoch, timestamp, time, as multiindex.
         """
+        result = []
         if len(timestamps) > 0:
             import pandas as pd
             timestampsort = timestamps.reset_index().sort_values(['day', 'epoch', 'timestamp'])
