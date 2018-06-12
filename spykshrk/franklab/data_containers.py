@@ -286,6 +286,18 @@ class DayEpochTimeSeries(DayDataFrame):
     def get_timestamp(self):
         return self.index.get_level_values('timestamp')
 
+    def get_timestamp_range(self):
+        return [self.index.get_level_values('timestamp')[0], self.index.get_level_values('timestamp')[-1]]
+
+    def get_timestamp_start(self):
+        return self.index.get_level_values('timestamp')[0]
+
+    def get_timestamp_end(self):
+        return self.index.get_level_values('timestamp')[-1]
+
+    def get_timestamp_total(self):
+        return self.get_timestamp_end() - self.get_timestamp_start()
+
     def get_time_range(self):
         return [self.index.get_level_values('time')[0], self.index.get_level_values('time')[-1]]
 
@@ -693,21 +705,28 @@ class SpikeObservation(DayEpochTimeSeries):
     encoding model.
     """
 
-    _metadata = DayEpochTimeSeries._metadata + ['observation_bin_size', 'parallel_bin_size']
+    _metadata = DayEpochTimeSeries._metadata + ['enc_settings', 'observation_bin_size', 'parallel_bin_size']
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False,
-                 parent=None, history=None, sampling_rate=0, **kwds):
+                 parent=None, history=None, sampling_rate=0, enc_settings=None, **kwds):
         super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy,
-                         parent=parent, history=history, sampling_rate=sampling_rate, **kwds)
+                         parent=parent, history=history, sampling_rate=sampling_rate,
+                         enc_settings=enc_settings, **kwds)
+
+        self.enc_settings = enc_settings
+
         self.parallel_bin_size = 0
         self.observation_bin_size = 0
 
     @classmethod
-    def create_default(cls, df, sampling_rate, parent=None, **kwds):
+    def create_default(cls, df, enc_settings, sampling_rate=None, parent=None, **kwds):
         if parent is None:
             parent = df
 
-        return cls(sampling_rate=sampling_rate, data=df, parent=parent, **kwds)
+        if sampling_rate is None:
+            sampling_rate = enc_settings.sampling_rate
+
+        return cls(sampling_rate=sampling_rate, data=df, parent=parent, enc_settings=enc_settings, **kwds)
 
     @classmethod
     def from_realtime(cls, spike_dec, day, epoch, enc_settings, parent=None, **kwds):
@@ -720,7 +739,7 @@ class SpikeObservation(DayEpochTimeSeries):
                    data=spike_dec.set_index(pd.MultiIndex.from_arrays([[day]*len(spike_dec), [epoch]*len(spike_dec),
                                                                        spike_dec['timestamp'], spike_dec['time']],
                                                                       names=['day', 'epoch', 'timestamp', 'time'])),
-                   parent=parent, **kwds)
+                   parent=parent, enc_settings=enc_settings, **kwds)
 
     def update_observations_bins(self, time_bin_size, inplace=False):
         if inplace:
@@ -769,6 +788,10 @@ class SpikeObservation(DayEpochTimeSeries):
         df['num_missing_bins'] = np.concatenate([np.clip(np.diff(df['dec_bin'])-1, 0, None), [0]])
 
         return df
+
+    def get_distribution_view(self):
+        return self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
+                        pos_col_format(self.enc_settings.pos_num_bins-1, self.enc_settings.pos_num_bins)]
 
 
 class Posteriors(DayEpochTimeSeries):

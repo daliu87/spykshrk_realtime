@@ -123,7 +123,7 @@ class DecodeVisualizer:
         linflat_sel_data = self.linflat['linpos_flat'].values
         linflat_sel_time = self.linflat.index.get_level_values('time')
         pos = hv.Points((linflat_sel_time, linflat_sel_data), kdims=[self.time_dim_name, self.pos_dim_name],
-                        extents=(time, None, time + plt_range, None))
+                        extents=(time, None, time + plt_range, None), label='lin_pos')
 
         return pos
 
