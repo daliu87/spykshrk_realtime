@@ -575,7 +575,7 @@ class LinearPosition(DayEpochTimeSeries):
         if parent is None:
             parent = df
 
-        return cls(df=df, sampling_rate=sampling_rate, arm_coord=arm_coord, parent=parent, **kwds)
+        return cls(data=df, sampling_rate=sampling_rate, arm_coord=arm_coord, parent=parent, **kwds)
 
     @classmethod
     def from_nspike_posmat(cls, nspike_pos_data, enc_settings: EncodeSettings, parent=None):
@@ -625,6 +625,27 @@ class LinearPosition(DayEpochTimeSeries):
 
         return pos_data_simple
 
+    def get_mapped_single_axis(self):
+        """
+        Returns linearized position converted into a segmented 1-D representation, spaced out.
+        
+        Returns (pd.DataFrame): Segmented 1-D linear position.
+
+        """
+
+        invalid = -self.linpos_flat.max() #negative range for invalid pos
+        centeroffset = self.arm_coord[0][0]
+        leftoffset = centeroffset + (self.arm_coord[1][0]-self.arm_coord[0][1])
+        rightoffset = leftoffset + (self.arm_coord[1][1]-self.arm_coord[1][0]) + (self.arm_coord[2][0]-self.arm_coord[1][1])
+
+        linmap = {0:invalid,1:centeroffset,2:leftoffset,3:leftoffset,4:rightoffset,5:rightoffset}
+        linpos_out = self.copy()
+        linpos_out['linpos_flat_unmapped'] = self['linpos_flat'] #backup
+        linpos_out['linpos_flat'] = self.linpos_flat + self.seg_idx.map(linmap)
+        
+        return FlatLinearPosition.create_default(linpos_out, self.sampling_rate, self.arm_coord, parent=self)
+
+    
     def get_time_only_index(self):
         return self.reset_index(level=['day', 'epoch'])
 
@@ -942,26 +963,6 @@ class FlatLinearPosition(LinearPosition):
 
         # explicitly return copy convert weakref, for pickling
         return self.query('abs(linvel_flat) >= @threshold'), (self.linvel_flat >= threshold).values
-
-    def get_mapped_single_axis(self):
-        """
-        Returns linearized position converted into a segmented 1-D representation, spaced out.
-        
-        Returns (pd.DataFrame): Segmented 1-D linear position.
-
-        """
-
-        invalid = -self.linpos_flat.max() #negative range for invalid pos
-        centeroffset = self.arm_coord[0][0]
-        leftoffset = centeroffset + (self.arm_coord[1][0]-self.arm_coord[0][1])
-        rightoffset = leftoffset + (self.arm_coord[1][1]-self.arm_coord[1][0]) + (self.arm_coord[2][0]-self.arm_coord[1][1])
-
-        linmap = {0:invalid,1:centeroffset,2:leftoffset,3:leftoffset,4:rightoffset,5:rightoffset}
-        linpos_out = self.copy()
-        linpos_out['linpos_flat_unmapped'] = self['linpos_flat'] #backup
-        linpos_out['linpos_flat'] = self.linpos_flat + self.seg_idx.map(linmap)
-        
-        return FlatLinearPosition.create_default(linpos_out, self.sampling_rate, self.arm_coord, parent=self)
 
     def get_pd_no_multiindex(self):
         self.set_index(pd.Index(self.index.get_level_values('timestamp'), name='timestamp'))
