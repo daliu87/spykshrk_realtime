@@ -150,7 +150,9 @@ class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
                 # self.DataPointCls.timestamp = timestamp.trodes_timestamp
                 # self.DataPointCls.elec_grp_id = self.channel
                 # self.data = self.buf[0][3][:,1] # have to get the data([0][3]), then grab only y column
-                return datatypes.SpikePoint(self.timestamp, self.channel, self.buf[0][3][:,1]), None
+                d = self.buf[0][3][:,1]
+                newshape = (int(len(d)/40), 40)
+                return datatypes.SpikePoint(self.timestamp.trodes_timestamp, self.channel, np.reshape(d, newshape)), None
                 
             elif self.datatype is datatypes.Datatypes.LINEAR_POSITION:
                 byteswritten = self.datastream.readData(self.buf) #Data is [(timestamp, linear segment, position, x location, y location)]

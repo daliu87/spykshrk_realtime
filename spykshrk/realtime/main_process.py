@@ -86,8 +86,8 @@ class MainProcess(realtime_base.RealtimeProcess):
             print("Network could not successfully initialize")
             del self.networkclient
             quit()
-        # self.recv_interface = MainSimulatorMPIRecvInterface(comm=comm, rank=rank,
-        #                                                     config=config, main_manager=self.manager)
+        self.recv_interface = MainSimulatorMPIRecvInterface(comm=comm, rank=rank,
+                                                            config=config, main_manager=self.manager)
 
         self.terminate = False
 
@@ -96,9 +96,9 @@ class MainProcess(realtime_base.RealtimeProcess):
         # First Barrier to finish setting up nodes, waiting for Simulator to send ntrode list.
         # The main loop must be active to receive binary record registration messages, so the
         # first Barrier is placed here.
-        self.class_log.debug("First Barrier")
+        self.class_log.debug("First Barrier MainProc")
         self.send_interface.all_barrier()
-        self.class_log.debug("Past First Barrier")
+        self.class_log.debug("Past First Barrier MainProc")
 
 
     def trigger_termination(self):
@@ -120,7 +120,7 @@ class MainProcess(realtime_base.RealtimeProcess):
             #         self.manager.synchronize_time()
             #         last_time_bin = current_time_bin
 
-            # self.recv_interface.__next__()
+            self.recv_interface.__next__()
             self.data_recv.__next__()
 
         del self.networkclient

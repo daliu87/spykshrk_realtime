@@ -41,8 +41,8 @@ def main(argv):
         logging.error('Usage: ...')
         sys.exit(2)
 
-    print(argv)
-    print(opts)
+    # print(argv)
+    # print(opts)
     for opt, arg in opts:
         if opt == '--config':
             config_filename = arg
@@ -140,6 +140,6 @@ def main(argv):
         #delete network at end of main() (currently does not automatically delete. takes some effort to implement via boost python)
         del network
 
-    print(str(rank), " finished main")
+
 
 main(sys.argv[1:])
