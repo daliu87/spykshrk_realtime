@@ -302,7 +302,7 @@ class EncoderProcess(realtime_base.RealtimeProcess):
 
         self.terminate = False
 
-        config['trodes_network']['networkobject'].registerTerminateCallback(self.trigger_termination)
+        # config['trodes_network']['networkobject'].registerTerminateCallback(self.trigger_termination)
 
         # First Barrier to finish setting up nodes
         self.class_log.debug("First Barrier")

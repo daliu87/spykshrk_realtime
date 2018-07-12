@@ -469,7 +469,7 @@ class DecoderProcess(realtime_base.RealtimeProcess):
                                            send_interface=self.mpi_send,
                                            spike_decode_interface=self.spike_decode_interface,
                                            pos_interface=self.pos_interface)
-        config['trodes_network']['networkobject'].registerTerminateCallback(self.trigger_termination)
+        # config['trodes_network']['networkobject'].registerTerminateCallback(self.trigger_termination)
 
         self.mpi_recv = DecoderRecvInterface(comm=comm, rank=rank, config=config, decode_manager=self.dec_man)
 

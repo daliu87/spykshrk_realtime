@@ -568,6 +568,7 @@ class RippleProcess(realtime_base.RealtimeProcess):
             raise realtime_base.DataSourceError("No valid data source selected")
 
         self.terminate = False
+        # config['trodes_network']['networkobject'].registerTerminateCallback(self.trigger_termination)
 
         # First Barrier to finish setting up nodes
         self.class_log.debug("First Barrier")

@@ -26,11 +26,11 @@ class PythonClient(tnp.AbstractModuleClient):
         self.terminate = callback
         self.registered = True
 
-    def recv_acquisition(self, command, timestamp):
-        if command == tnp.acq_STOP and self.registered:
-            self.terminate()
-    # def recv_quit(self):
-        # print("PythonClient ", str(rank), " received quit")
+    # def recv_acquisition(self, command, timestamp):
+        # if command == tnp.acq_STOP and self.registered:
+
+    def recv_quit(self):
+        self.terminate()
 
 
 def main(argv):
@@ -110,6 +110,7 @@ def main(argv):
         # Supervisor node
         main_proc = main_process.MainProcess(comm=comm, rank=rank, config=config)
         main_proc.main_loop()
+        del main_proc.networkclient
     else:
         # configure trodes network highfreqdatatypes (main supervisor process has own client)
         network = PythonClient(config, rank)
@@ -123,6 +124,7 @@ def main(argv):
 
         if rank in config['rank']['ripples']:
             ripple_proc = ripple_process.RippleProcess(comm, rank, config=config)
+            network.registerTerminateCallback(ripple_proc.trigger_termination)
             ripple_proc.main_loop()
 
         # if rank == config['rank']['simulator']:
@@ -131,14 +133,18 @@ def main(argv):
 
         if rank in config['rank']['encoders']:
             encoding_proc = encoder_process.EncoderProcess(comm, rank, config=config)
+            network.registerTerminateCallback(encoding_proc.trigger_termination)
             encoding_proc.main_loop()
 
         if rank == config['rank']['decoder']:
             decoding_proc = decoder_process.DecoderProcess(comm=comm, rank=rank, config=config)
+            network.registerTerminateCallback(decoding_proc.trigger_termination)
             decoding_proc.main_loop()
 
-        #delete network at end of main() (currently does not automatically delete. takes some effort to implement via boost python)
+        network.closeConnections()
         del network
+    
+    print("------------------proper close of rank", str(rank))
 
 
 

@@ -27,38 +27,37 @@ import sys
 from spikegadgets import trodesnetwork as tnp
 
 class MainProcessClient(tnp.AbstractModuleClient):
-    def __init__(self, name, addr, port, main_manager, config):
+    def __init__(self, name, addr, port, config):
         super().__init__(name, addr, port)
-        self.main_manager = main_manager
+        # self.main_manager = main_manager
         self.config = config
         self.started = False
         self.ntrode_list_sent = False
         self.terminated = False
-    def recv_file_open(self, filename):
-        pass
+    
+    def registerTerminationCallback(self, callback):
+        self.terminate = callback
 
-    def recv_file_close(self):
-        pass
-
+    def registerStartupCallback(self, callback):
+        self.startup = callback
+    
     def recv_acquisition(self, command, timestamp):
         if command == tnp.acq_PLAY:
             if not self.ntrode_list_sent:
-                self.main_manager.handle_ntrode_list(self.config['trodes_network']['tetrodes'])
+                # self.main_manager.handle_ntrode_list(self.config['trodes_network']['tetrodes'])
+                self.startup(self.config['trodes_network']['tetrodes'])
                 self.started = True
                 self.ntrode_list_sent = True
 
-        if command == tnp.acq_STOP:
-            if not self.terminated:
-                self.main_manager.trigger_termination()
-                self.started = False
-                self.terminated = True
-
+        # if command == tnp.acq_STOP:
+        #     if not self.terminated:
+        #         # self.main_manager.trigger_termination()
+        #         self.terminate()
+        #         self.terminated = True
+        #         self.started = False
 
     def recv_quit(self):
-        if not self.terminated:
-            self.main_manager.trigger_termination()
-            self.terminated = True
-
+        self.terminate()
 
 class MainProcess(realtime_base.RealtimeProcess):
 
@@ -81,11 +80,13 @@ class MainProcess(realtime_base.RealtimeProcess):
 
         self.manager = MainSimulatorManager(rank=rank, config=config, parent=self, send_interface=self.send_interface,
                                             stim_decider=self.stim_decider)
-        self.networkclient = MainProcessClient("SpykshrkMainProc", config['trodes_network']['address'],config['trodes_network']['port'], self.manager, self.config)
+        self.networkclient = MainProcessClient("SpykshrkMainProc", config['trodes_network']['address'],config['trodes_network']['port'], self.config)
         if self.networkclient.initialize() != 0:
             print("Network could not successfully initialize")
             del self.networkclient
             quit()
+        self.networkclient.registerStartupCallback(self.manager.handle_ntrode_list)
+        self.networkclient.registerTerminationCallback(self.manager.trigger_termination)
         self.recv_interface = MainSimulatorMPIRecvInterface(comm=comm, rank=rank,
                                                             config=config, main_manager=self.manager)
 
@@ -123,7 +124,7 @@ class MainProcess(realtime_base.RealtimeProcess):
             self.recv_interface.__next__()
             self.data_recv.__next__()
 
-        del self.networkclient
+        # del self.networkclient
         self.class_log.info("Main Process Main reached end, exiting.")
 
 
