@@ -197,7 +197,7 @@ class PointProcessDecoder(realtime_logging.LoggingClass):
 class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
     def __init__(self, rank, config, local_rec_manager, send_interface: DecoderMPISendInterface,
                  spike_decode_interface: SpikeDecodeRecvInterface,
-                 pos_interface: simulator_process.SimulatorRemoteReceiver):
+                 pos_interface: realtime_base.DataSourceReceiver):
         super(PPDecodeManager, self).__init__(rank=rank,
                                               local_rec_manager=local_rec_manager,
                                               send_interface=send_interface,
@@ -453,7 +453,14 @@ class DecoderProcess(realtime_base.RealtimeProcess):
 
         self.mpi_send = DecoderMPISendInterface(comm=comm, rank=rank, config=config)
         self.spike_decode_interface = SpikeDecodeRecvInterface(comm=comm, rank=rank, config=config)
-        self.pos_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
+        
+        if config['datasource'] == 'simulator':
+            self.pos_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
+                                                                       rank=self.rank,
+                                                                       config=self.config,
+                                                                       datatype=datatypes.Datatypes.LINEAR_POSITION)
+        elif config['datasource'] == 'trodes':
+            self.pos_interface = simulator_process.TrodesDataReceiver(comm=self.comm,
                                                                        rank=self.rank,
                                                                        config=self.config,
                                                                        datatype=datatypes.Datatypes.LINEAR_POSITION)

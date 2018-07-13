@@ -144,7 +144,6 @@ def main(argv):
         network.closeConnections()
         del network
     
-    print("------------------proper close of rank", str(rank))
 
 
 

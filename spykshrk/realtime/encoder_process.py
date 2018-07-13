@@ -74,8 +74,8 @@ class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
 class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming):
 
     def __init__(self, rank, config, local_rec_manager, send_interface: EncoderMPISendInterface,
-                 spike_interface: simulator_process.SimulatorRemoteReceiver,
-                 pos_interface: simulator_process.SimulatorRemoteReceiver):
+                 spike_interface: realtime_base.DataSourceReceiver,
+                 pos_interface: realtime_base.DataSourceReceiver):
 
         super(RStarEncoderManager, self).__init__(rank=rank,
                                                   local_rec_manager=local_rec_manager,
@@ -287,6 +287,16 @@ class EncoderProcess(realtime_base.RealtimeProcess):
                                                                         datatype=datatypes.Datatypes.SPIKES)
 
             pos_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
+                                                                      rank=self.rank,
+                                                                      config=self.config,
+                                                                      datatype=datatypes.Datatypes.LINEAR_POSITION)
+        elif self.config['datasource'] == 'trodes':
+            spike_interface = simulator_process.TrodesDataReceiver(comm=self.comm,
+                                                                        rank=self.rank,
+                                                                        config=self.config,
+                                                                        datatype=datatypes.Datatypes.SPIKES)
+
+            pos_interface = simulator_process.TrodesDataReceiver(comm=self.comm,
                                                                       rank=self.rank,
                                                                       config=self.config,
                                                                       datatype=datatypes.Datatypes.LINEAR_POSITION)

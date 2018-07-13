@@ -45,8 +45,8 @@ class SimTrodeListMessage(rt_logging.PrintableMessage):
     def __init__(self, trode_list):
         self.trode_list = trode_list
 
-# class TrodesDataReceiver(realtime_base.DataSourceReceiver):
-class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
+class TrodesDataReceiver(realtime_base.DataSourceReceiver):
+# class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
     """Class that receives data from trodes using its network api
     """
     def __init__(self, comm: MPI.Comm, rank, config, datatype):
@@ -171,89 +171,89 @@ class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
 
 
 
-# class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
-#     """ A Class to be created and used by ranks that need to communicate with the Simulator Process/Rank.
+class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
+    """ A Class to be created and used by ranks that need to communicate with the Simulator Process/Rank.
     
-#     Goal is to provide an abstraction layer for interacting with other sources.
-#     """
-#     def __init__(self, comm: MPI.Comm, rank, config, datatype):
-#         super().__init__(comm=comm, rank=rank, config=config, datatype=datatype)
-#         self.start = False
-#         self.stop = False
+    Goal is to provide an abstraction layer for interacting with other sources.
+    """
+    def __init__(self, comm: MPI.Comm, rank, config, datatype):
+        super().__init__(comm=comm, rank=rank, config=config, datatype=datatype)
+        self.start = False
+        self.stop = False
 
-#         self.time_bytes = bytearray(100)
-#         self.mpi_reqs = []
-#         self.mpi_statuses = []
+        self.time_bytes = bytearray(100)
+        self.mpi_reqs = []
+        self.mpi_statuses = []
 
-#         if self.datatype is datatypes.Datatypes.LFP:
+        if self.datatype is datatypes.Datatypes.LFP:
 
-#             self.data_bytes = bytearray(datatypes.LFPPoint.packed_message_size())
-#             self.mpi_sim_data_tag = realtime_base.MPIMessageTag.SIMULATOR_LFP_DATA
-#             self.config_enable_timing = 'enable_lfp'
-#             self.DataPointCls = datatypes.LFPPoint
+            self.data_bytes = bytearray(datatypes.LFPPoint.packed_message_size())
+            self.mpi_sim_data_tag = realtime_base.MPIMessageTag.SIMULATOR_LFP_DATA
+            self.config_enable_timing = 'enable_lfp'
+            self.DataPointCls = datatypes.LFPPoint
 
-#             pass
-#         elif self.datatype is datatypes.Datatypes.SPIKES:
-#             self.data_bytes = bytearray(datatypes.SpikePoint.packed_message_size())
-#             self.mpi_sim_data_tag = realtime_base.MPIMessageTag.SIMULATOR_SPK_DATA
-#             self.config_enable_timing = 'enable_spk'
-#             self.DataPointCls = datatypes.SpikePoint
-#             pass
-#         elif self.datatype is datatypes.Datatypes.LINEAR_POSITION:
-#             self.data_bytes = bytearray(datatypes.LinearPosPoint.packed_message_size())
-#             self.mpi_sim_data_tag = realtime_base.MPIMessageTag.SIMULATOR_LINPOS_DATA
-#             self.config_enable_timing = 'enable_pos'
-#             self.DataPointCls = datatypes.LinearPosPoint
-#             pass
-#         else:
-#             raise SimulatorError('{} is not a valid datatype.'.format(self.datatype))
+            pass
+        elif self.datatype is datatypes.Datatypes.SPIKES:
+            self.data_bytes = bytearray(datatypes.SpikePoint.packed_message_size())
+            self.mpi_sim_data_tag = realtime_base.MPIMessageTag.SIMULATOR_SPK_DATA
+            self.config_enable_timing = 'enable_spk'
+            self.DataPointCls = datatypes.SpikePoint
+            pass
+        elif self.datatype is datatypes.Datatypes.LINEAR_POSITION:
+            self.data_bytes = bytearray(datatypes.LinearPosPoint.packed_message_size())
+            self.mpi_sim_data_tag = realtime_base.MPIMessageTag.SIMULATOR_LINPOS_DATA
+            self.config_enable_timing = 'enable_pos'
+            self.DataPointCls = datatypes.LinearPosPoint
+            pass
+        else:
+            raise SimulatorError('{} is not a valid datatype.'.format(self.datatype))
 
-#         self.mpi_reqs.append(self.comm.Irecv(buf=self.data_bytes,
-#                                              tag=self.mpi_sim_data_tag))
-#         self.mpi_statuses.append(MPI.Status)
+        self.mpi_reqs.append(self.comm.Irecv(buf=self.data_bytes,
+                                             tag=self.mpi_sim_data_tag))
+        self.mpi_statuses.append(MPI.Status)
 
-#     def register_datatype_channel(self, channel):
-#         self.comm.send(ReqDatatypeChannelDataMessage(datatype=self.datatype, channel=channel),
-#                        dest=self.config['rank']['simulator'],
-#                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+    def register_datatype_channel(self, channel):
+        self.comm.send(ReqDatatypeChannelDataMessage(datatype=self.datatype, channel=channel),
+                       dest=self.config['rank']['simulator'],
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
 
-#     # This should be called after all initialization has been done and the first barrier has passed
-#     def start_all_streams(self):
-#         self.comm.send(StartAllStreamMessage(), dest=self.config['rank']['simulator'],
-#                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
-#         self.start = True
+    # This should be called after all initialization has been done and the first barrier has passed
+    def start_all_streams(self):
+        self.comm.send(StartAllStreamMessage(), dest=self.config['rank']['simulator'],
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+        self.start = True
 
-#     def stop_all_streams(self):
-#         self.comm.send(StopAllStreamMessage(), dest=self.config['rank']['simulator'],
-#                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
-#         self.start = False
+    def stop_all_streams(self):
+        self.comm.send(StopAllStreamMessage(), dest=self.config['rank']['simulator'],
+                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE.value)
+        self.start = False
 
-#     def stop_iterator(self):
-#         self.stop = True
+    def stop_iterator(self):
+        self.stop = True
 
-#     def __iter__(self):
-#         return self
+    def __iter__(self):
+        return self
 
-#     def __next__(self):
-#         if self.stop:
-#             raise StopIteration()
+    def __next__(self):
+        if self.stop:
+            raise StopIteration()
 
-#         if not self.start:
-#             return None
+        if not self.start:
+            return None
 
-#         rdy = MPI.Request.Testall(requests=self.mpi_reqs)
+        rdy = MPI.Request.Testall(requests=self.mpi_reqs)
 
-#         if rdy:
-#             data_message = self.DataPointCls.unpack(self.data_bytes)
-#             self.mpi_reqs[0] = self.comm.Irecv(buf=self.data_bytes,
-#                                                tag=self.mpi_sim_data_tag)
+        if rdy:
+            data_message = self.DataPointCls.unpack(self.data_bytes)
+            self.mpi_reqs[0] = self.comm.Irecv(buf=self.data_bytes,
+                                               tag=self.mpi_sim_data_tag)
 
-#             # Option to return timing message but disabled
-#             timing_message = None
-#             return data_message, timing_message
+            # Option to return timing message but disabled
+            timing_message = None
+            return data_message, timing_message
 
-#         else:
-#             return None
+        else:
+            return None
 
 
 class SimulatorSendInterface(realtime_base.RealtimeMPIClass):

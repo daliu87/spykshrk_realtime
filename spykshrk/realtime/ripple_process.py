@@ -338,7 +338,7 @@ class RippleMPISendInterface(realtime_base.RealtimeMPIClass):
 
 class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.LoggingClass):
     def __init__(self, rank, local_rec_manager, send_interface: RippleMPISendInterface,
-                 data_interface: simulator_process.SimulatorRemoteReceiver):
+                 data_interface: realtime_base.DataSourceReceiver):
         super().__init__(rank=rank,
                          local_rec_manager=local_rec_manager,
                          send_interface=send_interface,
@@ -554,18 +554,23 @@ class RippleProcess(realtime_base.RealtimeProcess):
 
         if self.config['datasource'] == 'simulator':
             data_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
-                                                                       rank=self.rank,
-                                                                       config=self.config,
-                                                                       datatype=datatypes.Datatypes.LFP)
-
-            self.rip_man = RippleManager(rank=rank,
-                                         local_rec_manager=self.local_rec_manager,
-                                         send_interface=self.mpi_send,
-                                         data_interface=data_interface)
-
-            self.mpi_recv = RippleMPIRecvInterface(self.comm, self.rank, self.config, self.rip_man)
+                                                                    rank=self.rank,
+                                                                    config=self.config,
+                                                                    datatype=datatypes.Datatypes.LFP)
+        elif self.config['datasource'] == 'trodes':
+            data_interface = simulator_process.TrodesDataReceiver(comm=self.comm,
+                                                                                rank=self.rank,
+                                                                                config=self.config,
+                                                                                datatype=datatypes.Datatypes.LFP)
         else:
             raise realtime_base.DataSourceError("No valid data source selected")
+
+        self.rip_man = RippleManager(rank=rank,
+                                    local_rec_manager=self.local_rec_manager,
+                                    send_interface=self.mpi_send,
+                                    data_interface=data_interface)
+
+        self.mpi_recv = RippleMPIRecvInterface(self.comm, self.rank, self.config, self.rip_man)
 
         self.terminate = False
         # config['trodes_network']['networkobject'].registerTerminateCallback(self.trigger_termination)
