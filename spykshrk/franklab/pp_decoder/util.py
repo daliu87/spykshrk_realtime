@@ -12,7 +12,7 @@ def normal2D(x, y, sig):
 
 
 def normal_pdf_int_lookup(x, mean, std):
-    max_amp = 2000
+    max_amp = 3000
     norm_dist = sp.stats.norm.pdf(x=np.arange(-max_amp,max_amp), loc=0, scale=std)
 
     return norm_dist[x-mean+max_amp]
@@ -20,13 +20,13 @@ def normal_pdf_int_lookup(x, mean, std):
 
 def apply_no_anim_boundary(x_bins, arm_coor, image):
     """
-    
+
     Args:
         x_bins: the position value for each bin
         arm_coor: the inclusive arm coordinates of valid animal positions
         image: the image or array to apply
 
-    Returns: 
+    Returns:
 
     """
     # calculate no-animal boundary
@@ -57,6 +57,3 @@ def simplify_pos_pandas(pos_data):
     pos_data_notebook = pos_data_notebook.set_index('timestamps')
 
     return pos_data_notebook
-
-
-

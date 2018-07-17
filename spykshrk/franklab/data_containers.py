@@ -193,6 +193,10 @@ class DayDataFrame(DataFrameClass):
             if not ('day' in data.index.names):
                 raise DataFormatError("DayEpochTimeSeries must have index named day.")
 
+            # Make sure days are integers
+            day_level = data.index.names.index('day')
+            data.index.set_levels(data.index.levels[day_level].astype('int'), level=day_level, inplace=True)
+
         super().__init__(**kwds)
 
 
@@ -215,10 +219,14 @@ class DayEpochEvent(DayDataFrame):
             if not all([col in data.columns for col in ['starttime', 'endtime']]):
                 raise DataFormatError("RippleTimes must contain columns 'starttime' and 'endtime'.")
 
-        if index is not None and not isinstance(index, pd.MultiIndex):
-            raise DataFormatError("Index to be set must be MultiIndex.")
+            # Make sure epochs are integers
+            epoch_level = data.index.names.index('epoch')
+            data.index.set_levels(data.index.levels[epoch_level].astype('int'), level=epoch_level, inplace=True)
 
         super().__init__(**kwds)
+
+        if index is not None and not isinstance(index, pd.MultiIndex):
+            raise DataFormatError("Index to be set must be MultiIndex.")
 
     def get_range_view(self):
         return self[['starttime', 'endtime']]
@@ -262,6 +270,13 @@ class DayEpochTimeSeries(DayDataFrame):
                 raise DataFormatError("DayEpochTimeSeries must have index with 4 levels named: "
                                       "day, epoch, timestamp, time.")
 
+            # Make sure epochs and timestamps are integers
+            epoch_level = data.index.names.index('epoch')
+            data.index.set_levels(data.index.levels[epoch_level].astype('int'), level=epoch_level, inplace=True)
+
+            ts_level = data.index.names.index('timestamp')
+            data.index.set_levels(data.index.levels[ts_level].astype('int'), level=ts_level, inplace=True)
+
             epoch_grps = data.groupby(['day', 'epoch'])
             kwds['start_times'] = []
             kwds['start_timestamps'] = []
@@ -285,6 +300,18 @@ class DayEpochTimeSeries(DayDataFrame):
 
     def get_timestamp(self):
         return self.index.get_level_values('timestamp')
+
+    def get_timestamp_range(self):
+        return [self.index.get_level_values('timestamp')[0], self.index.get_level_values('timestamp')[-1]]
+
+    def get_timestamp_start(self):
+        return self.index.get_level_values('timestamp')[0]
+
+    def get_timestamp_end(self):
+        return self.index.get_level_values('timestamp')[-1]
+
+    def get_timestamp_total(self):
+        return self.get_timestamp_end() - self.get_timestamp_start()
 
     def get_time_range(self):
         return [self.index.get_level_values('time')[0], self.index.get_level_values('time')[-1]]
@@ -370,16 +397,22 @@ class DayEpochTimeSeries(DayDataFrame):
         return type(self)(pos_data_rebinned, history=self.history, **self.kwds)
 
     def get_irregular_resampled(self, timestamps):
-
-        grp = self.groupby(level=['day', 'epoch'])
-        for (day, epoch), grp_df in grp:
-            ind = pd.MultiIndex.from_arrays([[day]*len(timestamps), [epoch]*len(timestamps),
-                                             timestamps, np.array(timestamps)/
-                                             float(self.sampling_rate)],
-                                            names=['day', 'epoch', 'timestamp', 'time'])
-
-            return grp_df.reindex(ind, method='ffill', fill_value=0)
-
+        """
+        timestamps input is a dataframe with day, epoch, timestamp, time, as multiindex.
+        """
+        result = type(self)()
+        if len(timestamps) > 0:
+            timestampsort = timestamps.reset_index().sort_values(['day', 'epoch', 'timestamp'])
+            linpossort = self.reset_index().sort_values(['day','epoch','timestamp']).drop('time', axis=1)
+            result = (pd.merge_asof(timestampsort, linpossort,
+                                    on='timestamp',
+                                    by=['day', 'epoch'],
+                                    direction='nearest').set_index(['day', 'epoch', 'timestamp'], drop=True))
+            result = result.set_index('time', append=True).loc[:, self.columns]
+            return type(self).create_default(result, **self.kwds)
+        else:
+            return result
+    
     def apply_time_event(self, time_ranges: DayEpochEvent, event_mask_name='event_grp'):
         grouping = np.full(len(self), -1)
         time_index = self.index.get_level_values('time')
@@ -452,7 +485,7 @@ class EncodeSettings:
 
         self.sampling_rate = encoder_config['sampling_rate']
         self.arm_coordinates = encoder_config['position']['arm_pos']
-
+        
         self.pos_upper = encoder_config['position']['upper']
         self.pos_lower = encoder_config['position']['lower']
         self.pos_num_bins = encoder_config['position']['bins']
@@ -590,7 +623,7 @@ class LinearPosition(DayEpochTimeSeries):
         if parent is None:
             parent = df
 
-        return cls(df=df, sampling_rate=sampling_rate, arm_coord=arm_coord, parent=parent, **kwds)
+        return cls(data=df, sampling_rate=sampling_rate, arm_coord=arm_coord, parent=parent, **kwds)
 
     @classmethod
     def from_nspike_posmat(cls, nspike_pos_data, enc_settings: EncodeSettings, parent=None):
@@ -645,7 +678,6 @@ class LinearPosition(DayEpochTimeSeries):
         Returns linearized position converted into a segmented 1-D representation.
         
         Returns (pd.DataFrame): Segmented 1-D linear position.
-
         """
 
         invalid = self.query('@self.seg_idx.seg_idx == 0')
@@ -675,11 +707,31 @@ class LinearPosition(DayEpochTimeSeries):
 
         linpos_flat['seg_idx'] = self.seg_idx.seg_idx
 
-
         # reset history to remove intermediate query steps
         return FlatLinearPosition.create_default(linpos_flat, self.sampling_rate,
                                                  self.arm_coord, parent=self)
 
+    def _demetris_get_mapped_single_axis(self):
+        """
+        Returns linearized position converted into a segmented 1-D representation, spaced out.
+        
+        Returns (pd.DataFrame): Segmented 1-D linear position.
+
+        """
+
+        invalid = -self.linpos_flat.max() #negative range for invalid pos
+        centeroffset = self.arm_coord[0][0]
+        leftoffset = centeroffset + (self.arm_coord[1][0]-self.arm_coord[0][1])
+        rightoffset = leftoffset + (self.arm_coord[1][1]-self.arm_coord[1][0]) + (self.arm_coord[2][0]-self.arm_coord[1][1])
+
+        linmap = {0:invalid,1:centeroffset,2:leftoffset,3:leftoffset,4:rightoffset,5:rightoffset}
+        linpos_out = self.copy()
+        linpos_out['linpos_flat_unmapped'] = self['linpos_flat'] #backup
+        linpos_out['linpos_flat'] = self.linpos_flat + self.seg_idx.map(linmap)
+        
+        return FlatLinearPosition.create_default(linpos_out, self.sampling_rate, self.arm_coord, parent=self)
+
+    
     def get_time_only_index(self):
         return self.reset_index(level=['day', 'epoch'])
 
@@ -693,21 +745,28 @@ class SpikeObservation(DayEpochTimeSeries):
     encoding model.
     """
 
-    _metadata = DayEpochTimeSeries._metadata + ['observation_bin_size', 'parallel_bin_size']
+    _metadata = DayEpochTimeSeries._metadata + ['enc_settings', 'observation_bin_size', 'parallel_bin_size']
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False,
-                 parent=None, history=None, sampling_rate=0, **kwds):
+                 parent=None, history=None, sampling_rate=0, enc_settings=None, **kwds):
         super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy,
-                         parent=parent, history=history, sampling_rate=sampling_rate, **kwds)
+                         parent=parent, history=history, sampling_rate=sampling_rate,
+                         enc_settings=enc_settings, **kwds)
+
+        self.enc_settings = enc_settings
+
         self.parallel_bin_size = 0
         self.observation_bin_size = 0
 
     @classmethod
-    def create_default(cls, df, sampling_rate, parent=None, **kwds):
+    def create_default(cls, df, enc_settings, sampling_rate=None, parent=None, **kwds):
         if parent is None:
             parent = df
 
-        return cls(sampling_rate=sampling_rate, data=df, parent=parent, **kwds)
+        if sampling_rate is None:
+            sampling_rate = enc_settings.sampling_rate
+
+        return cls(sampling_rate=sampling_rate, data=df, parent=parent, enc_settings=enc_settings, **kwds)
 
     @classmethod
     def from_realtime(cls, spike_dec, day, epoch, enc_settings, parent=None, **kwds):
@@ -720,7 +779,7 @@ class SpikeObservation(DayEpochTimeSeries):
                    data=spike_dec.set_index(pd.MultiIndex.from_arrays([[day]*len(spike_dec), [epoch]*len(spike_dec),
                                                                        spike_dec['timestamp'], spike_dec['time']],
                                                                       names=['day', 'epoch', 'timestamp', 'time'])),
-                   parent=parent, **kwds)
+                   parent=parent, enc_settings=enc_settings, **kwds)
 
     def update_observations_bins(self, time_bin_size, inplace=False):
         if inplace:
@@ -769,6 +828,10 @@ class SpikeObservation(DayEpochTimeSeries):
         df['num_missing_bins'] = np.concatenate([np.clip(np.diff(df['dec_bin'])-1, 0, None), [0]])
 
         return df
+
+    def get_distribution_view(self):
+        return self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
+                        pos_col_format(self.enc_settings.pos_num_bins-1, self.enc_settings.pos_num_bins)]
 
 
 class Posteriors(DayEpochTimeSeries):
@@ -979,8 +1042,8 @@ class FlatLinearPosition(LinearPosition):
         super().__init__(sampling_rate=sampling_rate, data=data, index=index, columns=columns,
                          dtype=dtype, copy=copy, parent=parent, history=history, **kwds)
 
-        #if isinstance(data, pd.DataFrame) and 'linvel_flat' not in data.columns:
-        #   raise DataFormatError("Missing 'linvel_flat' column.")
+        if isinstance(data, pd.DataFrame) and 'linvel_flat' not in data.columns:
+            raise DataFormatError("Missing 'linvel_flat' column.")
 
     @classmethod
     def create_default(cls, df, sampling_rate, arm_coord, parent=None, **kwds):
@@ -1006,10 +1069,10 @@ class FlatLinearPosition(LinearPosition):
     def get_above_velocity(self, threshold):
 
         # explicitly return copy convert weakref, for pickling
-        return self.query('abs(linvel_flat) >= @threshold')
-
-    def get_mapped_single_axis(self):
-        return self
+        return self.query('abs(linvel_flat) >= @threshold'), (self.linvel_flat >= threshold).values
 
     def get_pd_no_multiindex(self):
         self.set_index(pd.Index(self.index.get_level_values('timestamp'), name='timestamp'))
+
+    def get_mapped_single_axis(self):
+        return self
