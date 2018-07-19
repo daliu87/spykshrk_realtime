@@ -319,7 +319,6 @@ class EncoderProcess(realtime_base.RealtimeProcess):
         self.comm.Barrier()
 
     def trigger_termination(self):
-        print("ENCODER TERMINATE")
         self.terminate = True
 
     def main_loop(self):

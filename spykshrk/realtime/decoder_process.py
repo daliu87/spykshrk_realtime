@@ -237,6 +237,8 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
     def register_pos_interface(self):
         # Register position, right now only one position channel is supported
         self.pos_interface.register_datatype_channel(-1)
+        if self.config['datasource'] == 'trodes':
+            self.class_log.warning("*****Position data subscribed, but update_position() needs to be changed to fit CameraModule position data. Delete this message when implemented*****")
 
     def turn_on_datastreams(self):
         self.pos_interface.start_all_streams()
@@ -318,7 +320,7 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
 
         if pos_msg is not None:
             pos_data = pos_msg[0]
-            self.pp_decoder.update_position(pos_timestamp=pos_data.timestamp, pos_data=pos_data.x)
+            # self.pp_decoder.update_position(pos_timestamp=pos_data.timestamp, pos_data=pos_data.x)
             # self.class_log.debug("Pos msg received.")
 
 
@@ -486,7 +488,6 @@ class DecoderProcess(realtime_base.RealtimeProcess):
         self.comm.Barrier()
 
     def trigger_termination(self):
-        print("DECODER TERMINATE")
         self.terminate = True
 
     def main_loop(self):

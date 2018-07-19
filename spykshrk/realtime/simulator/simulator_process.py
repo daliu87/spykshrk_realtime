@@ -136,10 +136,7 @@ class TrodesDataReceiver(realtime_base.DataSourceReceiver):
             systime = tnp.systemTimeMSecs()
             if self.datatype is datatypes.Datatypes.LFP:
                 self.timestamp = self.datastream.getData()
-                # self.DataPointCls.timestamp = timestamp.trodes_timestamp
-                # self.DataPointCls.ntrode_index = self.channel
-                # self.DataPointCls.elec_grp_id = self.channel
-                # self.DataPointCls.data = self.buf[0] #[(value)]
+                # Reset curntrode value. If lfp buffer is more than 1, then above code will read from buffer before reading from Trodes stream
                 self.curntrode = 0
                 pt = datatypes.LFPPoint(self.timestamp.trodes_timestamp, self.channel[self.curntrode], self.channel[self.curntrode], self.buf[self.curntrode])
                 self.curntrode = 1
@@ -147,19 +144,14 @@ class TrodesDataReceiver(realtime_base.DataSourceReceiver):
                 
             elif self.datatype is datatypes.Datatypes.SPIKES:
                 self.timestamp = self.datastream.getData() #Data is [(ntrode, cluster, timestamp, [0-159 data - (i,data)] ) ]
-                # self.DataPointCls.timestamp = timestamp.trodes_timestamp
-                # self.DataPointCls.elec_grp_id = self.channel
-                # self.data = self.buf[0][3][:,1] # have to get the data([0][3]), then grab only y column
+                # Reshape data to look like what spykshrk expects
                 d = self.buf[0][3][:,1]
                 newshape = (int(len(d)/40), 40)
                 return datatypes.SpikePoint(self.timestamp.trodes_timestamp, self.channel, np.reshape(d, newshape)), None
                 
             elif self.datatype is datatypes.Datatypes.LINEAR_POSITION:
                 byteswritten = self.datastream.readData(self.buf) #Data is [(timestamp, linear segment, position, x location, y location)]
-                self.DataPointCls.timestamp = self.buf[0][0]
-                self.DataPointCls.segment = self.buf[0][1]
-                self.DataPointCls.position = self.buf[0][2]
-                return datatypes.CameraModulePoint(self.buf[0][0], self.buf[0][1], self.buf[0][2]), None
+                return datatypes.CameraModulePoint(self.buf[0][0], self.buf[0][1], self.buf[0][2], self.buf[0][3], self.buf[0][4]), None
 
             # # Option to return timing message but disabled
             # timing_message = None
