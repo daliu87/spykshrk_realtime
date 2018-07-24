@@ -59,9 +59,9 @@ class OfflinePPEncoder(object):
         self.calc_prob_no_spike()
 
         self.trans_mat = dict.fromkeys(['learned', 'simple', 'uniform'])
-        self.trans_mat['learned']= self.calc_learned_state_trans_mat(self.linflat,self.encode_settings, self.decode_settings)
-        self.trans_mat['simple']= self.calc_simple_trans_mat(self.encode_settings)
-        self.trans_mat['uniform']=self.calc_uniform_trans_mat(self.encode_settings)
+        self.trans_mat['learned'] = self.calc_learned_state_trans_mat(self.linflat,self.encode_settings, self.decode_settings)
+        self.trans_mat['simple'] = self.calc_simple_trans_mat(self.encode_settings)
+        self.trans_mat['uniform'] =self.calc_uniform_trans_mat(self.encode_settings)
 
     def run_encoder(self):
         logging.info("Setting up encoder dask task.")
@@ -91,18 +91,19 @@ class OfflinePPEncoder(object):
             df_meta = pd.DataFrame([], columns=[pos_col_format(ii, self.encode_settings.pos_num_bins)
                                                 for ii in range(self.encode_settings.pos_num_bins)])
 
-            # Setup decode of decode spikes from encoding of encoding spikes
+            # setup decode of decode spikes from encoding of encoding spikes
             task.append(dask_dec_spk_tet.map_partitions(functools.partial(self.compute_observ_tet, enc_spk=enc_spk_tet,
-                                                                      tet_lin_pos=enc_tet_lin_pos,
-                                                                      occupancy=self.occupancy,
-                                                                      encode_settings=self.encode_settings),
-                                                                      meta=df_meta,
-                                                                      mark_columns=mark_columns,
-                                                                      index_columns=index_columns))
+                                                                          tet_lin_pos=enc_tet_lin_pos,
+                                                                          occupancy=self.occupancy,
+                                                                          encode_settings=self.encode_settings),
+                                                        meta=df_meta,
+                                                        mark_columns=mark_columns,
+                                                        index_columns=index_columns))
         return task
 
     def compute_observ_tet(self, dec_spk, enc_spk, tet_lin_pos, occupancy, encode_settings, mark_columns, index_columns):
-
+        import sys
+        print(sys.path)
         pos_distrib_tet = sp.stats.norm.pdf(np.expand_dims(encode_settings.pos_bins, 0),
                                             np.expand_dims(tet_lin_pos['linpos_flat'], 1),
                                             encode_settings.pos_kernel_std)

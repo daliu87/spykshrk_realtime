@@ -396,14 +396,14 @@ class DayEpochTimeSeries(DayDataFrame):
         pos_data_rebinned = grp.apply(epoch_rebin_func)
         return type(self)(pos_data_rebinned, history=self.history, **self.kwds)
 
-    def get_irregular_resampled(self, timestamps):
+    def get_irregular_resampled(self, index_source):
         """
         timestamps input is a dataframe with day, epoch, timestamp, time, as multiindex.
         """
         result = type(self)()
-        if len(timestamps) > 0:
-            timestampsort = timestamps.reset_index().sort_values(['day', 'epoch', 'timestamp'])
-            linpossort = self.reset_index().sort_values(['day','epoch','timestamp']).drop('time', axis=1)
+        if len(index_source) > 0:
+            timestampsort = index_source.reset_index().sort_values(['day', 'epoch', 'timestamp'])
+            linpossort = self.reset_index().sort_values(['day', 'epoch', 'timestamp']).drop('time', axis=1)
             result = (pd.merge_asof(timestampsort, linpossort,
                                     on='timestamp',
                                     by=['day', 'epoch'],
@@ -440,7 +440,7 @@ class DayEpochElecTimeChannelSeries(DayEpochTimeSeries):
 
             if not all([col in data.index.names for col in ['day', 'epoch', 'elec_grp_id',
                                                             'timestamp', 'time', 'channel']]):
-                raise DataFormatError("DayEpochTimeSeries must have index with 6 levels named: "
+                raise DataFormatError("DayEpochElecTimeChannelSeries must have index with 6 levels named: "
                                       "day, epoch, elec_grp_id, timestamp, time.")
 
         if index is not None and not isinstance(index, pd.MultiIndex):
@@ -1068,8 +1068,7 @@ class FlatLinearPosition(LinearPosition):
 
     def get_above_velocity(self, threshold):
 
-        # explicitly return copy convert weakref, for pickling
-        return self.query('abs(linvel_flat) >= @threshold'), (self.linvel_flat >= threshold).values
+        return self.query('abs(linvel_flat) >= @threshold')
 
     def get_pd_no_multiindex(self):
         self.set_index(pd.Index(self.index.get_level_values('timestamp'), name='timestamp'))

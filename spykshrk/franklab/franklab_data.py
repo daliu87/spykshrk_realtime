@@ -250,7 +250,7 @@ class FrankDataInfo:
 
     @staticmethod
     def _split_hdf_group(group_str):
-        grp_split = re.compile('^(/[a-zA-Z0-9]*)/([a-zA-Z0-9/]*?)/([a-zA-Z0-9]*)$')
+        grp_split = re.compile('^(/[a-zA-Z0-9]*)/([a-zA-Z0-9/]*?)/([a-zA-Z0-9/_]*)$')
         grp_match = grp_split.match(group_str)
         if grp_match is None:
             raise FrankFileFormatError('HDF group ({}) cannot be parsed into [base]/[group]/[label].'.format(group_str))
