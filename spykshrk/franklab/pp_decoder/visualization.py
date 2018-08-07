@@ -37,7 +37,7 @@ class DecodeVisualizer:
         self.riptimes = riptimes
         if riptimes is not None:
             self.posteriors.apply_time_event(riptimes, event_mask_name='ripple_grp')
-        self.linflat = linpos #.get_mapped_single_axis()
+        self.linflat = linpos.get_mapped_single_axis()
         if riptimes is not None:
             self.linflat.apply_time_event(riptimes, event_mask_name='ripple_grp')
         self.enc_settings = enc_settings
@@ -115,7 +115,7 @@ class DecodeVisualizer:
                 #line = hv.Curve((x_range, [bound]*2)).opts(style={'line_dash': 'dashed', 'line_color': 'grey'})
                 line = hv.Curve((x_range, [bound]*2),
                                 extents=(x_range[0], None, x_range[1], None),
-                                group='arm_bound', label='track_arms').opts(style={'color': '#AAAAAA',
+                                group='arm_bound').opts(style={'color': '#AAAAAA',
                                                                'line_dash': 'dashed',
                                                                'line_color': 'grey',
                                                                'linestyle': '--'})
@@ -127,7 +127,7 @@ class DecodeVisualizer:
         linflat_sel_data = self.linflat['linpos_flat'].values
         linflat_sel_time = self.linflat.index.get_level_values('time')
         pos = hv.Points((linflat_sel_time, linflat_sel_data), kdims=[self.time_dim_name, self.pos_dim_name],
-                        extents=(time, None, time + plt_range, None), label='flat_linear_position')
+                        extents=(time, None, time + plt_range, None), label=('linpos', 'Linear Position'))
 
         return pos
 
@@ -175,7 +175,7 @@ class DecodeVisualizer:
         linflat_ripple_time = (np.array(linflat_ripple.index.get_level_values('time')) -
                                self.riptimes.query('event == @rip_ind')['starttime'].values)
         plt = hv.Points((linflat_ripple_time, linflat_ripple['linpos_flat'].values),
-                        kdims=[self.time_dim_name, self.pos_dim_name])
+                        kdims=[self.time_dim_name, self.pos_dim_name], label=('linpos', 'linear position'))
         #plt = plt.opts(style={'marker': '*', 'color': '#AAAAFF', 'size': 14})
         return plt
 
@@ -185,7 +185,7 @@ class DecodeVisualizer:
         y_range = rip_plt.range(self.pos_dim_name)
         arm_plt = self.plot_arm_boundaries(time=x_range[0], x_range=x_range, y_range=y_range)
         lin_plt = self.plot_ripple_linflat(rip_ind)
-        return rip_plt * arm_plt * lin_plt
+        return hv.Overlay([rip_plt, arm_plt, lin_plt], label='ripple_decode: ', group=str(rip_ind))
 
     def plot_ripple_dynamic(self):
         dmap = hv.DynamicMap(self.plot_ripple_all,

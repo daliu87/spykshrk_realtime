@@ -266,15 +266,22 @@ class OfflinePPEncoder(object):
         for bin_ii in range(pos_num_bins):
             transition_mat[bin_ii, :] = gaussian(enc_settings.pos_bins, enc_settings.pos_bins[bin_ii], 3)
 
+        transition_mat = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates,
+                                                transition_mat)
+
         # uniform offset
         uniform_gain = 0.01
         uniform_dist = np.ones(transition_mat.shape)
+        uniform_dist = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates,
+                                              uniform_dist)
 
         # normalize transition matrix
         transition_mat = transition_mat/(transition_mat.sum(axis=0)[None, :])
+        transition_mat[np.isnan(transition_mat)] = 0
 
         # normalize uniform offset
         uniform_dist = uniform_dist/(uniform_dist.sum(axis=0)[None, :])
+        uniform_dist[np.isnan(uniform_dist)] = 0
 
         # apply uniform offset
         transition_mat = transition_mat * (1 - uniform_gain) + uniform_dist * uniform_gain

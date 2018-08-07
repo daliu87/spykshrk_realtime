@@ -2,7 +2,6 @@
 from enum import IntEnum
 import struct
 from spykshrk.realtime.realtime_logging import PrintableMessage
-from mpi4py import MPI
 
 
 class Datatypes(IntEnum):
