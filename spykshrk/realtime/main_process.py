@@ -79,13 +79,16 @@ class MainProcess(realtime_base.RealtimeProcess):
 
         self.manager = MainSimulatorManager(rank=rank, config=config, parent=self, send_interface=self.send_interface,
                                             stim_decider=self.stim_decider)
-        self.networkclient = MainProcessClient("SpykshrkMainProc", config['trodes_network']['address'],config['trodes_network']['port'], self.config)
-        if self.networkclient.initialize() != 0:
-            print("Network could not successfully initialize")
-            del self.networkclient
-            quit()
-        self.networkclient.registerStartupCallback(self.manager.handle_ntrode_list)
-        self.networkclient.registerTerminationCallback(self.manager.trigger_termination)
+        
+        if config['datasource'] == 'trodes':
+            self.networkclient = MainProcessClient("SpykshrkMainProc", config['trodes_network']['address'],config['trodes_network']['port'], self.config)
+            if self.networkclient.initialize() != 0:
+                print("Network could not successfully initialize")
+                del self.networkclient
+                quit()
+            self.networkclient.registerStartupCallback(self.manager.handle_ntrode_list)
+            self.networkclient.registerTerminationCallback(self.manager.trigger_termination)
+
         self.recv_interface = MainSimulatorMPIRecvInterface(comm=comm, rank=rank,
                                                             config=config, main_manager=self.manager)
 
@@ -96,9 +99,9 @@ class MainProcess(realtime_base.RealtimeProcess):
         # First Barrier to finish setting up nodes, waiting for Simulator to send ntrode list.
         # The main loop must be active to receive binary record registration messages, so the
         # first Barrier is placed here.
-        self.class_log.debug("First Barrier MainProc")
+        self.class_log.debug("First Barrier")
         self.send_interface.all_barrier()
-        self.class_log.debug("Past First Barrier MainProc")
+        self.class_log.debug("Past First Barrier")
 
 
     def trigger_termination(self):
@@ -112,18 +115,16 @@ class MainProcess(realtime_base.RealtimeProcess):
 
         while not self.terminate:
 
-            # # Synchronize rank times
-            # if self.manager.time_sync_on:
-            #     current_time_bin = int(time.time())
-
-            #     if current_time_bin >= last_time_bin+10:
-            #         self.manager.synchronize_time()
-            #         last_time_bin = current_time_bin
+            # Synchronize rank times
+            if self.manager.time_sync_on:
+                current_time_bin = int(time.time())
+                if current_time_bin >= last_time_bin+10:
+                    self.manager.synchronize_time()
+                    last_time_bin = current_time_bin
 
             self.recv_interface.__next__()
             self.data_recv.__next__()
 
-        # del self.networkclient
         self.class_log.info("Main Process Main reached end, exiting.")
 
 
@@ -452,7 +453,8 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         # Turn on data streaming to decoder
         self.send_interface.send_turn_on_datastreams(self.config['rank']['decoder'])
 
-        self.time_sync_on = True
+        if self.config['datasource'] != 'trodes':
+            self.time_sync_on = True
 
     def handle_ntrode_list(self, trode_list):
 

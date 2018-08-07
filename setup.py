@@ -23,4 +23,5 @@ extensions = [Extension('spykshrk.realtime.rst.RSTPython', rst_sourcefiles, incl
 setup (name = 'spykshrk_realtime',
        ext_modules = cythonize(extensions, compiler_directives={'linetrace': True}),
        packages=find_packages('./'),
-       package_dir={'spykshrk':'./spykshrk'})
+       package_dir={'spykshrk':'./spykshrk'},
+       install_requires=['mpi4py', 'cProfile', 'numpy', 'Cython', 'pandas'])

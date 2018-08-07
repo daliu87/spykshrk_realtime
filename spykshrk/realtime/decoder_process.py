@@ -238,7 +238,10 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         # Register position, right now only one position channel is supported
         self.pos_interface.register_datatype_channel(-1)
         if self.config['datasource'] == 'trodes':
+            self.trodessource = True
             self.class_log.warning("*****Position data subscribed, but update_position() needs to be changed to fit CameraModule position data. Delete this message when implemented*****")
+        else:
+            self.trodessource = False
 
     def turn_on_datastreams(self):
         self.pos_interface.start_all_streams()
@@ -319,9 +322,20 @@ class PPDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
         pos_msg = self.pos_interface.__next__()
 
         if pos_msg is not None:
-            pos_data = pos_msg[0]
-            # self.pp_decoder.update_position(pos_timestamp=pos_data.timestamp, pos_data=pos_data.x)
             # self.class_log.debug("Pos msg received.")
+            pos_data = pos_msg[0]
+            if not self.trodessource:
+                self.pp_decoder.update_position(pos_timestamp=pos_data.timestamp, pos_data=pos_data.x)
+            else:
+                #TODO implement trodes cameramodule update position function
+                #If data source is trodes, then pos_data is of class CameraModulePoint, in datatypes.py
+                #   pos_data.timestamp: trodes timestamp
+                #   pos_data.segment:   linear track segment animal is on (0 if none defined)
+                #   pos_data.position:  position along segment (0 if no linear tracks defined)
+                #   pos_data.x and y:   raw coordinates of animal, (0,0) is top left of image
+                #                        bottom right is full resolution of image
+                # Update position function implementation is left
+                pass
 
 
 class BayesianDecodeManager(realtime_base.BinaryRecordBaseWithTiming):
@@ -455,7 +469,7 @@ class DecoderProcess(realtime_base.RealtimeProcess):
 
         self.mpi_send = DecoderMPISendInterface(comm=comm, rank=rank, config=config)
         self.spike_decode_interface = SpikeDecodeRecvInterface(comm=comm, rank=rank, config=config)
-        
+
         if config['datasource'] == 'simulator':
             self.pos_interface = simulator_process.SimulatorRemoteReceiver(comm=self.comm,
                                                                        rank=self.rank,
@@ -478,7 +492,6 @@ class DecoderProcess(realtime_base.RealtimeProcess):
                                            send_interface=self.mpi_send,
                                            spike_decode_interface=self.spike_decode_interface,
                                            pos_interface=self.pos_interface)
-        # config['trodes_network']['networkobject'].registerTerminateCallback(self.trigger_termination)
 
         self.mpi_recv = DecoderRecvInterface(comm=comm, rank=rank, config=config, decode_manager=self.dec_man)
 
