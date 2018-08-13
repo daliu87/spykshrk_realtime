@@ -303,8 +303,15 @@ class MainMPISendInterface(realtime_base.RealtimeMPIClass):
                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
     def send_time_sync_simulator(self):
-        self.comm.send(obj=realtime_base.TimeSyncInit(), dest=self.config['rank']['simulator'],
-                       tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+        if self.config['datasource'] == 'trodes':
+            ranks = list(range(self.comm.size))
+            ranks.remove(self.rank)
+            for rank in ranks:
+                self.comm.send(obj=realtime_base.TimeSyncInit(), dest=rank,
+                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
+        else:
+            self.comm.send(obj=realtime_base.TimeSyncInit(), dest=self.config['rank']['simulator'],
+                        tag=realtime_base.MPIMessageTag.COMMAND_MESSAGE)
 
     def all_barrier(self):
         self.comm.Barrier()
@@ -453,8 +460,7 @@ class MainSimulatorManager(rt_logging.LoggingClass):
         # Turn on data streaming to decoder
         self.send_interface.send_turn_on_datastreams(self.config['rank']['decoder'])
 
-        if self.config['datasource'] != 'trodes':
-            self.time_sync_on = True
+        self.time_sync_on = True
 
     def handle_ntrode_list(self, trode_list):
 
