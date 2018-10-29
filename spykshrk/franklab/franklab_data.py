@@ -152,14 +152,19 @@ class FrankDataInfo:
                     entry = [path_row.Index]
                     entry.append(path_row.date)
                     entry.extend(self._split_hdf_group(key))
-                    datatype_key_list.append(entry)
                     key_storer = data_store.get_storer(key)
+                    try:
+                        user_key = key_storer.attrs.user_key
+                    except AttributeError:
+                        user_key = None
+                    entry.append(user_key)
                     classtype = key_storer.attrs.classtype
                     entry.append(classtype.__name__)
                     entry.append(classtype)
+                    datatype_key_list.append(entry)
 
         self.entries = pd.DataFrame(datatype_key_list, columns=['file_ind', 'date', 'base', 'group', 'label',
-                                                                'classtype_str', 'classtype'])
+                                                                'user_key', 'classtype_str', 'classtype'])
 
     def load_single_dataset_ind(self, ind):
         data_entry = self.entries.loc[ind]
@@ -184,7 +189,7 @@ class FrankDataInfo:
                         file_path = self.datatype_paths.query('date == @date').path[0]
                         entry_collision = []
                         if overwrite:
-                            data_date._to_hdf_store(file_path, base, group, label)
+                            data_date._to_hdf_store(file_path, base, group, label, overwrite=True)
                         else:
                             if self.has_entry(base, group, label, date):
                                 entry_collision.append((date, base, group, label))
@@ -192,7 +197,7 @@ class FrankDataInfo:
                                 data_date._to_hdf_store(file_path, base, group, label)
                 elif [None] == self.entries['date'].unique():
                     file_path = self.datatype_paths.query('date != date').path[0]
-                    data._to_hdf_store(file_path, base, group, label)
+                    data._to_hdf_store(file_path, base, group, label, overwrite=overwrite)
                 else:
                     raise FrankHDFFormatError('Date from data ({}) do not match dates '
                                               'from file ({}).'.format(dates, self.entries['date'].unique()))

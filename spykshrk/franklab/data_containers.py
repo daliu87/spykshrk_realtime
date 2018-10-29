@@ -62,12 +62,12 @@ class SeriesClass(pd.Series):
 
 class DataFrameClass(pd.DataFrame):
 
-    _metadata = pd.DataFrame._metadata + ['kwds', 'history', 'desc']
+    _metadata = pd.DataFrame._metadata + ['kwds', 'history', 'desc', 'user_key']
     _internal_names = pd.DataFrame._internal_names + ['uuid']
     _internal_names_set = set(_internal_names)
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, parent=None, history=None,
-                 custom_uuid=None, desc='', **kwds):
+                 custom_uuid=None, user_key=None, desc='', **kwds):
         """
         
         Args:
@@ -89,6 +89,7 @@ class DataFrameClass(pd.DataFrame):
 
         self.kwds = kwds
 
+        self.user_key = user_key
         self.desc = desc
 
         if history is not None:
@@ -148,7 +149,7 @@ class DataFrameClass(pd.DataFrame):
     def _to_hdf_store(self, file_path, hdf_base, hdf_grps, hdf_label, overwrite=False):
         with pd.HDFStore(file_path, 'a') as store:
             main_path = os.path.join(hdf_base, hdf_grps, hdf_label)
-            if main_path in store.keys() and not overwrite:
+            if (main_path in store.keys()) and (not overwrite):
                 raise HDFKeyExistsError('HDF key {} exists in file {}. '
                                         'Either rename key or set overwrite flag'.format(main_path, file_path))
             store.put(main_path, self.to_dataframe(), format='t')
@@ -164,6 +165,9 @@ class DataFrameClass(pd.DataFrame):
             main_storer.attrs.history = save_history
             main_storer.attrs.kwds = self.kwds
             main_storer.attrs.uuid = self.uuid
+
+            main_storer.attrs.user_key = self.user_key
+
             main_storer.attrs.classtype = type(self)
 
     @classmethod
@@ -175,9 +179,14 @@ class DataFrameClass(pd.DataFrame):
             save_history = main_storer.attrs.history
             kwds = main_storer.attrs.kwds
             custom_uuid = main_storer.attrs.uuid
+            try:
+                user_key = main_storer.attrs.user_key
+            except AttributeError:
+                user_key = None
+
             newcls = main_storer.attrs.classtype
 
-            return newcls(data=dataframe, history=save_history, custom_uuid=custom_uuid, **kwds)
+            return newcls(data=dataframe, history=save_history, custom_uuid=custom_uuid, user_key=user_key, **kwds)
 
     def __repr__(self):
         return '<{}: {}, shape: ({})>'.format(self.__class__.__name__, self.uuid, self.shape)
@@ -877,18 +886,18 @@ class Posteriors(DayEpochTimeSeries):
     #    return functools.partial(type(self), history=self.history, **self.kwds)
 
     @classmethod
-    def create_default(cls, df, enc_settings, dec_settings, parent=None, **kwds):
+    def create_default(cls, df, enc_settings, dec_settings, parent=None, user_key=None, **kwds):
         if parent is None:
             parent = df
 
         sampling_rate = enc_settings.sampling_rate
 
         return cls(df, sampling_rate=sampling_rate, parent=parent, enc_settings=enc_settings,
-                   dec_settings=dec_settings, **kwds)
+                   dec_settings=dec_settings, user_key= user_key, **kwds)
 
     @classmethod
     def from_dataframe(cls, posterior: pd.DataFrame, enc_settings, dec_settings,
-                       index=None, columns=None, parent=None, **kwds):
+                       index=None, columns=None, parent=None, user_key=None, **kwds):
         if parent is None:
             parent = posterior
 
@@ -899,11 +908,11 @@ class Posteriors(DayEpochTimeSeries):
 
         sampling_rate = enc_settings.sampling_rate
         return cls(data=posterior, sampling_rate=sampling_rate, parent=parent,
-                   enc_settings=enc_settings, dec_settings=dec_settings, **kwds)
+                   enc_settings=enc_settings, dec_settings=dec_settings, user_key=user_key, **kwds)
 
     @classmethod
     def from_numpy(cls, posterior, day, epoch, timestamps, times, columns=None, parent=None, sampling_rate=None,
-                   enc_settings=None):
+                   enc_settings=None, user_key=None, **kwds):
 
         if (sampling_rate is None) and (enc_settings is None):
             raise DataFormatError('Posteriors.from_numpy() must specify either sampling_rate or encode_setting object.')
@@ -919,11 +928,12 @@ class Posteriors(DayEpochTimeSeries):
         return cls(data=posterior, index=pd.MultiIndex.from_arrays([[day]*len(posterior), [epoch]*len(posterior),
                                                                     timestamps, times],
                                                                    names=['day', 'epoch', 'timestamp', 'time']),
-                   columns=columns, parent=parent, enc_settings=enc_settings, sampling_rate=sampling_rate)
+                   columns=columns, parent=parent, enc_settings=enc_settings, sampling_rate=sampling_rate,
+                   user_key=user_key, **kwds)
 
     @classmethod
     def from_realtime(cls, posterior: pd.DataFrame, day, epoch, columns=None, copy=False, parent=None,
-                      enc_settings=None, sampling_rate=None):
+                      enc_settings=None, sampling_rate=None, user_key=None, **kwds):
 
         if (sampling_rate is None) and (enc_settings is None):
             raise DataFormatError('Posteriors.from_numpy() must specify either sampling_rate or encode_setting object.')
@@ -946,7 +956,8 @@ class Posteriors(DayEpochTimeSeries):
         if columns is not None:
             posterior.columns = columns
 
-        return cls(data=posterior, parent=parent, enc_settings=enc_settings, sampling_rate=sampling_rate)
+        return cls(data=posterior, parent=parent, enc_settings=enc_settings, sampling_rate=sampling_rate,
+                   user_key=user_key, **kwds)
 
     def get_posteriors_as_np(self):
         return self[pos_col_format(0, self.kwds['enc_settings'].pos_num_bins):
