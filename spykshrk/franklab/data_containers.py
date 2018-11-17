@@ -411,13 +411,19 @@ class DayEpochTimeSeries(DayDataFrame):
         """
         result = type(self)()
         if len(index_source) > 0:
-            timestampsort = index_source.reset_index().sort_values(['day', 'epoch', 'timestamp'])
-            linpossort = self.reset_index().sort_values(['day', 'epoch', 'timestamp']).drop('time', axis=1)
+            source_index_names = index_source.index.names[:-1]
+            dest_index_names = self.index.names[:-1]
+            exclude_index_names = [index_source.index.names[-1]]
+            common_index_names = [name for name in dest_index_names if name in source_index_names]
+            unique_index_names = ([name for name in dest_index_names if name not in source_index_names] +
+                                  [name for name in source_index_names if name not in dest_index_names])
+            timestampsort = index_source.reset_index().sort_values(common_index_names)
+            linpossort = self.reset_index().sort_values(self.index.names[:-1]).drop(exclude_index_names, axis=1)
             result = (pd.merge_asof(timestampsort, linpossort,
-                                    on='timestamp',
-                                    by=['day', 'epoch'],
-                                    direction='nearest').set_index(['day', 'epoch', 'timestamp'], drop=True))
-            result = result.set_index('time', append=True).loc[:, self.columns]
+                                    on=common_index_names[-1],
+                                    by=common_index_names[:-1],
+                                    direction='nearest').set_index(source_index_names, drop=True))
+            result = result.set_index(exclude_index_names, append=True).loc[:, self.columns]
             return type(self).create_default(result, **self.kwds)
         else:
             return result
@@ -512,6 +518,9 @@ class EncodeSettings:
 
         self.mark_kernel_mean = encoder_config['mark_kernel']['mean']
         self.mark_kernel_std = encoder_config['mark_kernel']['std']
+
+        self.vel = encoder_config['vel']
+        self.spk_amp = encoder_config['spk_amp']
 
     def pos_column_name(self, pos_ind):
         return pos_col_format(pos_ind, self.pos_num_bins)
