@@ -114,6 +114,7 @@ def main(argv):
             main_proc.networkclient.closeConnections()
             del main_proc.networkclient
     else:
+        time.sleep(rank/10.0)
         if config['datasource'] == 'trodes':
             # configure trodes network highfreqdatatypes (main supervisor process has own client)
             network = PythonClient(config, rank)
