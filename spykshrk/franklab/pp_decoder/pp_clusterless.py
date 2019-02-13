@@ -58,10 +58,11 @@ class OfflinePPEncoder(object):
         self.calc_firing_rate()
         self.calc_prob_no_spike()
 
-        self.trans_mat = dict.fromkeys(['learned', 'simple', 'uniform'])
+        self.trans_mat = dict.fromkeys(['learned', 'simple', 'uniform', 'flat'])
         self.trans_mat['learned'] = self.calc_learned_state_trans_mat(self.linflat,self.encode_settings, self.decode_settings)
         self.trans_mat['simple'] = self.calc_simple_trans_mat(self.encode_settings)
         self.trans_mat['uniform'] =self.calc_uniform_trans_mat(self.encode_settings)
+        self.trans_mat['flat'] =self.calc_flat_transition_matrix(self.encode_settings)
 
     def run_encoder(self):
         logging.info("Setting up encoder dask task.")
@@ -109,11 +110,19 @@ class OfflinePPEncoder(object):
         mark_contrib = normal_pdf_int_lookup(np.expand_dims(dec_spk[mark_columns], 1),
                                              np.expand_dims(enc_spk, 0),
                                              encode_settings.mark_kernel_std)
+        #create notch filter to zero-out the encoding spike
+        #for mark std = 5
+        #mark_contrib[mark_contrib > 0.0798] = 0
+        #for mark std = 20
+        mark_contrib[mark_contrib > 0.01994711] = 0
+
         all_contrib = np.prod(mark_contrib, axis=2)
         del mark_contrib
+        #print(all_contrib.shape)
+        #print(pos_distrib_tet.shape)
         observ = np.matmul(all_contrib, pos_distrib_tet)
         del all_contrib
-        # occupancy normalize 
+        # occupancy normalize
         observ = observ / (occupancy)
         # normalize each row (#dec spks x #pos_bins)
         observ_sum = observ.sum(axis=1)
@@ -143,9 +152,34 @@ class OfflinePPEncoder(object):
             enc_settings (EncodeSettings): Realtime encoding settings.
         Returns (np.array): The occupancy of the animal
         """
-        occupancy, occ_bin_edges = np.histogram(lin_obj, bins=enc_settings.pos_bin_edges,
-                                                normed=True)
-        occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
+        # this method to calculate occupancy uses convolution and doesnt do a good job, so were switching to KDE below
+        # occupancy, occ_bin_edges = np.histogram(lin_obj, bins=enc_settings.pos_bin_edges,
+        #                                        normed=True)
+        #occupancy, occ_bin_edges = np.histogram(lin_obj.loc[(lin_obj["linvel_flat"]>2)], bins=enc_settings.pos_bin_edges,
+        #                                        normed=True)
+        #occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
+        #occupancy += 1e-10
+        #print(occupancy.shape)         
+        #return occupancy
+
+        # new method to calculate occpancy using kernel density estimate
+        import seaborn as sns
+        from scipy import stats
+        from scipy.integrate import trapz
+
+        pos_vel_2 = lin_obj.loc[(lin_obj["linvel_flat"]>2)]
+        #pos_vel_0 = lin_obj
+        bandwidth = enc_settings.pos_kernel_std
+        support = enc_settings.pos_bin_edges[0:-1]
+        kernels = []
+        for x_i in pos_vel_2['linpos_flat']:
+            kernel = stats.norm(x_i, bandwidth).pdf(support)
+            kernels.append(kernel)
+
+        from scipy.integrate import trapz
+        density = np.sum(kernels, axis=0)
+        density /= trapz(density, support)
+        occupancy = density
         occupancy += 1e-10
         return occupancy
 
@@ -311,6 +345,24 @@ class OfflinePPEncoder(object):
         transition_mat = np.nan_to_num(transition_mat)
 
         return transition_mat
+
+    @staticmethod
+    def calc_flat_transition_matrix(enc_settings):
+        """
+        Import csv file to generate numpy array of transition matrix that is completely flat.
+        Flat means: all possible transitions are equally likely.
+        It currently has 5 parallel bins for the box and 3 bins for each arm.
+        It uses linearized position.
+        It has 1 bin gap between each linearized segment.
+        It doesn't currently use encoder settings for getting position bins, it is just hard coded in csv.
+        """
+
+        #setup transition matrix
+        transition_mat = np.genfromtxt ('/home/mcoulter/simple_transition_matrix_1cm_2_8_19_edit_v2.csv', delimiter=",")
+
+        #normalize transition matrix
+
+        return transition_mat
     
 
 
@@ -369,6 +421,7 @@ class OfflinePPDecoder(object):
         self.recalc_posterior()
 
         return self.posteriors_obj
+        #return self.likelihoods
 
     def recalc_likelihood(self):
         self.likelihoods = self.calc_observation_intensity(self.observ_obj,
@@ -438,7 +491,7 @@ class OfflinePPDecoder(object):
                                                          time_bin_size=time_bin_size,
                                                          enc_settings=enc_settings),
                                        meta=observ_meta)
-
+        
         dec_agg_results = observ_task.compute()
         dec_agg_results.sort_values('timestamp', inplace=True)
 
@@ -476,6 +529,9 @@ class OfflinePPDecoder(object):
         dec_grp = Groupby(spikes_in_parallel.values, spikes_in_parallel['dec_bin'].values)
         pos_col_ind = spikes_in_parallel.columns.slice_locs(enc_settings.pos_col_names[0],
                                                             enc_settings.pos_col_names[-1])
+
+        #added this line to hardcode the number of columns for 10cm version because it was off by one using the line above
+        #pos_col_ind = (4,77)
         elec_grp_ind = spikes_in_parallel.columns.get_loc('elec_grp_id')
         num_missing_ind = spikes_in_parallel.columns.get_loc('num_missing_bins')
         dec_bin_start_ind = spikes_in_parallel.columns.get_loc('dec_bin_start')
@@ -507,13 +563,16 @@ class OfflinePPDecoder(object):
 
                 elec_set.add(elec_grp_id)
 
+                #obv_in_bin = obv_in_bin[0:72]
                 obv_in_bin = obv_in_bin * obv
                 obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
                 obv_in_bin = obv_in_bin / (np.sum(obv_in_bin) * enc_settings.pos_bin_delta)
+                #print(len(obv_in_bin))
 
             # Contribution for electrodes that no spikes in this bin
             for elec_grp_id in elec_set.symmetric_difference(elec_grp_list):
                 obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
+                #print(len(obv_in_bin))
 
             dec_bin_timestamp = spike_bin_raw[0, dec_bin_start_ind]
             results.append(np.concatenate([obv_in_bin, [dec_bin_timestamp, num_spikes, dec_bin_ii]]))
@@ -521,9 +580,10 @@ class OfflinePPDecoder(object):
             for missing_ii in range(int(num_missing_bins)):
                 results.append(np.concatenate([global_prob_no_spike, [dec_bin_timestamp+((missing_ii+1)*time_bin_size),
                                                                       0, dec_bin_ii+missing_ii+1]]))
-
+        
         likelihoods = pd.DataFrame(np.vstack(results),
                                    columns=enc_settings.pos_col_names+['timestamp', 'num_spikes', 'dec_bin'])
+
         return likelihoods
 
     @staticmethod

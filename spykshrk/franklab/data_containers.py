@@ -237,6 +237,12 @@ class DayEpochEvent(DayDataFrame):
         if index is not None and not isinstance(index, pd.MultiIndex):
             raise DataFormatError("Index to be set must be MultiIndex.")
 
+    @classmethod
+    def create_default(cls, df, index, time_unit: UnitTime, parent=None, **kwds):
+        if parent is None:
+            parent = df
+        return cls(data=df, index=index, time_unit=time_unit, parent=parent, **kwds)
+
     def get_range_view(self):
         return self[['starttime', 'endtime']]
 
@@ -301,7 +307,7 @@ class DayEpochTimeSeries(DayDataFrame):
 
     @classmethod
     @abstractclassmethod
-    def create_default(cls, df, sampling_rate, parent=None, **kwds):
+    def create_default(cls, df, sampling_rate, arm_coord=None, parent=None, **kwds):
         pass
 
     def get_time(self):
@@ -424,10 +430,10 @@ class DayEpochTimeSeries(DayDataFrame):
                                     by=common_index_names[:-1],
                                     direction='nearest').set_index(source_index_names, drop=True))
             result = result.set_index(exclude_index_names, append=True).loc[:, self.columns]
-            return type(self).create_default(result, **self.kwds)
+            return type(self).create_default(result, arm_coord=None, **self.kwds)
         else:
             return result
-    
+
     def apply_time_event(self, time_ranges: DayEpochEvent, event_mask_name='event_grp'):
         grouping = np.full(len(self), -1)
         time_index = self.index.get_level_values('time')
