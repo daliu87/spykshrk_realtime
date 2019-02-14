@@ -32,7 +32,7 @@ from multiprocessing import Pool
 import math 
 
 # set path to folders where spykshrk core scripts live
-path_main = '/home/mcoulter/spykshrk_hpc'
+path_main = '/home/mcoulter/spykshrk_realtime'
 os.chdir(path_main)
 from spykshrk.franklab.data_containers import FlatLinearPosition, SpikeFeatures, Posteriors, \
         EncodeSettings, pos_col_format, SpikeObservation, RippleTimes, DayEpochEvent, DayEpochTimeSeries
@@ -46,7 +46,7 @@ from spykshrk.util import Groupby
 # Import data
 
 # Define path bases 
-path_base_rawdata = '/home/mcoulter/spykshrk_hpc/'
+path_base_rawdata = '/home/mcoulter/raw_data/'
 
 # Define parameters
 rat_name = 'remy'
@@ -57,7 +57,7 @@ tetrodes_dictionary = {'remy': [4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,
                        'gus': list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]} # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
 
 # Maze information
-os.chdir('/home/mcoulter/spykshrk_hpc/')
+os.chdir('/home/mcoulter/spykshrk_realtime/')
 #maze_coordinates = scipy.io.loadmat('set_arm_nodes.mat',variable_names = 'linearcoord_NEW')
 # new maze coordinates with only one segment for box
 maze_coordinates = scipy.io.loadmat('set_arm_nodes.mat',variable_names = 'linearcoord_one_box')
@@ -82,7 +82,7 @@ rips = datasrc.import_rips(pos, velthresh=4)
 
 # Define path bases
 path_base_dayepoch = 'day' + str(day_dictionary[rat_name][0]) + '_epoch' + str(epoch_dictionary[rat_name][0])
-path_base_analysis = '/home/mcoulter/spykshrk_hpc/'
+path_base_analysis = '/mnt/vortex/mcoulter/'
 
 #cell 3
 #filter ripples for velocity < 4
@@ -112,7 +112,7 @@ print('rips when animal velocity <= 4: '+str(linflat_ripindex_encode_velthresh.s
 # Encoding input data, position and spikes
 # **** time is 30x sec
 subset_start = 0
-subset_end = 10000
+subset_end = 5000
 chunkstart = pos.index.get_level_values('time')[subset_start]
 chunkend = pos.index.get_level_values('time')[subset_end]
 speed_threshold_save = 0; 
@@ -406,14 +406,14 @@ decode_settings = AttrDict({'trans_smooth_std': 2,
 print('Starting encoder')
 time_table_data = {'age': [1, 2, 3, 4, 5]}
 time_table = pd.DataFrame(time_table_data)
-time_table.to_csv('/home/mcoulter/spykshrk_hpc/time_stamp1.csv')
+time_table.to_csv('/home/mcoulter/spykshrk_realtime/time_stamp1.csv')
 
 encoder = OfflinePPEncoder(linflat=pos_subset, dec_spk_amp=spk_subset_sparse_decode, encode_settings=encode_settings, 
                            decode_settings=decode_settings, enc_spk_amp=spk_subset_sparse, dask_worker_memory=1e9,
                            dask_chunksize = None)
 
 results = encoder.run_encoder()
-time_table.to_csv('/home/mcoulter/spykshrk_hpc/time_stamp2.csv')
+time_table.to_csv('/home/mcoulter/spykshrk_realtime/time_stamp2.csv')
 print('Enocder finished!')
 
 #cell 11
@@ -484,9 +484,9 @@ print('Decoder finished!')
 
 #cell 16
 #save posteriors
-#posteriors._to_hdf_store('/data2/mcoulter/posteriors/remy_20_4_linearized_0_2000.h5','/analysis', 
-#                         'decode/clusterless/offline/posterior', 'learned_trans_mat')
-#print('Saved posteriors to /data2/mcoulter/posteriors/remy_20_4_linearized_0_2000.h5')
+posteriors._to_hdf_store('/mnt/vortex/mcoulter/posteriors/remy_20_2_linearized_0_5000.h5','/analysis', 
+                         'decode/clusterless/offline/posterior', 'learned_trans_mat')
+print('Saved posteriors to /vortex/mcoulter/posteriors/remy_20_2_linearized_0_5000.h5')
 
 #cell 17
 #load previously generated posteriors

@@ -358,7 +358,7 @@ class OfflinePPEncoder(object):
         """
 
         #setup transition matrix
-        transition_mat = np.genfromtxt ('/home/mcoulter/simple_transition_matrix_1cm_2_8_19_edit_v2.csv', delimiter=",")
+        transition_mat = np.genfromtxt ('/home/mcoulter/spykshrk_realtime/simple_transition_matrix_1cm_2_8_19_edit_v2.csv', delimiter=",")
 
         #normalize transition matrix
 
