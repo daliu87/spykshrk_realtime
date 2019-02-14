@@ -47,7 +47,7 @@ class DecodeVisualizer:
                                          self.posteriors.get_time_end(),
                                          self.posteriors.get_pos_end()),
                                  kdims=[self.time_dim_name, self.pos_dim_name], vdims=[self.val_dim_name])
-        self.post_img = self.post_img.redim(probability={'range': (0, 0.3)})
+        self.post_img = self.post_img.redim(probability={'range': (0, 0.1)})
 
     def plot_decode_image(self, time, x_range=None, y_range=None, plt_range=10):
 
