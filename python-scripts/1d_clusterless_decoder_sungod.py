@@ -484,9 +484,9 @@ print('Decoder finished!')
 
 #cell 16
 #save posteriors
-posteriors._to_hdf_store('/mnt/vortex/mcoulter/posteriors/remy_20_2_linearized_0_5000.h5','/analysis', 
-                         'decode/clusterless/offline/posterior', 'learned_trans_mat')
-print('Saved posteriors to /vortex/mcoulter/posteriors/remy_20_2_linearized_0_5000.h5')
+#posteriors._to_hdf_store('/mnt/vortex/mcoulter/posteriors/remy_20_2_linearized_0_5000.h5','/analysis', 
+#                         'decode/clusterless/offline/posterior', 'learned_trans_mat')
+#print('Saved posteriors to /vortex/mcoulter/posteriors/remy_20_2_linearized_0_5000.h5')
 
 #cell 17
 #load previously generated posteriors
