@@ -117,6 +117,9 @@ class OfflinePPEncoder(object):
         mark_contrib[mark_contrib > 0.01994711] = 0
 
         all_contrib = np.prod(mark_contrib, axis=2)
+        #print(mark_contrib.shape)
+        #print(mark_contrib)
+
         del mark_contrib
         #print(all_contrib.shape)
         #print(pos_distrib_tet.shape)
