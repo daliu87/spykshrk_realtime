@@ -111,10 +111,10 @@ print('rips when animal velocity <= 4: '+str(linflat_ripindex_encode_velthresh.s
 #cell 4
 # Encoding input data, position and spikes
 # **** time is 30x sec
-subset_start = 0
-subset_end = 5000
-chunkstart = pos.index.get_level_values('time')[subset_start]
-chunkend = pos.index.get_level_values('time')[subset_end]
+encode_subset_start = 0
+encode_subset_end = 5000
+chunkstart = pos.index.get_level_values('time')[encode_subset_start]
+chunkend = pos.index.get_level_values('time')[encode_subset_end]
 speed_threshold_save = 0; 
 
 pos_subset = pos.loc[(pos.index.get_level_values('time') <= chunkend) & (pos.index.get_level_values('time') >= chunkstart)]
@@ -145,8 +145,10 @@ print('encoding spikes after filtering: '+str(spk_subset_sparse_encode.shape[0])
 #cell 5
 # Decoding input data, position and spikes
 # **** time is 30x sec
-chunkstart_decode = pos.index.get_level_values('time')[subset_start]
-chunkend_decode = pos.index.get_level_values('time')[subset_end]
+decode_subset_start = 0
+decode_subset_start = 5000
+chunkstart_decode = pos.index.get_level_values('time')[decode_subset_start]
+chunkend_decode = pos.index.get_level_values('time')[decode_subset_end]
 speed_threshold_save = 0; 
 
 pos_subset_decode = pos.loc[(pos.index.get_level_values('time') <= chunkend_decode) & (pos.index.get_level_values('time') >= chunkstart_decode)]
@@ -165,8 +167,8 @@ spk_subset_sparse_decode.groupby('elec_grp_id')
 
 #cell 6
 # linearize the whole epoch - should only have to do this once.
-linear_start = pos.index.get_level_values('time')[subset_start]
-linear_end = pos.index.get_level_values('time')[subset_end]
+linear_start = pos.index.get_level_values('time')[encode_subset_start]
+linear_end = pos.index.get_level_values('time')[encode_subset_end]
 # Define path base
 path_base_timewindow = str(int(round(linear_start))) + 'to' + str(int(round(linear_end))) + 'sec'
 path_base_foranalysisofonesessionepoch = path_base_analysis + rat_name + '/' + path_base_dayepoch + '/' + path_base_timewindow
@@ -277,7 +279,7 @@ if os.path.exists(linearization_output1_save_filename) == False:
         linear_distance_arm_shift[(newseg==seg)]+=shift_linear_distance_by_arm_dictionary[seg]  
     # Incorporate modifications 
 
-    pos_subset['linpos_flat']=linear_distance_arm_shift[(subset_start-subset_start):(subset_end-subset_start+1)]
+    pos_subset['linpos_flat']=linear_distance_arm_shift[(encode_subset_start-encode_subset_start):(encode_subset_end-encode_subset_start+1)]
 
     # Store some linearization results in python format for quick loading (pos_subset) 
     np.save(linearization_output1_save_filename, linear_distance_arm_shift)
@@ -318,9 +320,8 @@ if os.path.exists(linearization_output1_save_filename) == False:
 else:
     print('Linearization result exists. Loading it.')
     linear_distance_arm_shift = np.load(linearization_output1_save_filename)
-    #test = np.load(linearization_output3_save_filename)
     track_segment_id_use = np.load(linearization_output2_save_filename)
-    pos_subset['linpos_flat'] = linear_distance_arm_shift[(subset_start-subset_start):(subset_end-subset_start+1)]
+    pos_subset['linpos_flat'] = linear_distance_arm_shift[(encode_subset_start-encode_subset_start):(encode_subset_end-encode_subset_start+1)]
 
 #cell 7
 # Define position bins #!!! HARD CODE: ASSUMES POSITION BIN OF WIDTH 1 !!!
@@ -331,9 +332,9 @@ tracksegment_positionvalues_min_and_max = []
 tracksegment_positionvalues_for_bin_edges = [] 
 
 # Find min and max position for each track segment 
-tracksegments_temp = np.unique(track_segment_id_use[subset_start:(subset_end+1)])
+tracksegments_temp = np.unique(track_segment_id_use[encode_subset_start:(encode_subset_end+1)])
 for t_loop in tracksegments_temp: # for each track segment
-    indiceswewant_temp = track_segment_id_use[subset_start:(subset_end+1)] == t_loop
+    indiceswewant_temp = track_segment_id_use[encode_subset_start:(encode_subset_end+1)] == t_loop
     tracksegment_positionvalues_temp = pos_subset.values[indiceswewant_temp,0] # second dimension of pos_subset: zero for position, 1 for velocity
     tracksegment_positionvalues_min_and_max.append([tracksegment_positionvalues_temp.min(), tracksegment_positionvalues_temp.max()])
     # To define edges, floor mins and ceil maxes
@@ -368,18 +369,18 @@ print(arm_coordinates_WEWANT)
 # this cell speeds up encoding with larger position bins
 # try 5cm bins - do this by dividing position subset by 5 and arm coords by 5
 
-#pos_subset['linpos_flat'] = (pos_subset['linpos_flat'])/5
+pos_subset['linpos_flat'] = (pos_subset['linpos_flat'])/5
 
-#arm_coordinates_WEWANT = arm_coordinates_WEWANT/5
-#arm_coordinates_WEWANT = np.around(arm_coordinates_WEWANT)
-#print(arm_coordinates_WEWANT)
+arm_coordinates_WEWANT = arm_coordinates_WEWANT/5
+arm_coordinates_WEWANT = np.around(arm_coordinates_WEWANT)
+print(arm_coordinates_WEWANT)
 
 #cell 8
-# DEFINE encoding settings #? Ideally would only define once
-max_pos = int(round(linear_distance_arm_shift.max()) + 20)
+#define encoding settings
+#max_pos = int(round(linear_distance_arm_shift.max()) + 20)
 
 # if you are using 5cm position bins, use this max_pos instead
-#max_pos = int(round(linear_distance_arm_shift.max()/5)+5)
+max_pos = int(round(linear_distance_arm_shift.max()/5)+5)
 
 encode_settings = AttrDict({'sampling_rate': 3e4,
                             'pos_bins': np.arange(0,max_pos,1), # arm_coords_wewant
@@ -396,7 +397,7 @@ encode_settings = AttrDict({'sampling_rate': 3e4,
 #cell 9
 #define decode settings
 decode_settings = AttrDict({'trans_smooth_std': 2,
-                            'trans_uniform_gain': 0.001,
+                            'trans_uniform_gain': 0.0001,
                             'time_bin_size':60})
 
 #cell 10
@@ -437,6 +438,10 @@ observ_obj = SpikeObservation.create_default(observ.sort_index(level=['day', 'ep
 observ_obj['elec_grp_id'] = observ_obj.index.get_level_values('elec_grp_id')
 observ_obj.index = observ_obj.index.droplevel('elec_grp_id')
 
+# add a small offset to observations table to prevent division by 0 when calculating likelihoods
+# this is currently hard-coded for 5cm position bins -> 147 total bins
+observ_obj.loc[:,'x000':'x146'] = observ_obj.loc[:,'x000':'x146'].values + np.spacing(1)
+
 #cell 13
 # save observations
 #observ_obj._to_hdf_store('/data2/mcoulter/remy_20_4_observ_obj_0_2000.h5','/analysis', 
@@ -456,7 +461,7 @@ observ_obj.index = observ_obj.index.droplevel('elec_grp_id')
 # what should these be set to? and why are they here now?
 time_bin_size = 60
 decode_settings = AttrDict({'trans_smooth_std': 2,
-                            'trans_uniform_gain': 0.001,
+                            'trans_uniform_gain': 0.0001,
                             'time_bin_size':60})
 
 encode_settings = AttrDict({'sampling_rate': 3e4,
@@ -474,7 +479,7 @@ encode_settings = AttrDict({'sampling_rate': 3e4,
                             'vel': 0})
 
 print('Starting decoder')
-decoder = OfflinePPDecoder(observ_obj=observ_obj, trans_mat=encoder.trans_mat['flat'], 
+decoder = OfflinePPDecoder(observ_obj=observ_obj, trans_mat=encoder.trans_mat['flat_powered'], 
                            prob_no_spike=encoder.prob_no_spike,
                            encode_settings=encode_settings, decode_settings=decode_settings, 
                            time_bin_size=time_bin_size)

@@ -58,11 +58,13 @@ class OfflinePPEncoder(object):
         self.calc_firing_rate()
         self.calc_prob_no_spike()
 
-        self.trans_mat = dict.fromkeys(['learned', 'simple', 'uniform', 'flat'])
+        self.trans_mat = dict.fromkeys(['learned', 'simple', 'uniform', 'flat', 'flat_powered', 'flat_gaussian'])
         self.trans_mat['learned'] = self.calc_learned_state_trans_mat(self.linflat,self.encode_settings, self.decode_settings)
         self.trans_mat['simple'] = self.calc_simple_trans_mat(self.encode_settings)
         self.trans_mat['uniform'] =self.calc_uniform_trans_mat(self.encode_settings)
         self.trans_mat['flat'] =self.calc_flat_transition_matrix(self.encode_settings)
+        self.trans_mat['flat_powered'] =self.calc_flat_powered_trans_mat(self.encode_settings, self.decode_settings)
+        self.trans_mat['flat_gaussian'] =self.calc_flat_gaussian_trans_mat(self.encode_settings, self.decode_settings)
 
     def run_encoder(self):
         logging.info("Setting up encoder dask task.")
@@ -166,6 +168,7 @@ class OfflinePPEncoder(object):
         #return occupancy
 
         # new method to calculate occpancy using kernel density estimate
+        # MEC 2-15-19
         import seaborn as sns
         from scipy import stats
         from scipy.integrate import trapz
@@ -367,6 +370,112 @@ class OfflinePPEncoder(object):
 
         return transition_mat
     
+    @staticmethod
+    def calc_flat_powered_trans_mat(enc_settings, dec_settings):
+        """
+        Calculate a transition matrix where all transition are equally likely.
+        Raise this matrix to a power (multiply it by itself) for smoothing.
+        Currently this is for 5cm position bins and no power smoothing is necessary (power = 1).
+        MEC 2-15-19
+
+        """
+
+        from scipy.sparse import diags
+        n = len(enc_settings.pos_bins)
+        transition_mat = np.zeros([n,n])
+        k = np.array([(1/3)*np.ones(n-1),(1/3)*np.ones(n),(1/3)*np.ones(n-1)])
+        offset = [-1,0,1]
+        transition_mat = diags(k,offset).toarray()
+        for x in enc_settings.arm_coordinates[:,0]:
+            transition_mat[int(x),int(x)] = (5/9)
+            transition_mat[9,int(x)] = (1/9)
+            transition_mat[int(x),9] = (1/9)
+        for y in enc_settings.arm_coordinates[:,1]:
+            transition_mat[int(y),int(y)] = (2/3)
+        transition_mat[9,0] = 0
+        transition_mat[0,9] = 0
+        transition_mat[9,9] = 0
+        transition_mat[0,0] = (2/3)
+        transition_mat[8,8] = (5/9)
+        transition_mat[8,9] = (1/9)
+        transition_mat[9,8] = (1/9)
+
+        # uniform offset (gain, currently 0.0001)
+        # needs to be set before running the encoder cell
+        uniform_gain = dec_settings.trans_uniform_gain
+        uniform_dist = np.ones(transition_mat.shape)*uniform_gain
+
+        # apply uniform offset
+        transition_mat = transition_mat + uniform_dist
+
+        # apply no animal boundary - make gaps between arms
+        transition_mat = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, transition_mat)
+
+        # to smooth: take the transition matrix to a power
+        transition_mat = np.linalg.matrix_power(transition_mat,1)
+
+        # apply no animal boundary - make gaps between arms
+        transition_mat = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, transition_mat)
+
+        # normalize transition matrix
+        transition_mat = transition_mat/(transition_mat.sum(axis=0)[None, :])
+        transition_mat[np.isnan(transition_mat)] = 0
+
+        return transition_mat
+
+    @staticmethod
+    def calc_flat_gaussian_trans_mat(enc_settings, dec_settings):
+        """
+        Calculate a transition matrix where all transition are equally likely.
+        Use a gaussian with stdev = 1 for smoothing.
+        Currently this is for 5cm position bins.
+        MEC 2-15-19
+
+        """
+
+        from scipy.sparse import diags
+        n = len(enc_settings.pos_bins)
+        transition_mat = np.zeros([n,n])
+        k = np.array([(1/3)*np.ones(n-1),(1/3)*np.ones(n),(1/3)*np.ones(n-1)])
+        offset = [-1,0,1]
+        transition_mat = diags(k,offset).toarray()
+        for x in enc_settings.arm_coordinates[:,0]:
+            transition_mat[int(x),int(x)] = (5/9)
+            transition_mat[9,int(x)] = (1/9)
+            transition_mat[int(x),9] = (1/9)
+        for y in enc_settings.arm_coordinates[:,1]:
+            transition_mat[int(y),int(y)] = (2/3)
+        transition_mat[9,0] = 0
+        transition_mat[0,9] = 0
+        transition_mat[9,9] = 0
+        transition_mat[0,0] = (2/3)
+        transition_mat[8,8] = (5/9)
+        transition_mat[8,9] = (1/9)
+        transition_mat[9,8] = (1/9)
+        
+        # uniform offset
+        # gain = 0.001
+        uniform_gain = dec_settings.trans_uniform_gain
+        #uniform_gain = 0.001
+        uniform_dist = np.ones(transition_mat.shape)*uniform_gain
+
+        # apply uniform offset
+        transition_mat = transition_mat + uniform_dist
+
+        # apply no animal boundary - make gaps between arms
+        transition_mat = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, transition_mat)
+
+        # gaussian smoother
+        transition_mat = scipy.ndimage.filters.gaussian_filter(transition_mat,1)
+
+        # apply no animal boundary - make gaps between arms
+        transition_mat = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, transition_mat)
+
+        # normalize transition matrix
+        transition_mat = transition_mat/(transition_mat.sum(axis=0)[None, :])
+        transition_mat[np.isnan(transition_mat)] = 0
+
+        return transition_mat            
 
 
 class OfflinePPDecoder(object):
@@ -533,8 +642,6 @@ class OfflinePPDecoder(object):
         pos_col_ind = spikes_in_parallel.columns.slice_locs(enc_settings.pos_col_names[0],
                                                             enc_settings.pos_col_names[-1])
 
-        #added this line to hardcode the number of columns for 10cm version because it was off by one using the line above
-        #pos_col_ind = (4,77)
         elec_grp_ind = spikes_in_parallel.columns.get_loc('elec_grp_id')
         num_missing_ind = spikes_in_parallel.columns.get_loc('num_missing_bins')
         dec_bin_start_ind = spikes_in_parallel.columns.get_loc('dec_bin_start')
@@ -566,7 +673,6 @@ class OfflinePPDecoder(object):
 
                 elec_set.add(elec_grp_id)
 
-                #obv_in_bin = obv_in_bin[0:72]
                 obv_in_bin = obv_in_bin * obv
                 obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
                 obv_in_bin = obv_in_bin / (np.sum(obv_in_bin) * enc_settings.pos_bin_delta)
@@ -586,6 +692,7 @@ class OfflinePPDecoder(object):
         
         likelihoods = pd.DataFrame(np.vstack(results),
                                    columns=enc_settings.pos_col_names+['timestamp', 'num_spikes', 'dec_bin'])
+        
 
         return likelihoods
 
