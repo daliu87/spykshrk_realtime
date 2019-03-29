@@ -66,12 +66,23 @@ class OfflinePPEncoder(object):
         self.trans_mat['flat_powered'] =self.calc_flat_powered_trans_mat(self.encode_settings, self.decode_settings)
         self.trans_mat['flat_gaussian'] =self.calc_flat_gaussian_trans_mat(self.encode_settings, self.decode_settings)
 
+#    def run_encoder(self):
+#        logging.info("Setting up encoder dask task.")
+#        task = self.setup_encoder_dask()
+#        logging.info("Running compute tasks on dask workers.")
+#        self.results = dask.compute(*task)
+#        return self.results
+
+    #have encoder return results, prob_no_spike, and trans_mat
+    #this is so that we can encode each tetrode separately at LLNL cluster and then run decoder later
+    #MEC 3-11-19
+
     def run_encoder(self):
         logging.info("Setting up encoder dask task.")
         task = self.setup_encoder_dask()
         logging.info("Running compute tasks on dask workers.")
         self.results = dask.compute(*task)
-        return self.results
+        return {'results': self.results, 'prob_no_spike': self.prob_no_spike, 'trans_mat': self.trans_mat['flat_powered']}
 
     def setup_encoder_dask(self):
         # grp = self.spk_amp.groupby('elec_grp_id')
@@ -95,6 +106,7 @@ class OfflinePPEncoder(object):
                                                 for ii in range(self.encode_settings.pos_num_bins)])
 
             # setup decode of decode spikes from encoding of encoding spikes
+            #print(dec_tet_id)
             task.append(dask_dec_spk_tet.map_partitions(functools.partial(self.compute_observ_tet, enc_spk=enc_spk_tet,
                                                                           tet_lin_pos=enc_tet_lin_pos,
                                                                           occupancy=self.occupancy,
@@ -112,19 +124,23 @@ class OfflinePPEncoder(object):
         mark_contrib = normal_pdf_int_lookup(np.expand_dims(dec_spk[mark_columns], 1),
                                              np.expand_dims(enc_spk, 0),
                                              encode_settings.mark_kernel_std)
-        #create notch filter to zero-out the encoding spike
+        # create notch filter to zero-out the encoding spike
+        # comment out notch filter because we are encoding and decoding different subsets now
         #for mark std = 5
         #mark_contrib[mark_contrib > 0.0798] = 0
         #for mark std = 20
-        mark_contrib[mark_contrib > 0.01994711] = 0
+        #mark_contrib[mark_contrib > 0.01994711] = 0
 
         all_contrib = np.prod(mark_contrib, axis=2)
         #print(mark_contrib.shape)
+        #print(pos_distrib_tet.shape)
         #print(mark_contrib)
+        #stop
 
         del mark_contrib
         #print(all_contrib.shape)
         #print(pos_distrib_tet.shape)
+
         observ = np.matmul(all_contrib, pos_distrib_tet)
         del all_contrib
         # occupancy normalize
@@ -158,8 +174,8 @@ class OfflinePPEncoder(object):
         Returns (np.array): The occupancy of the animal
         """
         # this method to calculate occupancy uses convolution and doesnt do a good job, so were switching to KDE below
-        # occupancy, occ_bin_edges = np.histogram(lin_obj, bins=enc_settings.pos_bin_edges,
-        #                                        normed=True)
+        #occupancy, occ_bin_edges = np.histogram(lin_obj['linpos_flat'], bins=enc_settings.pos_bin_edges,
+        #                                       normed=True)
         #occupancy, occ_bin_edges = np.histogram(lin_obj.loc[(lin_obj["linvel_flat"]>2)], bins=enc_settings.pos_bin_edges,
         #                                        normed=True)
         #occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
@@ -173,12 +189,17 @@ class OfflinePPEncoder(object):
         from scipy import stats
         from scipy.integrate import trapz
 
+        #moved velocity filter out into jupyter notebook
         pos_vel_2 = lin_obj.loc[(lin_obj["linvel_flat"]>2)]
+        print(pos_vel_2.shape)
+        print(lin_obj.shape)
+        column_names_test = lin_obj.columns.values
+        print(column_names_test)
         #pos_vel_0 = lin_obj
         bandwidth = enc_settings.pos_kernel_std
         support = enc_settings.pos_bin_edges[0:-1]
         kernels = []
-        for x_i in pos_vel_2['linpos_flat']:
+        for x_i in lin_obj['linpos_flat']:
             kernel = stats.norm(x_i, bandwidth).pdf(support)
             kernels.append(kernel)
 

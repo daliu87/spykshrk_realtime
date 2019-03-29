@@ -1,5 +1,10 @@
 """
 Parse trodes data into SS data containers
+# Written by AKG
+# Edited 3-8-19 by MEC to accomodate tetrodes and tritrodes (line 94)
+# Edited 3-22-19 by MEC to make a filter for marks with large negative channels because
+#                       this crashes the decoder by going outside the bounds of the
+#                       normal_pdf_int_lookup function
 
 """
 
@@ -38,6 +43,13 @@ class AttrDict(dict):
 	def __init__(self, *args, **kwargs):
 		super(AttrDict, self).__init__(*args, **kwargs)
 		self.__dict__ = self
+
+def threshold_marks_negative(marks, negthresh=-999):
+		pre_length = marks.shape
+		marks = get_all_above_threshold(marks, negthresh)
+		print(str(pre_length[0]-marks.shape[0])+' below '+str(negthresh)+'uV events removed')
+
+		return marks
 
 def threshold_marks(marks, maxthresh=2000, minthresh=0):
 		pre_length = marks.shape
@@ -89,7 +101,10 @@ class TrodesImport:
 					marks = markmat['marks'][day-1][ep-1][tet-1].marks
 					marks = marks.astype(np.int16,copy=False)
 					tet_marks = SpikeFeatures.from_numpy_single_epoch_elec(day ,ep, tet, marktimes,marks,sampling_rate=self.Fs)
-					tet_marks.columns=['c00','c01','c02','c03']
+					if len(tet_marks.columns) == 4:
+						tet_marks.columns=['c00','c01','c02','c03']
+					if len(tet_marks.columns) == 3:
+						tet_marks.columns=['c00','c01','c02']
 					de_amps = de_amps.append(tet_marks)
 
 				de_amps.sort_index(level='timestamp', inplace=True)

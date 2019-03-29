@@ -59,10 +59,10 @@ path_base_rawdata = '/data2/mcoulter/raw_data/'
 
 # Define parameters
 # for epochs we want 2 and 4 for each day
-rat_name = 'fievel'
+rat_name = 'remy'
 directory_temp = path_base_rawdata + rat_name + '/'
 day_dictionary = {'remy':[20], 'gus':[28], 'bernard':[23], 'fievel':[19]}
-epoch_dictionary = {'remy':[4], 'gus':[2], 'bernard':[4], 'fievel':[2]} 
+epoch_dictionary = {'remy':[2], 'gus':[2], 'bernard':[4], 'fievel':[2]} 
 tetrodes_dictionary = {'remy': [4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
                        'gus': [6,7,8,9,10,11,12,17,18,19,20,21,24,25,26,27,30], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
                        'bernard': [1,2,3,4,5,7,8,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29],
@@ -123,91 +123,105 @@ rips_vel_filtered = RippleTimes.create_default(rips_vel_filt, 1)
 print('rips when animal velocity <= 4: '+str(linflat_ripindex_encode_velthresh.shape[0]))
 print('rips when animal velocity <= 4: '+str(linflat_ripindex_encode_velthresh.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
+# velocity filter for whole session
+# use this for 80/20 cross validation runs
+linflat_obj = pos.get_mapped_single_axis()
+linflat_spkindex = linflat_obj.get_irregular_resampled(marks)
+linflat_spkindex_all_velthresh = linflat_spkindex.query('linvel_flat > 2')
+
+spk_sparse_all = marks.loc[linflat_spkindex_all_velthresh.index]
+
+print('all spikes after velocity filter: '+str(spk_sparse_all.shape[0]))
+print('all spikes after velocity filter: '+str(spk_sparse_all.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
 #cell 4
+# dont run encoding or decdoing subset cells for the crossvalidation runs
+# the marks filtering happens right before running encoder
+
 # Encoding input data, position and spikes
 # **** time is 30x sec
-encode_subset_start = 0
-encode_subset_end = 5000
-chunkstart = pos.index.get_level_values('time')[encode_subset_start]
-chunkend = pos.index.get_level_values('time')[encode_subset_end]
-speed_threshold_save = 0; 
+# encode_subset_start = 0
+# encode_subset_end = 5000
+# chunkstart = pos.index.get_level_values('time')[encode_subset_start]
+# chunkend = pos.index.get_level_values('time')[encode_subset_end]
+# speed_threshold_save = 0; 
 
-pos_subset = pos.loc[(pos.index.get_level_values('time') <= chunkend) & (pos.index.get_level_values('time') >= chunkstart)]
-posY_subset = posY.loc[(posY.index.get_level_values('time') <= chunkend) & (posY.index.get_level_values('time') >= chunkstart)] 
-pos_start= pos_subset.index.get_level_values('time')[0]
-pos_end = pos_subset.index.get_level_values('time')[-1]
+# pos_subset = pos.loc[(pos.index.get_level_values('time') <= chunkend) & (pos.index.get_level_values('time') >= chunkstart)]
+# posY_subset = posY.loc[(posY.index.get_level_values('time') <= chunkend) & (posY.index.get_level_values('time') >= chunkstart)] 
+# pos_start= pos_subset.index.get_level_values('time')[0]
+# pos_end = pos_subset.index.get_level_values('time')[-1]
 #spk_subset = marks.loc[(marks.index.get_level_values('time') <  pos_end) & (marks.index.get_level_values('time') >  pos_start)]
 #rip_subset = rips.loc[(rips['starttime'].values >  pos_start) & (rips['endtime'].values <  pos_end)]
 #rip_subset = rips_vel_filtered.loc[(rips_vel_filtered['starttime'].values >  pos_start) & (rips_vel_filtered['endtime'].values <  pos_end)]
 
 #whole epoch
-spk_subset = marks
-rip_subset = rips_vel_filtered
+# spk_subset = marks
+# rip_subset = rips_vel_filtered
 
-spk_subset_sparse = trodes2SS.threshold_marks(spk_subset, maxthresh=2000,minthresh=100)
-print('original length: '+str(spk_subset.shape[0]))
-print('after filtering: '+str(spk_subset_sparse.shape[0]))
-print('original length: '+str(spk_subset.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
-print('after filtering: '+str(spk_subset_sparse.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+# spk_subset_sparse = trodes2SS.threshold_marks(spk_subset, maxthresh=2000,minthresh=100)
+# print('original length: '+str(spk_subset.shape[0]))
+# print('after filtering: '+str(spk_subset_sparse.shape[0]))
+# print('original length: '+str(spk_subset.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+# print('after filtering: '+str(spk_subset_sparse.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
-spk_subset_sparse.groupby('elec_grp_id')
+# spk_subset_sparse.groupby('elec_grp_id')
 
 # Filter encoding marks for times when rat velocity > 2 cm/s
 # The purpose of this is to remove most of the stationary time from the encoding, to focus on times of movement
 
 #linflat_obj = pos_subset.get_mapped_single_axis()
 #whole epoch
-linflat_obj = pos.get_mapped_single_axis()
-linflat_spkindex = linflat_obj.get_irregular_resampled(spk_subset_sparse)
-linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > 2')
+# linflat_obj = pos.get_mapped_single_axis()
+# linflat_spkindex = linflat_obj.get_irregular_resampled(spk_subset_sparse)
+# linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > 2')
 
-spk_subset_sparse_encode = spk_subset_sparse.loc[linflat_spkindex_encode_velthresh.index]
+# spk_subset_sparse_encode = spk_subset_sparse.loc[linflat_spkindex_encode_velthresh.index]
 
-print('encoding spikes after filtering: '+str(spk_subset_sparse_encode.shape[0]))
-print('encoding spikes after filtering: '+str(spk_subset_sparse_encode.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+# print('encoding spikes after filtering: '+str(spk_subset_sparse_encode.shape[0]))
+# print('encoding spikes after filtering: '+str(spk_subset_sparse_encode.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
 #cell 5
 # Decoding input data, position and spikes
 # **** time is 30x sec
-decode_subset_start = 0
-decode_subset_end = 5000
-chunkstart_decode = pos.index.get_level_values('time')[decode_subset_start]
-chunkend_decode = pos.index.get_level_values('time')[decode_subset_end]
-speed_threshold_save = 0; 
+# decode_subset_start = 0
+# decode_subset_end = 5000
+# chunkstart_decode = pos.index.get_level_values('time')[decode_subset_start]
+# chunkend_decode = pos.index.get_level_values('time')[decode_subset_end]
+# speed_threshold_save = 0; 
 
-pos_subset_decode = pos.loc[(pos.index.get_level_values('time') <= chunkend_decode) & (pos.index.get_level_values('time') >= chunkstart_decode)]
-posY_subset_decode = posY.loc[(posY.index.get_level_values('time') <= chunkend_decode) & (posY.index.get_level_values('time') >= chunkstart_decode)] 
-pos_start_decode = pos_subset_decode.index.get_level_values('time')[0]
-pos_end_decode = pos_subset_decode.index.get_level_values('time')[-1]
+# pos_subset_decode = pos.loc[(pos.index.get_level_values('time') <= chunkend_decode) & (pos.index.get_level_values('time') >= chunkstart_decode)]
+# posY_subset_decode = posY.loc[(posY.index.get_level_values('time') <= chunkend_decode) & (posY.index.get_level_values('time') >= chunkstart_decode)] 
+# pos_start_decode = pos_subset_decode.index.get_level_values('time')[0]
+# pos_end_decode = pos_subset_decode.index.get_level_values('time')[-1]
 #spk_subset_decode = marks.loc[(marks.index.get_level_values('time') <  pos_end_decode) & (marks.index.get_level_values('time') >  pos_start_decode)]
 #rip_subset_decode = rips.loc[(rips['starttime'].values >  pos_start) & (rips['endtime'].values <  pos_end)]
 #rip_subset_decode = rips_vel_filtered.loc[(rips_vel_filtered['starttime'].values > pos_start_decode) & (rips_vel_filtered['endtime'].values <  pos_end_decode)]
 
 #whole epoch
-spk_subset_decode = marks
-rip_subset_decode = rips_vel_filtered
+# spk_subset_decode = marks
+# rip_subset_decode = rips_vel_filtered
 
-spk_subset_sparse_decode = trodes2SS.threshold_marks(spk_subset_decode, maxthresh=2000,minthresh=100)
-print('original length: '+str(spk_subset_decode.shape[0]))
-print('after filtering: '+str(spk_subset_sparse_decode.shape[0]))
-print('original length: '+str(spk_subset_decode.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
-print('after filtering: '+str(spk_subset_sparse_decode.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+# spk_subset_sparse_decode = trodes2SS.threshold_marks(spk_subset_decode, maxthresh=2000,minthresh=100)
+# print('original length: '+str(spk_subset_decode.shape[0]))
+# print('after filtering: '+str(spk_subset_sparse_decode.shape[0]))
+# print('original length: '+str(spk_subset_decode.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+# print('after filtering: '+str(spk_subset_sparse_decode.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
-spk_subset_sparse_decode.groupby('elec_grp_id')
+# spk_subset_sparse_decode.groupby('elec_grp_id')
 
 # Filter decoding marks for times when rat velocity < 2 cm/s
 # The purpose of this is to decode all times of immobility
 
 #linflat_obj = pos_subset.get_mapped_single_axis()
 #whole epoch
-linflat_obj = pos.get_mapped_single_axis()
-linflat_spkindex = linflat_obj.get_irregular_resampled(spk_subset_sparse_decode)
-linflat_spkindex_decode_velthresh = linflat_spkindex.query('linvel_flat < 2')
+# linflat_obj = pos.get_mapped_single_axis()
+# linflat_spkindex = linflat_obj.get_irregular_resampled(spk_subset_sparse_decode)
+# linflat_spkindex_decode_velthresh = linflat_spkindex.query('linvel_flat < 2')
 
-spk_subset_sparse_decode_filt = spk_subset_sparse_decode.loc[linflat_spkindex_decode_velthresh.index]
+# spk_subset_sparse_decode_filt = spk_subset_sparse_decode.loc[linflat_spkindex_decode_velthresh.index]
 
-print('decoding spikes after filtering: '+str(spk_subset_sparse_decode_filt.shape[0]))
-print('decoding spikes after filtering: '+str(spk_subset_sparse_decode_filt.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+# print('decoding spikes after filtering: '+str(spk_subset_sparse_decode_filt.shape[0]))
+# print('decoding spikes after filtering: '+str(spk_subset_sparse_decode_filt.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
 #cell 6
 # linearize the whole epoch - should only have to do this once.
@@ -223,7 +237,7 @@ posY1 = posY
 
 # Define path base
 #path_base_timewindow = str(int(round(linear_start))) + 'to' + str(int(round(linear_end))) + 'sec'
-path_base_timewindow = 'whole_epoch'
+path_base_timewindow = 'whole_epoch_v2'
 path_base_foranalysisofonesessionepoch = path_base_analysis + rat_name + '/' + path_base_dayepoch + '/' + path_base_timewindow
 
 # Change to directory with saved linearization result
@@ -382,7 +396,8 @@ else:
     print("Linearization result exists. Loading it.", file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
     linear_distance_arm_shift = np.load(linearization_output1_save_filename)
     track_segment_id_use = np.load(linearization_output2_save_filename)
-    pos_subset['linpos_flat'] = linear_distance_arm_shift[(encode_subset_start-encode_subset_start):(encode_subset_end-encode_subset_start+1)]
+    #pos_subset['linpos_flat'] = linear_distance_arm_shift[(encode_subset_start-encode_subset_start):(encode_subset_end-encode_subset_start+1)]
+    
     #whole_epoch
     pos_all_linear['linpos_flat']=linear_distance_arm_shift
 
@@ -452,9 +467,6 @@ arm_coordinates_WEWANT = np.around(arm_coordinates_WEWANT)
 print('Arm coordinates: ',arm_coordinates_WEWANT)
 print('Arm coordinates: ',arm_coordinates_WEWANT, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
-#filter linearized position for velocity > 2 cm/s
-pos_all_linear_vel = pos_all_linear.loc[(pos_all_linear["linvel_flat"]>2)]
-
 #cell 8
 #define encoding settings
 #max_pos = int(round(linear_distance_arm_shift.max()) + 20)
@@ -469,7 +481,7 @@ encode_settings = AttrDict({'sampling_rate': 3e4,
                             # 'pos_kernel': sp.stats.norm.pdf(arm_coords_wewant, arm_coords_wewant[-1]/2, 1),
                             'pos_kernel': sp.stats.norm.pdf(np.arange(0,max_pos,1), max_pos/2, 1), #note that the pos_kernel mean should be half of the range of positions (ie 180/90) # sp.stats.norm.pdf(np.arange(0,560,1), 280, 1),    
                             'pos_kernel_std': 1, 
-                            'mark_kernel_std': int(20), 
+                            'mark_kernel_std': int(160), 
                             'pos_num_bins': max_pos, # len(arm_coords_wewant)
                             'pos_col_names': [pos_col_format(ii, max_pos) for ii in range(max_pos)], # or range(0,max_pos,10)
                             'arm_coordinates': arm_coordinates_WEWANT}) # includes box, removes bins in the gaps 'arm_coordinates': [[0,max_pos]]})
@@ -486,6 +498,44 @@ decode_settings = AttrDict({'trans_smooth_std': 2,
 print('Decode settings: ',decode_settings)
 print('Decode settings: ',decode_settings, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
+#cell 9.1
+# break up marks into 80/20 split for encoder and decoder
+# we want to use the same subset of position for encoding - because we are doing occupancy normalization
+# note it should be easiest to run velocity filter first on marks from whole epoch
+
+# 80% for encoding - marks
+encode_1_start = 0
+encode_1_end = 49064
+encode_2_start = 73598
+encode_2_end = 122662
+decode_start = 49065
+decode_end = 73597
+
+print('Enocding range: ',encode_1_start,'-',encode_1_end,' + ',encode_2_start,'-',encode_2_end)
+print('Enocding range: ',encode_1_start,'-',encode_1_end,' + ',encode_2_start,'-',encode_2_end, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+print('Decoding range: ',decode_start,'-',decode_end)
+print('Decoding range: ',decode_start,'-',decode_end, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+spk_subset1 = spk_sparse_all.loc[(spk_sparse_all.index.get_level_values('time') <  pos.index.get_level_values('time')[encode_1_end]) & (spk_sparse_all.index.get_level_values('time') >  pos.index.get_level_values('time')[encode_1_start])]
+spk_subset2 = spk_sparse_all.loc[(spk_sparse_all.index.get_level_values('time') <  pos.index.get_level_values('time')[encode_2_end]) & (spk_sparse_all.index.get_level_values('time') >  pos.index.get_level_values('time')[encode_2_start])]
+spk_subset_encode_crossval = spk_subset1.append(spk_subset2)
+print('Encoding marks: ',spk_subset_encode_crossval.shape)
+print('Encoding marks: ',spk_subset_encode_crossval.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+# 80% for encoding - linearized position
+pos_subset1 = pos_all_linear.loc[(pos.index.get_level_values('time') <= pos.index.get_level_values('time')[encode_1_end]) & (pos.index.get_level_values('time') >= pos.index.get_level_values('time')[encode_1_start])]
+pos_subset2 = pos_all_linear.loc[(pos.index.get_level_values('time') <= pos.index.get_level_values('time')[encode_2_end]) & (pos.index.get_level_values('time') >= pos.index.get_level_values('time')[encode_2_start])]
+pos_subset_crossval = pos_subset1.append(pos_subset2)
+pos_subset_crossval_vel = pos_subset_crossval.loc[(pos_subset_crossval["linvel_flat"]>2)]
+print('Encoding position: ',pos_subset_crossval_vel.shape)
+print('Encoding position: ',pos_subset_crossval_vel.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+# 20% for decoding - marks
+spk_subset_decode_crossval = spk_sparse_all.loc[(spk_sparse_all.index.get_level_values('time') <  pos.index.get_level_values('time')[decode_end]) & (spk_sparse_all.index.get_level_values('time') >  pos.index.get_level_values('time')[decode_start])]
+#spk_subset_decode_crossval = marks.loc[(marks.index.get_level_values('time') <  pos.index.get_level_values('time')[17000]) & (marks.index.get_level_values('time') >  pos.index.get_level_values('time')[12000])]
+print('Decoding marks: ',spk_subset_decode_crossval.shape)
+print('Decoding marks: ',spk_subset_decode_crossval.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
 #cell 10
 # Run encoder
 # these time-table lines are so that we can record the time it takes for encoder to run even if notebook disconnects
@@ -498,8 +548,8 @@ time_table.to_csv('/home/mcoulter/spykshrk_realtime/time_stamp1.csv')
 
 #for whole epoch: linflat=pos_all_linear_vel
 #for subset: linflat=pos_subset
-encoder = OfflinePPEncoder(linflat=pos_all_linear_vel, dec_spk_amp=spk_subset_sparse_decode_filt, encode_settings=encode_settings, 
-                           decode_settings=decode_settings, enc_spk_amp=spk_subset_sparse_encode, dask_worker_memory=1e9,
+encoder = OfflinePPEncoder(linflat=pos_subset_crossval_vel, dec_spk_amp=spk_subset_decode_crossval, encode_settings=encode_settings, 
+                           decode_settings=decode_settings, enc_spk_amp=spk_subset_encode_crossval, dask_worker_memory=1e9,
                            dask_chunksize = None)
 
 #new output format to call results, prob_no_spike, and trans_mat for doing single tetrode encoding
@@ -521,9 +571,9 @@ print('Encoder finished at: ',datetime.fromtimestamp(os.path.getmtime('/home/mco
 #cell 11
 #make observations table from results
 
-tet_ids = np.unique(spk_subset_sparse_decode_filt.index.get_level_values('elec_grp_id'))
+tet_ids = np.unique(spk_subset_decode_crossval.index.get_level_values('elec_grp_id'))
 observ_tet_list = []
-grp = spk_subset_sparse_decode_filt.groupby('elec_grp_id')
+grp = spk_subset_decode_crossval.groupby('elec_grp_id')
 for tet_ii, (tet_id, grp_spk) in enumerate(grp):
     tet_result = results[tet_ii]
     tet_result.set_index(grp_spk.index, inplace=True)
@@ -541,10 +591,6 @@ observ_obj.index = observ_obj.index.droplevel('elec_grp_id')
 # this is currently hard-coded for 5cm position bins -> 147 total bins
 observ_obj.loc[:,'x000':'x146'] = observ_obj.loc[:,'x000':'x146'].values + np.spacing(1)
 
-#cell 11.1
-#make prob_no_spike dictionary from individual tetrodes
-
-
 #cell 13
 # save observations
 #observ_obj._to_hdf_store('/data2/mcoulter/fievel_19_2_observations_whole_epoch.h5','/analysis', 
@@ -560,10 +606,10 @@ observ_obj.loc[:,'x000':'x146'] = observ_obj.loc[:,'x000':'x146'].values + np.sp
 #                         'decode/clusterless/offline/observ_obj', 'observ_obj')
 
 #load prob_no_spike - this is a dictionary
-probability_no_spike = np.load('/mnt/vortex/mcoulter/prob_no_spike.npy').item()
+#probability_no_spike = np.load('/mnt/vortex/mcoulter/prob_no_spike.npy').item()
 
 #load transition matrix - this is an array
-transition_matrix = np.load('/mnt/vortex/mcoulter/trans_mat.npy')
+#transition_matrix = np.load('/mnt/vortex/mcoulter/trans_mat.npy')
 
 #cell 15
 # Run PP decoding algorithm
@@ -581,7 +627,7 @@ encode_settings = AttrDict({'sampling_rate': 3e4,
                             # 'pos_kernel': sp.stats.norm.pdf(arm_coords_wewant, arm_coords_wewant[-1]/2, 1),
                             'pos_kernel': sp.stats.norm.pdf(np.arange(0,max_pos,1), max_pos/2, 1), #note that the pos_kernel mean should be half of the range of positions (ie 180/90) # sp.stats.norm.pdf(np.arange(0,560,1), 280, 1),    
                             'pos_kernel_std': 1, 
-                            'mark_kernel_std': int(20), 
+                            'mark_kernel_std': int(160), 
                             'pos_num_bins': max_pos, # len(arm_coords_wewant)
                             'pos_col_names': [pos_col_format(ii, max_pos) for ii in range(max_pos)], # [pos_col_format(int(ii), len(arm_coords_wewant)) for ii in arm_coords_wewant],
                             'arm_coordinates': arm_coordinates_WEWANT, # 'arm_coordinates': [[0,max_pos]]})
@@ -606,10 +652,10 @@ print('Decoder finished!', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
 #cell 16
 #save posteriors with hdf
-#posteriors._to_hdf_store('/data2/mcoulter/posteriors/fievel_19_2_whole_epoch.h5','/analysis', 
-#                         'decode/clusterless/offline/posterior', 'learned_trans_mat')
-#print('Saved posteriors to /vortex/mcoulter/posteriors/fievel_19_2_whole_epoch.h5')
-#print('Saved posteriors to /vortex/mcoulter/posteriors/fievel_19_2_whole_epoch.h5', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+posteriors._to_hdf_store('/data2/mcoulter/posteriors/remy_20_2_crossval_3-ker-160_posterior.h5','/analysis', 
+                         'decode/clusterless/offline/posterior', 'learned_trans_mat')
+print('Saved posteriors to /vortex/mcoulter/posteriors/remy_20_2_crossval_3-ker-160_posterior.h5')
+print('Saved posteriors to /vortex/mcoulter/posteriors/remy_20_2_crossval_3-ker-160_posterior.h5', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
 #cell 17
 #load previously generated posteriors from hdf
@@ -624,18 +670,18 @@ print('Decoder finished!', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 post1 = posteriors.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
 post2 = post1.reset_index()
 post3 = post2.to_xarray()
-post3.to_netcdf('/data2/mcoulter/posteriors/remy_20_2_1_10000_new.nc')
-print('Saved posteriors to /vortex/mcoulter/posteriors/fievel_19_2_whole_epoch.h5')
-print('Saved posteriors to /vortex/mcoulter/posteriors/fievel_19_2_whole_epoch.h5', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+post3.to_netcdf('/data2/mcoulter/posteriors/remy_20_2_crossval_3-ker-160_posterior.nc')
+print('Saved posteriors to /vortex/mcoulter/posteriors/remy_20_2_crossval_3-ker-160_posterior.nc')
+print('Saved posteriors to /vortex/mcoulter/posteriors/remy_20_2_crossval_3-ker-160_posterior.nc', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
 # to export linearized position to MatLab: again convert to xarray and then save as netcdf
 
-linearized_pos1 = pos_subset.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
+linearized_pos1 = pos_all_linear.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
 linearized_pos2 = linearized_pos1.reset_index()
 linearized_pos3 = linearized_pos2.to_xarray()
-linearized_pos3.to_netcdf('/data2/mcoulter/linearized_position/remy_20_2_1_10000_position.nc')
-print('Saved linearized position to /vortex/mcoulter/posteriors/fievel_19_2_whole_epoch.h5')
-print('Saved linearized position to /vortex/mcoulter/posteriors/fievel_19_2_whole_epoch.h5', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+linearized_pos3.to_netcdf('/data2/mcoulter/linearized_position/remy_20_2_crossval_3-ker-160_linear_pos.nc')
+print('Saved linearized position to /vortex/mcoulter/posteriors/remy_20_2_crossval_3-ker-160_linear_pos.nc')
+print('Saved linearized position to /vortex/mcoulter/posteriors/remy_20_2_crossval_3-ker-160_linear_pos.nc', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
 print("End of script!")
 print("End of script!", file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
