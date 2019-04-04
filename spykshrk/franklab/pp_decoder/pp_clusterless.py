@@ -154,8 +154,8 @@ class OfflinePPEncoder(object):
         # initialize conditional intensity function
         firing_rate = {}
         enc_tet_lin_pos = (lin_obj.get_irregular_resampled(observ))
-        enc_tet_lin_pos['elec_grp_id'] = observ.index.get_level_values(level='elec_grp_id')
-        tet_pos_groups = enc_tet_lin_pos.loc[:, ('elec_grp_id', 'linpos_flat')].groupby('elec_grp_id')
+        #enc_tet_lin_pos['elec_grp_id'] = observ.index.get_level_values(level='elec_grp_id')
+        tet_pos_groups = enc_tet_lin_pos.loc[:, 'linpos_flat'].groupby('elec_grp_id')
         for tet_id, tet_spikes in tet_pos_groups:
             tet_pos_hist, _ = np.histogram(tet_spikes, bins=enc_settings.pos_bin_edges)
             firing_rate[tet_id] = tet_pos_hist
