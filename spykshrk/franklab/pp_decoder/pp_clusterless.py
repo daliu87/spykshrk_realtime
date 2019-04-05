@@ -381,12 +381,9 @@ class OfflinePPDecoder(object):
         self.posteriors = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
         self.posteriors_obj = Posteriors.from_dataframe(self.posteriors, enc_settings=self.encode_settings,
                                                         dec_settings=self.decode_settings,
-                                                        user_key={'mark_kernel_std':
-                                                                  self.encode_settings.mark_kernel_std,
-                                                                  'pos_kernel_std':
-                                                                  self.encode_settings.pos_kernel_std,
-                                                                  'vel': self.encode_settings.vel,
-                                                                  'spk_amp': self.encode_settings.spk_amp})
+                                                        user_key={'encode_settings': self.encode_settings,
+                                                                  'decode_settings': self.decode_settings,
+                                                                  'multi_index_keys': self.posteriors.index.names})
 
 
 
