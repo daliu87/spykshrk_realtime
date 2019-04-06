@@ -61,10 +61,13 @@ path_base_rawdata = '/data2/mcoulter/raw_data/'
 # for epochs we want 2 and 4 for each day
 rat_name = 'gus'
 directory_temp = path_base_rawdata + rat_name + '/'
-day_dictionary = {'remy':[20], 'gus':[28], 'bernard':[23], 'fievel':[19]}
+day_dictionary = {'remy':[20], 'gus':[30], 'bernard':[23], 'fievel':[19]}
 epoch_dictionary = {'remy':[2], 'gus':[2], 'bernard':[2], 'fievel':[2]} 
+#note: for gus day 28 and 24, removed tetrode 20 because it only has 135 total spikes
+#note: for gus day 20: removed tetrode 26 because it became the reference for canula 2
+# list of tetrodes for gus day 28: [6,7,8,9,10,11,12,17,18,19,21,24,25,26,27,30]
 tetrodes_dictionary = {'remy': [4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
-                       'gus': [6,7,8,9,10,11,12,17,18,19,20,21,24,25,26,27,30], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
+                       'gus': [6,7,8,9,10,11,12,17,18,19,21,24,25,27,30], # day 24! list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
                        'bernard': [1,2,3,4,5,7,8,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29],
                        'fievel': [1,2,3,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,22,23,24,25,27,28,29]}
 
@@ -83,8 +86,8 @@ endtimes = endtimes.astype(np.float64,copy=False)
 
 # for loop for differnt mark kernel stdev
 #mark_kernel_stdev = [5,10,20,40,80]
-pos_kernel_stdev = [0.25, 0.5, 2., 4.]
-#pos_kernel_stdev = [1]
+#pos_kernel_stdev = [0.25, 0.5, 2., 4.]
+pos_kernel_stdev = [1]
 for outer_loop_counter in range(len(pos_kernel_stdev)):
     print('Position kernel stdev = ',pos_kernel_stdev[outer_loop_counter])
     print('Position kernel stdev = ',pos_kernel_stdev[outer_loop_counter],file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
@@ -439,7 +442,7 @@ for outer_loop_counter in range(len(pos_kernel_stdev)):
                                     'pos_bin_delta': 1, 
                                     'pos_kernel': sp.stats.norm.pdf(np.arange(0,max_pos,1), max_pos/2, 1),    
                                     'pos_kernel_std': pos_kernel_stdev[outer_loop_counter], 
-                                    'mark_kernel_std': 10, 
+                                    'mark_kernel_std': 20, 
                                     'pos_num_bins': max_pos,
                                     'pos_col_names': [pos_col_format(ii, max_pos) for ii in range(max_pos)],
                                     'arm_coordinates': arm_coordinates_WEWANT})
@@ -662,7 +665,7 @@ for outer_loop_counter in range(len(pos_kernel_stdev)):
                                     # 'pos_kernel': sp.stats.norm.pdf(arm_coords_wewant, arm_coords_wewant[-1]/2, 1),
                                     'pos_kernel': sp.stats.norm.pdf(np.arange(0,max_pos,1), max_pos/2, 1), #note that the pos_kernel mean should be half of the range of positions (ie 180/90) # sp.stats.norm.pdf(np.arange(0,560,1), 280, 1),    
                                     'pos_kernel_std': pos_kernel_stdev[outer_loop_counter], 
-                                    'mark_kernel_std': 10, 
+                                    'mark_kernel_std': 20, 
                                     'pos_num_bins': max_pos, # len(arm_coords_wewant)
                                     'pos_col_names': [pos_col_format(ii, max_pos) for ii in range(max_pos)], # [pos_col_format(int(ii), len(arm_coords_wewant)) for ii in arm_coords_wewant],
                                     'arm_coordinates': arm_coordinates_WEWANT, # 'arm_coordinates': [[0,max_pos]]})
@@ -712,7 +715,7 @@ for outer_loop_counter in range(len(pos_kernel_stdev)):
         # to export posteriors to MatLab
         # add ripple labels to posteriors and then convert posteriors to xarray then save as netcdf
         # this requires folding multiindex into posteriors dataframe first
-        post_netcdf_filename = '/data2/mcoulter/posteriors/gus_28_2_crossval_new_mark_10_' + str(crossval_counter) + '_pos_stdev_' + str(pos_kernel_stdev[outer_loop_counter]) + '_posterior.nc'
+        post_netcdf_filename = '/data2/mcoulter/posteriors/gus_30_2_crossval_mark_20_' + str(crossval_counter) + '_pos_stdev_' + str(pos_kernel_stdev[outer_loop_counter]) + '_posterior.nc'
         post1 = posteriors_filtered.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
         post2 = post1.reset_index()
         post3 = post2.to_xarray()
@@ -721,7 +724,7 @@ for outer_loop_counter in range(len(pos_kernel_stdev)):
         print('Saved posteriors to ',post_netcdf_filename, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
         # to export linearized position to MatLab: again convert to xarray and then save as netcdf
-        position_netcdf_filename = '/data2/mcoulter/linearized_position/gus_28_2_crossval_new_mark_10_' + str(crossval_counter) + '_pos_stdev_' + str(pos_kernel_stdev[outer_loop_counter]) + '_linear_position.nc'
+        position_netcdf_filename = '/data2/mcoulter/linearized_position/gus_30_2_crossval_mark_20_' + str(crossval_counter) + '_pos_stdev_' + str(pos_kernel_stdev[outer_loop_counter]) + '_linear_position.nc'
         linearized_pos1 = pos_all_linear.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
         linearized_pos2 = linearized_pos1.reset_index()
         linearized_pos3 = linearized_pos2.to_xarray()

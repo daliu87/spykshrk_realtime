@@ -176,8 +176,6 @@ class OfflinePPEncoder(object):
         # this method to calculate occupancy uses convolution and doesnt do a good job, so were switching to KDE below
         #occupancy, occ_bin_edges = np.histogram(lin_obj['linpos_flat'], bins=enc_settings.pos_bin_edges,
         #                                       normed=True)
-        #occupancy, occ_bin_edges = np.histogram(lin_obj.loc[(lin_obj["linvel_flat"]>2)], bins=enc_settings.pos_bin_edges,
-        #                                        normed=True)
         #occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
         #occupancy += 1e-10
         #print(occupancy.shape)         

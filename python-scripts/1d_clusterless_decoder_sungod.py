@@ -9,7 +9,7 @@ import os
 import glob
 from datetime import datetime
 import trodes2SS
-from trodes2SS import AttrDict, TrodesImport
+from trodes2SS import AttrDict, TrodesImport, convert_dan_posterior_to_xarray
 import sungod_linearization
 from sungod_linearization import createTrackGraph, hack_determinearmorder, turn_array_into_ranges, \
 chunk_data, change_to_directory_make_if_nonexistent
@@ -59,10 +59,10 @@ path_base_rawdata = '/data2/mcoulter/raw_data/'
 
 # Define parameters
 # for epochs we want 2 and 4 for each day
-rat_name = 'fievel'
+rat_name = 'remy'
 directory_temp = path_base_rawdata + rat_name + '/'
 day_dictionary = {'remy':[20], 'gus':[28], 'bernard':[23], 'fievel':[19]}
-epoch_dictionary = {'remy':[4], 'gus':[2], 'bernard':[4], 'fievel':[2]} 
+epoch_dictionary = {'remy':[2], 'gus':[2], 'bernard':[4], 'fievel':[2]} 
 tetrodes_dictionary = {'remy': [4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
                        'gus': [6,7,8,9,10,11,12,17,18,19,20,21,24,25,26,27,30], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
                        'bernard': [1,2,3,4,5,7,8,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29],
@@ -223,7 +223,7 @@ posY1 = posY
 
 # Define path base
 #path_base_timewindow = str(int(round(linear_start))) + 'to' + str(int(round(linear_end))) + 'sec'
-path_base_timewindow = 'whole_epoch'
+path_base_timewindow = 'whole_epoch_v2'
 path_base_foranalysisofonesessionepoch = path_base_analysis + rat_name + '/' + path_base_dayepoch + '/' + path_base_timewindow
 
 # Change to directory with saved linearization result
@@ -382,7 +382,7 @@ else:
     print("Linearization result exists. Loading it.", file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
     linear_distance_arm_shift = np.load(linearization_output1_save_filename)
     track_segment_id_use = np.load(linearization_output2_save_filename)
-    pos_subset['linpos_flat'] = linear_distance_arm_shift[(encode_subset_start-encode_subset_start):(encode_subset_end-encode_subset_start+1)]
+    #pos_subset['linpos_flat'] = linear_distance_arm_shift[(encode_subset_start-encode_subset_start):(encode_subset_end-encode_subset_start+1)]
     #whole_epoch
     pos_all_linear['linpos_flat']=linear_distance_arm_shift
 
@@ -520,6 +520,7 @@ print('Encoder finished at: ',datetime.fromtimestamp(os.path.getmtime('/home/mco
 
 #cell 11
 #make observations table from results
+# if the master script has the list of all tetrodes then this cell should be able to combine the results table from each tetrode
 
 tet_ids = np.unique(spk_subset_sparse_decode_filt.index.get_level_values('elec_grp_id'))
 observ_tet_list = []
@@ -543,7 +544,14 @@ observ_obj.loc[:,'x000':'x146'] = observ_obj.loc[:,'x000':'x146'].values + np.sp
 
 #cell 11.1
 #make prob_no_spike dictionary from individual tetrodes
+# if the master script has the list of all tetrodes then this cell should be able to combine the results table from each tetrode
 
+#this will take in prob_no_spike from several differnt encoder runs, each for a single tetrode, the dictionaries should be named
+# 'prob_no_spike_[tet number]'
+tet_ids = [prob_no_spike_26,prob_no_spike_28,prob_no_spike_29,prob_no_spike_30]
+prob_no_spike_all = tet_ids[0]
+for tet_id in tet_ids[1:]:
+    prob_no_spike_all.update(tet_id)
 
 #cell 13
 # save observations
@@ -560,10 +568,10 @@ observ_obj.loc[:,'x000':'x146'] = observ_obj.loc[:,'x000':'x146'].values + np.sp
 #                         'decode/clusterless/offline/observ_obj', 'observ_obj')
 
 #load prob_no_spike - this is a dictionary
-probability_no_spike = np.load('/mnt/vortex/mcoulter/prob_no_spike.npy').item()
+#probability_no_spike = np.load('/mnt/vortex/mcoulter/prob_no_spike.npy').item()
 
 #load transition matrix - this is an array
-transition_matrix = np.load('/mnt/vortex/mcoulter/trans_mat.npy')
+#transition_matrix = np.load('/mnt/vortex/mcoulter/trans_mat.npy')
 
 #cell 15
 # Run PP decoding algorithm
@@ -623,19 +631,20 @@ print('Decoder finished!', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
 post1 = posteriors.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
 post2 = post1.reset_index()
-post3 = post2.to_xarray()
-post3.to_netcdf('/data2/mcoulter/posteriors/remy_20_2_1_10000_new.nc')
-print('Saved posteriors to /vortex/mcoulter/posteriors/fievel_19_2_whole_epoch.h5')
-print('Saved posteriors to /vortex/mcoulter/posteriors/fievel_19_2_whole_epoch.h5', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+#post3 = post2.to_xarray()
+post3 = convert_dan_posterior_to_xarray(post2)
+post3.to_netcdf('/data2/mcoulter/posteriors/remy_20_2_whole_testing_new_4_2_19.nc')
+print('Saved posteriors to /vortex/mcoulter/posteriors/remy_20_2_whole_testing_4_2_19.nc')
+print('Saved posteriors to /vortex/mcoulter/posteriors/remy_20_2_whole_testing_4_2_19.nc', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
 # to export linearized position to MatLab: again convert to xarray and then save as netcdf
 
-linearized_pos1 = pos_subset.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
+linearized_pos1 = pos_all_linear.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
 linearized_pos2 = linearized_pos1.reset_index()
 linearized_pos3 = linearized_pos2.to_xarray()
-linearized_pos3.to_netcdf('/data2/mcoulter/linearized_position/remy_20_2_1_10000_position.nc')
-print('Saved linearized position to /vortex/mcoulter/posteriors/fievel_19_2_whole_epoch.h5')
-print('Saved linearized position to /vortex/mcoulter/posteriors/fievel_19_2_whole_epoch.h5', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+linearized_pos3.to_netcdf('/data2/mcoulter/linearized_position/remy_20_2_whole_testing_4_2_19.nc')
+print('Saved linearized position to /vortex/mcoulter/linearized_position/remy_20_2_whole_testing_4_2_19.nc')
+print('Saved linearized position to /vortex/mcoulter/linearized_position/remy_20_2_whole_testing_4_2_19.nc', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
 print("End of script!")
 print("End of script!", file=open("/data2/mcoulter/1d_decoder_log.txt","a"))

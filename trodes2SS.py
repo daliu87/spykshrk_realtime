@@ -16,6 +16,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import holoviews as hv
+import xarray as xr
 
 import json
 import functools
@@ -169,3 +170,37 @@ class TrodesImport:
 
 		allrips = allrips.append(rippd)
 		return allrips
+
+def convert_dan_posterior_to_xarray(posterior_df, position_bin_centers=None):
+    '''Converts pandas dataframe from Dan's 1D decoder to xarray Dataset
+    
+    Parameters
+    ----------
+    posterior_df : pandas.DataFrame, shape (n_time, n_columns)
+    position_bin_centers : None or ndarray, shape (n_position_bins,), optional
+    
+    Returns
+    -------
+    results : xarray.Dataset
+    
+    '''
+    is_position_bin = posterior_df.columns.str.startswith('x')
+    
+    if position_bin_centers is None:
+        n_position_bins = is_position_bin.sum()
+        position_bin_centers = np.arange(n_position_bins)
+        
+    coords = dict(
+        day=posterior_df.loc[:, 'day'].values,
+        epoch=posterior_df.loc[:, 'epoch'].values,
+        timestamp=posterior_df.loc[:, 'timestamp'].values,
+        time=posterior_df.loc[:, 'time'].values,
+        position=position_bin_centers,
+        num_spikes=posterior_df.loc[:, 'num_spikes'].values,
+        dec_bin=posterior_df.loc[:, 'dec_bin'].values,
+        ripple_grp=posterior_df.loc[:, 'ripple_grp'].values,
+    )
+
+    return xr.Dataset(
+        {'causal_posterior': (('time','position'), posterior_df.loc[:, is_position_bin].values)},
+        coords=coords)
