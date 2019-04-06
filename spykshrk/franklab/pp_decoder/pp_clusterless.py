@@ -173,40 +173,40 @@ class OfflinePPEncoder(object):
             enc_settings (EncodeSettings): Realtime encoding settings.
         Returns (np.array): The occupancy of the animal
         """
-        # this method to calculate occupancy uses convolution and doesnt do a good job, so were switching to KDE below
-        #occupancy, occ_bin_edges = np.histogram(lin_obj['linpos_flat'], bins=enc_settings.pos_bin_edges,
-        #                                       normed=True)
-        #occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
-        #occupancy += 1e-10
-        #print(occupancy.shape)         
-        #return occupancy
-
-        # new method to calculate occpancy using kernel density estimate
-        # MEC 2-15-19
-        import seaborn as sns
-        from scipy import stats
-        from scipy.integrate import trapz
-
-        #moved velocity filter out into jupyter notebook
-        pos_vel_2 = lin_obj.loc[(lin_obj["linvel_flat"]>2)]
-        print(pos_vel_2.shape)
-        print(lin_obj.shape)
-        column_names_test = lin_obj.columns.values
-        print(column_names_test)
-        #pos_vel_0 = lin_obj
-        bandwidth = enc_settings.pos_kernel_std
-        support = enc_settings.pos_bin_edges[0:-1]
-        kernels = []
-        for x_i in lin_obj['linpos_flat']:
-            kernel = stats.norm(x_i, bandwidth).pdf(support)
-            kernels.append(kernel)
-
-        from scipy.integrate import trapz
-        density = np.sum(kernels, axis=0)
-        density /= trapz(density, support)
-        occupancy = density
+        this method to calculate occupancy uses convolution and doesnt do a good job, so were switching to KDE below
+        occupancy, occ_bin_edges = np.histogram(lin_obj['linpos_flat'], bins=enc_settings.pos_bin_edges,
+                                              normed=True)
+        occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
         occupancy += 1e-10
+        print(occupancy.shape)         
         return occupancy
+
+        # # new method to calculate occpancy using kernel density estimate
+        # # MEC 2-15-19
+        # import seaborn as sns
+        # from scipy import stats
+        # from scipy.integrate import trapz
+
+        # #moved velocity filter out into jupyter notebook
+        # pos_vel_2 = lin_obj.loc[(lin_obj["linvel_flat"]>2)]
+        # print(pos_vel_2.shape)
+        # print(lin_obj.shape)
+        # column_names_test = lin_obj.columns.values
+        # print(column_names_test)
+        # #pos_vel_0 = lin_obj
+        # bandwidth = enc_settings.pos_kernel_std
+        # support = enc_settings.pos_bin_edges[0:-1]
+        # kernels = []
+        # for x_i in lin_obj['linpos_flat']:
+        #     kernel = stats.norm(x_i, bandwidth).pdf(support)
+        #     kernels.append(kernel)
+
+        # from scipy.integrate import trapz
+        # density = np.sum(kernels, axis=0)
+        # density /= trapz(density, support)
+        # occupancy = density
+        # occupancy += 1e-10
+        # return occupancy
 
     @staticmethod
     def _calc_firing_rate_tet(observ: SpikeObservation, lin_obj: FlatLinearPosition, enc_settings: EncodeSettings):
