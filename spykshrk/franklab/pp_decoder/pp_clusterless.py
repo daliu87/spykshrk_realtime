@@ -143,7 +143,7 @@ class OfflinePPEncoder(object):
             enc_settings (EncodeSettings): Realtime encoding settings.
         Returns (np.array): The occupancy of the animal
         """
-        occupancy, occ_bin_edges = np.histogram(lin_obj, bins=enc_settings.pos_bin_edges,
+        occupancy, occ_bin_edges = np.histogram(lin_obj['linpos_flat'], bins=enc_settings.pos_bin_edges,
                                                 normed=True)
         occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
         occupancy += 1e-10
