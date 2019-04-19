@@ -173,40 +173,40 @@ class OfflinePPEncoder(object):
             enc_settings (EncodeSettings): Realtime encoding settings.
         Returns (np.array): The occupancy of the animal
         """
-        this method to calculate occupancy uses convolution and doesnt do a good job, so were switching to KDE below
-        occupancy, occ_bin_edges = np.histogram(lin_obj['linpos_flat'], bins=enc_settings.pos_bin_edges,
-                                              normed=True)
-        occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
-        occupancy += 1e-10
-        print(occupancy.shape)         
-        return occupancy
+        # this method to calculate occupancy uses convolution and doesnt do a good job, so were switching to KDE below
+        #occupancy, occ_bin_edges = np.histogram(lin_obj['linpos_flat'], bins=enc_settings.pos_bin_edges,
+        #                                      normed=True)
+        #occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
+        #occupancy += 1e-10
+        #print('convolution occupancy normalization')         
+        #return occupancy
 
         # # new method to calculate occpancy using kernel density estimate
         # # MEC 2-15-19
-        # import seaborn as sns
-        # from scipy import stats
-        # from scipy.integrate import trapz
+        import seaborn as sns
+        from scipy import stats
+        from scipy.integrate import trapz
 
         # #moved velocity filter out into jupyter notebook
-        # pos_vel_2 = lin_obj.loc[(lin_obj["linvel_flat"]>2)]
-        # print(pos_vel_2.shape)
-        # print(lin_obj.shape)
-        # column_names_test = lin_obj.columns.values
-        # print(column_names_test)
+        pos_vel_2 = lin_obj.loc[(lin_obj["linvel_flat"]>2)]
+        print(pos_vel_2.shape)
+        print(lin_obj.shape)
+        column_names_test = lin_obj.columns.values
+        print(column_names_test)
         # #pos_vel_0 = lin_obj
-        # bandwidth = enc_settings.pos_kernel_std
-        # support = enc_settings.pos_bin_edges[0:-1]
-        # kernels = []
-        # for x_i in lin_obj['linpos_flat']:
-        #     kernel = stats.norm(x_i, bandwidth).pdf(support)
-        #     kernels.append(kernel)
+        bandwidth = enc_settings.pos_kernel_std
+        support = enc_settings.pos_bin_edges[0:-1]
+        kernels = []
+        for x_i in lin_obj['linpos_flat']:
+            kernel = stats.norm(x_i, bandwidth).pdf(support)
+            kernels.append(kernel)
 
-        # from scipy.integrate import trapz
-        # density = np.sum(kernels, axis=0)
-        # density /= trapz(density, support)
-        # occupancy = density
-        # occupancy += 1e-10
-        # return occupancy
+        from scipy.integrate import trapz
+        density = np.sum(kernels, axis=0)
+        density /= trapz(density, support)
+        occupancy = density
+        occupancy += 1e-10
+        return occupancy
 
     @staticmethod
     def _calc_firing_rate_tet(observ: SpikeObservation, lin_obj: FlatLinearPosition, enc_settings: EncodeSettings):
@@ -506,8 +506,9 @@ class OfflinePPDecoder(object):
     and decoding settings (spykshrk.franklab.pp_decoder.DecodeSettings).
     
     """
+    # added new argument called 'all_linear_position' that will be used by the velocity filter
     def __init__(self, observ_obj: SpikeObservation, encode_settings: EncodeSettings,
-                 decode_settings: DecodeSettings, time_bin_size=30, parallel=True, trans_mat=None,
+                 decode_settings: DecodeSettings, time_bin_size=30, all_linear_position=None, velocity_filter=None, parallel=True, trans_mat=None,
                  prob_no_spike=None):
         """
         Constructor for OfflinePPDecoder.
@@ -520,6 +521,8 @@ class OfflinePPDecoder(object):
             time_bin_size (float, optional): Delta time per bin to run decode, defaults to decoder_settings value.
         """
 
+        self.all_linear_position = all_linear_position
+        self.velocity_filter = velocity_filter
         self.prob_no_spike = prob_no_spike
         self.trans_mat = trans_mat
         self.observ_obj = observ_obj
@@ -533,6 +536,7 @@ class OfflinePPDecoder(object):
         self.likelihoods = None
         self.posteriors = None
         self.posteriors_obj = None
+
 
     def __del__(self):
         print('decoder deleting')
@@ -548,6 +552,21 @@ class OfflinePPDecoder(object):
 
         print("Beginning likelihood calculation")
         self.recalc_likelihood()
+        
+        # add mask for velocity filter - put NaN in all movement time bins we dont want to decode
+        # MEC 04-09-19
+        # use get_irregular_resample to find all timebins in likelihoods when vel > 4, then set position columns to NaN
+        #vel_filter_obj = self.all_linear_position.get_mapped_single_axis()
+        #linflat_spkindex = vel_filter_obj.get_irregular_resampled(self.likelihoods)
+        #linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > 4')
+        #linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > self.velocity_filter')
+        #self.velocity_mask = linflat_spkindex_encode_velthresh
+        #okay this for loop works, but its kinda slow - took about 5 mins for [0,10000] subset
+        #for name in self.encode_settings['pos_col_names']:
+        #    print(name)
+        #    self.likelihoods.loc[self.velocity_mask.index,name] = np.NaN
+        #self.likelihoods.loc[self.velocity_mask.index,'x000'] = np.NaN
+
         print("Beginning posterior calculation")
         self.recalc_posterior()
 
@@ -625,6 +644,8 @@ class OfflinePPDecoder(object):
         
         dec_agg_results = observ_task.compute()
         dec_agg_results.sort_values('timestamp', inplace=True)
+        #need to convert timstamps to integers
+        dec_agg_results = dec_agg_results.astype({'timestamp': int})
 
         dec_new_ind = pd.MultiIndex.from_product([[day], [epoch], dec_agg_results['timestamp']])
         lev = list(dec_new_ind.levels)
@@ -636,6 +657,10 @@ class OfflinePPDecoder(object):
 
         dec_agg_results.set_index(dec_new_ind, inplace=True)
 
+        # deleting extra timestamp column because this is already pulled into the multiindex
+        # 04-09-19 MEC
+        dec_agg_results.drop(columns=['timestamp'], inplace=True)
+
         binned_observ = dec_agg_results
 
         #dec_agg_results['day'] = day
@@ -646,6 +671,7 @@ class OfflinePPDecoder(object):
         # Smooth and normalize firing rate (conditional intensity function)
 
         return binned_observ
+
 
     @staticmethod
     def _calc_observation_single_bin(spikes_in_parallel, elec_grp_list,
@@ -712,7 +738,6 @@ class OfflinePPDecoder(object):
         likelihoods = pd.DataFrame(np.vstack(results),
                                    columns=enc_settings.pos_col_names+['timestamp', 'num_spikes', 'dec_bin'])
         
-
         return likelihoods
 
     @staticmethod
@@ -749,6 +774,8 @@ class OfflinePPDecoder(object):
 
         return posteriors_df
 
+    # added conditional statement for NaNs in likelihoods - this is for gaps in decoding time from velocity filter
+    # MEC 04-09-19
     @staticmethod
     def _posterior_from_numpy(likelihoods, transition_mat, pos_num_bins, pos_delta):
 
@@ -757,10 +784,20 @@ class OfflinePPDecoder(object):
         posteriors = np.zeros(likelihoods.shape)
 
         for like_ii, like in enumerate(likelihoods):
-            posteriors[like_ii, :] = like * np.matmul(transition_mat, last_posterior)
-            posteriors[like_ii, :] = posteriors[like_ii, :] / (posteriors[like_ii, :].sum() *
-                                                               pos_delta)
-            last_posterior = posteriors[like_ii, :]
+            if np.isnan(like).any():
+                posteriors[like_ii, :] = np.NaN
+
+                last_posterior = np.ones(pos_num_bins)
+            else:
+                posteriors[like_ii, :] = like * np.matmul(transition_mat, last_posterior)
+                posteriors[like_ii, :] = posteriors[like_ii, :] / (posteriors[like_ii, :].sum() * pos_delta)
+
+                last_posterior = posteriors[like_ii, :]
+
+    #        posteriors[like_ii, :] = like * np.matmul(transition_mat, last_posterior)
+    #        posteriors[like_ii, :] = posteriors[like_ii, :] / (posteriors[like_ii, :].sum() *
+    #                                                           pos_delta)
+    #        last_posterior = posteriors[like_ii, :]
 
         # copy observ DataFrame and replace with likelihoods, preserving other columns
 

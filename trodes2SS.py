@@ -171,7 +171,7 @@ class TrodesImport:
 		allrips = allrips.append(rippd)
 		return allrips
 
-def convert_dan_posterior_to_xarray(posterior_df, position_bin_centers=None):
+def convert_dan_posterior_to_xarray(posterior_df, tetrode_dictionary, velocity_filter, encode_settings, decode_settings, transition_matrix, shuffle_offset, trial_order, marks_time_shift_amount, position_bin_centers=None):
     '''Converts pandas dataframe from Dan's 1D decoder to xarray Dataset
     
     Parameters
@@ -202,5 +202,27 @@ def convert_dan_posterior_to_xarray(posterior_df, position_bin_centers=None):
     )
 
     return xr.Dataset(
-        {'causal_posterior': (('time','position'), posterior_df.loc[:, is_position_bin].values)},
-        coords=coords)
+	    {'posterior': (('time','position'), posterior_df.loc[:, is_position_bin].values),
+	     'velocity filter encode': velocity_filter,
+	     'velocity filter decode': velocity_filter,
+	     'tetrodes': tetrode_dictionary,
+	     'shuffle offset': shuffle_offset,
+	     'marks_time_shift_amount': marks_time_shift_amount,
+	     'trial_order': trial_order,
+	     'sampling_rate': encode_settings['sampling_rate'],
+	     'pos_bins': encode_settings['pos_bins'],
+	     'pos_bin_edges': encode_settings['pos_bin_edges'],
+	     'pos_bin_delta': encode_settings['pos_bin_delta'],
+	     'pos_kernel': encode_settings['pos_kernel'],
+	     'pos_kernel_std': encode_settings['pos_kernel_std'],
+	     'mark_kernel_std': encode_settings['mark_kernel_std'],
+	     'pos_num_bins': encode_settings['pos_num_bins'],
+	     'pos_col_names': encode_settings['pos_col_names'],
+	     'arm_coordinates': (encode_settings['arm_coordinates'][0]),
+	     'trans_smooth_std': decode_settings['trans_smooth_std'],
+	     'trans_uniform_gain': decode_settings['trans_uniform_gain'],
+	     'time_bin_size': decode_settings['time_bin_size'],
+	     'transition_matrix_name': 'flat powered',
+	     'multiindex': ['day','epoch','timestamp','time'],
+	     'transition_matrix': (('position','position'), transition_matrix)},
+	    coords=coords)

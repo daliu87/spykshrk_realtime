@@ -59,7 +59,7 @@ path_base_rawdata = '/data2/mcoulter/raw_data/'
 
 # Define parameters
 # for epochs we want 2 and 4 for each day
-rat_name = 'gus'
+rat_name = 'remy'
 directory_temp = path_base_rawdata + rat_name + '/'
 day_dictionary = {'remy':[20], 'gus':[28], 'bernard':[23], 'fievel':[19]}
 epoch_dictionary = {'remy':[2], 'gus':[2], 'bernard':[2], 'fievel':[2]} 
@@ -715,7 +715,7 @@ for outer_loop_counter in range(len(pos_kernel_stdev)):
         # to export posteriors to MatLab
         # add ripple labels to posteriors and then convert posteriors to xarray then save as netcdf
         # this requires folding multiindex into posteriors dataframe first
-        post_netcdf_filename = '/data2/mcoulter/posteriors/gus_28_2_crossval_canula_1_mark_20_' + str(crossval_counter) + '_pos_stdev_' + str(pos_kernel_stdev[outer_loop_counter]) + '_posterior.nc'
+        post_netcdf_filename = '/data2/mcoulter/posteriors/remy_20_2_crossval_convolution_occupancy_mark_20_' + str(crossval_counter) + '_pos_stdev_' + str(pos_kernel_stdev[outer_loop_counter]) + '_posterior.nc'
         post1 = posteriors_filtered.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
         post2 = post1.reset_index()
         post3 = post2.to_xarray()
@@ -724,7 +724,7 @@ for outer_loop_counter in range(len(pos_kernel_stdev)):
         print('Saved posteriors to ',post_netcdf_filename, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
         # to export linearized position to MatLab: again convert to xarray and then save as netcdf
-        position_netcdf_filename = '/data2/mcoulter/linearized_position/gus_28_2_crossval_canula_1_mark_20_' + str(crossval_counter) + '_pos_stdev_' + str(pos_kernel_stdev[outer_loop_counter]) + '_linear_position.nc'
+        position_netcdf_filename = '/data2/mcoulter/linearized_position/remy_20_2_crossval_convolution_occupancy_mark_20_' + str(crossval_counter) + '_pos_stdev_' + str(pos_kernel_stdev[outer_loop_counter]) + '_linear_position.nc'
         linearized_pos1 = pos_all_linear.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
         linearized_pos2 = linearized_pos1.reset_index()
         linearized_pos3 = linearized_pos2.to_xarray()

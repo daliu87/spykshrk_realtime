@@ -805,6 +805,10 @@ class SpikeObservation(DayEpochTimeSeries):
                                                                       names=['day', 'epoch', 'timestamp', 'time'])),
                    parent=parent, enc_settings=enc_settings, **kwds)
 
+    # added new function update_vel_filter_maksing_bins to label bins of movement times
+    # so they arent decoded
+    # MEC 04-09-19
+
     def update_observations_bins(self, time_bin_size, inplace=False):
         if inplace:
             df = self
@@ -823,6 +827,7 @@ class SpikeObservation(DayEpochTimeSeries):
         df['dec_bin_start'] = dec_bins_start
 
         df.update_num_missing_future_bins(inplace=True)
+
         return df
 
     def update_parallel_bins(self, time_bin_size, inplace=True):

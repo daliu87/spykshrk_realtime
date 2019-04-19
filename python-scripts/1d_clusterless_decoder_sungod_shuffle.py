@@ -93,6 +93,14 @@ for ratz_name in ratz:
     # # os.chdir('/data2/jguidera/data/')
     # # np.load('marks.npy')
 
+    # add print lines to show number of marks on each tetrode
+    print('Marks on tetrode 4: ', marks.xs(4,level='elec_grp_id').shape)
+    print('Marks on tetrode 4: ', marks.xs(4,level='elec_grp_id').shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    #print('Marks on tetrode 28: ', marks.xs(28,level='elec_grp_id').shape)
+    #print('Marks on tetrode 28: ', marks.xs(28,level='elec_grp_id').shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    #print('Marks on tetrode 30: ', marks.xs(30,level='elec_grp_id').shape)
+    #print('Marks on tetrode 30: ', marks.xs(30,level='elec_grp_id').shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
     # Import position #? concerned about use of sampling rate in the definition for position
     # Temporary small definition of encoding settings-- need 'arm_coordinates' to use datasrc.import_pos 
     encode_settings = AttrDict({'arm_coordinates': [[0,0]]})
@@ -134,98 +142,8 @@ for ratz_name in ratz:
     print('rips when animal velocity <= 4: '+str(linflat_ripindex_encode_velthresh.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
     #cell 4
-    # Encoding input data, position and spikes
-    # **** time is 30x sec
-    encode_subset_start = 0
-    encode_subset_end = 5000
-    chunkstart = pos.index.get_level_values('time')[encode_subset_start]
-    chunkend = pos.index.get_level_values('time')[encode_subset_end]
-    speed_threshold_save = 0; 
-
-    pos_subset = pos.loc[(pos.index.get_level_values('time') <= chunkend) & (pos.index.get_level_values('time') >= chunkstart)]
-    posY_subset = posY.loc[(posY.index.get_level_values('time') <= chunkend) & (posY.index.get_level_values('time') >= chunkstart)] 
-    pos_start= pos_subset.index.get_level_values('time')[0]
-    pos_end = pos_subset.index.get_level_values('time')[-1]
-    #spk_subset = marks.loc[(marks.index.get_level_values('time') <  pos_end) & (marks.index.get_level_values('time') >  pos_start)]
-    #rip_subset = rips.loc[(rips['starttime'].values >  pos_start) & (rips['endtime'].values <  pos_end)]
-    #rip_subset = rips_vel_filtered.loc[(rips_vel_filtered['starttime'].values >  pos_start) & (rips_vel_filtered['endtime'].values <  pos_end)]
-
-    #whole epoch
-    spk_subset = marks
-    rip_subset = rips_vel_filtered
-
-    # filter for large negative marks
-    marks_all_non_negative = trodes2SS.threshold_marks_negative(spk_subset, negthresh=-999)
-    print('Original encode length: ',spk_subset.shape)
-    print('Original encode length: ',spk_subset.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
-    print('Encoding marks non-negative filter: ',marks_all_non_negative.shape)
-    print('Encoding marks non-negative filter: ',marks_all_non_negative.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
-
-    spk_subset_sparse = trodes2SS.threshold_marks(marks_all_non_negative, maxthresh=2000,minthresh=100)
-    print('original length: '+str(marks_all_non_negative.shape[0]))
-    print('after filtering: '+str(spk_subset_sparse.shape[0]))
-    print('original length: '+str(marks_all_non_negative.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
-    print('after filtering: '+str(spk_subset_sparse.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
-
-    spk_subset_sparse.groupby('elec_grp_id')
-
-    # Filter encoding marks for times when rat velocity > 4 cm/s
-    # The purpose of this is to remove most of the stationary time from the encoding, to focus on times of movement
-    # to re-create whole_testing, i think we want vel > 2
-
-    #linflat_obj = pos_subset.get_mapped_single_axis()
-    #whole epoch
-    linflat_obj = pos.get_mapped_single_axis()
-    linflat_spkindex = linflat_obj.get_irregular_resampled(spk_subset_sparse)
-    linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > 2')
-
-    spk_subset_sparse_encode = spk_subset_sparse.loc[linflat_spkindex_encode_velthresh.index]
-
-    print('encoding spikes after filtering: '+str(spk_subset_sparse_encode.shape[0]))
-    print('encoding spikes after filtering: '+str(spk_subset_sparse_encode.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
-
-    #cell 5
-    # Decoding input data, position and spikes
-    # **** time is 30x sec
-    decode_subset_start = 0
-    decode_subset_end = 5000
-    chunkstart_decode = pos.index.get_level_values('time')[decode_subset_start]
-    chunkend_decode = pos.index.get_level_values('time')[decode_subset_end]
-    speed_threshold_save = 0; 
-
-    pos_subset_decode = pos.loc[(pos.index.get_level_values('time') <= chunkend_decode) & (pos.index.get_level_values('time') >= chunkstart_decode)]
-    posY_subset_decode = posY.loc[(posY.index.get_level_values('time') <= chunkend_decode) & (posY.index.get_level_values('time') >= chunkstart_decode)] 
-    pos_start_decode = pos_subset_decode.index.get_level_values('time')[0]
-    pos_end_decode = pos_subset_decode.index.get_level_values('time')[-1]
-    #spk_subset_decode = marks.loc[(marks.index.get_level_values('time') <  pos_end_decode) & (marks.index.get_level_values('time') >  pos_start_decode)]
-    #rip_subset_decode = rips.loc[(rips['starttime'].values >  pos_start) & (rips['endtime'].values <  pos_end)]
-    #rip_subset_decode = rips_vel_filtered.loc[(rips_vel_filtered['starttime'].values > pos_start_decode) & (rips_vel_filtered['endtime'].values <  pos_end_decode)]
-
-    #whole epoch
-    spk_subset_decode = marks
-    rip_subset_decode = rips_vel_filtered
-
-    spk_subset_sparse_decode = trodes2SS.threshold_marks(marks_all_non_negative, maxthresh=2000,minthresh=100)
-    print('original length: '+str(marks_all_non_negative.shape[0]))
-    print('after filtering: '+str(spk_subset_sparse_decode.shape[0]))
-    print('original length: '+str(marks_all_non_negative.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
-    print('after filtering: '+str(spk_subset_sparse_decode.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
-
-    spk_subset_sparse_decode.groupby('elec_grp_id')
-
-    # Filter decoding marks for times when rat velocity < 4 cm/s
-    # The purpose of this is to decode all times of immobility
-
-    #linflat_obj = pos_subset.get_mapped_single_axis()
-    #whole epoch
-    linflat_obj = pos.get_mapped_single_axis()
-    linflat_spkindex = linflat_obj.get_irregular_resampled(spk_subset_sparse_decode)
-    linflat_spkindex_decode_velthresh = linflat_spkindex.query('linvel_flat < 2')
-
-    spk_subset_sparse_decode_filt = spk_subset_sparse_decode.loc[linflat_spkindex_decode_velthresh.index]
-
-    print('decoding spikes after filtering: '+str(spk_subset_sparse_decode_filt.shape[0]))
-    print('decoding spikes after filtering: '+str(spk_subset_sparse_decode_filt.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    # dont run encoding or decdoing subset cells for the crossvalidation runs
+    # the marks filtering happens right before running encoder
 
     #cell 6
     # linearize the whole epoch - should only have to do this once.
@@ -470,9 +388,6 @@ for ratz_name in ratz:
     print('Arm coordinates: ',arm_coordinates_WEWANT)
     print('Arm coordinates: ',arm_coordinates_WEWANT, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
-    #filter linearized position for velocity > 2 cm/s
-    pos_all_linear_vel = pos_all_linear.loc[(pos_all_linear["linvel_flat"]>2)]
-
     #cell 8
     #define encoding settings
     #max_pos = int(round(linear_distance_arm_shift.max()) + 20)
@@ -504,6 +419,231 @@ for ratz_name in ratz:
     print('Decode settings: ',decode_settings)
     print('Decode settings: ',decode_settings, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
+    #cell 9.1 randomize trial order within epoch
+    #read in trial times
+    trialsname = directory_temp+rat_name+'trials'+str(day_dictionary[rat_name][0])+'.mat'
+    trialsmat = scipy.io.loadmat(trialsname,squeeze_me=True,struct_as_record=False)
+    starttimes = trialsmat['trials'][day_dictionary[rat_name][0]-1][epoch_dictionary[rat_name][0]-1].starttime
+    starttimes = starttimes.astype(np.float64,copy=False)
+    endtimes = trialsmat['trials'][day_dictionary[rat_name][0]-1][epoch_dictionary[rat_name][0]-1].endtime
+    endtimes = endtimes.astype(np.float64,copy=False)
+    trialsindex = np.arange(starttimes.shape[0])
+    print('Number of trials: ',trialsindex.shape)
+    print('Number of trials: ',trialsindex.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    # randomize trial order
+    indices = np.arange(starttimes.shape[0])
+    np.random.shuffle(indices)
+
+    #fixed random order
+    indices = [ 17,  92,   3,  98,  11,  78, 105, 100, 103,  37,  28,  62,  85,  59,  41,  93,  29, 102, 
+    6,  76,  13,  82,  18,  25,  64,  96,  20,  16,  65,  54,  12,  24,  56,   5,  74,  73, 
+    79,  89,  97,  70,  68,  46,   7,  40, 101,  48,  77,  63,  69, 108,  66,  15,  91,  33, 
+    45,  21,  51,  19,  30,  23,  72,  35,  42,  47,  95, 107, 104,  61,  43,  60,  67,  88, 
+    71,  14,  38,  32,  87,  57,  27,  31,   1,   2,  53,  86,  50,  49,   0,  52,  90,  10, 
+    44,  84,  55,  81, 106,  39,  75,  58,   9,  34,   4,   8,  26,  22,  94,  83,  36,  80, 99]
+
+    starttimes_shuffled = starttimes[indices]
+    endtimes_shuffled = endtimes[indices]
+    trialsindex_shuffled = trialsindex[indices]
+    print('Randomized trial order: ',trialsindex_shuffled)
+    print('Randomized trial order: ',trialsindex_shuffled, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    #to make a new position, marks and trial file with new start and end times:
+    #position
+    random_trial_pos_all = pos_all_linear.head(0)
+    for i in range(len(starttimes_shuffled)):
+        random_trial_pos = pos_all_linear.loc[(pos_all_linear.index.get_level_values('time') <= endtimes_shuffled[i]) & (pos_all_linear.index.get_level_values('time') >= starttimes_shuffled[i])]
+        random_trial_pos_all = random_trial_pos_all.append(random_trial_pos)
+         
+    #marks
+    random_trial_marks_all = marks.head(0)
+    for i in range(len(starttimes_shuffled)):
+        random_trial_marks = marks.loc[(marks.index.get_level_values('time') <= endtimes_shuffled[i]) & (marks.index.get_level_values('time') >= starttimes_shuffled[i])]
+        random_trial_marks_all = random_trial_marks_all.append(random_trial_marks)
+
+    # filter for large negative marks and spike amplitude
+    marks_random_trial_non_negative = trodes2SS.threshold_marks_negative(random_trial_marks_all, negthresh=-999)
+    print('Original encode length: ',random_trial_marks_all.shape)
+    print('Original encode length: ',random_trial_marks_all.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    print('Encoding marks non-negative filter: ',marks_random_trial_non_negative.shape)
+    print('Encoding marks non-negative filter: ',marks_random_trial_non_negative.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    random_trial_spk_subset_sparse = trodes2SS.threshold_marks(marks_random_trial_non_negative, maxthresh=2000,minthresh=100)
+    print('original length: '+str(marks_random_trial_non_negative.shape[0]))
+    print('after filtering: '+str(random_trial_spk_subset_sparse.shape[0]))
+    print('original length: '+str(marks_random_trial_non_negative.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    print('after filtering: '+str(random_trial_spk_subset_sparse.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    # velocity filter to define encoding and decoding times
+    velocity_filter = 4
+    print('Velocity filter: ',velocity_filter)
+    print('Velocity filter: ',velocity_filter, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    #NOTE: to try marks shift on whole trials we need to do shift first, then velocity filter for encoding and decoding marks
+    # nope - cant do this, need to do velocity filter first
+
+    # #encoding spikes
+    linflat_obj = random_trial_pos_all.get_mapped_single_axis()
+    linflat_spkindex = linflat_obj.get_irregular_resampled(random_trial_spk_subset_sparse)
+    linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > 4')
+
+    encode_spikes_random_trial = random_trial_spk_subset_sparse.loc[linflat_spkindex_encode_velthresh.index]
+
+    print('encoding spikes after velocity filter: '+str(encode_spikes_random_trial.shape[0]))
+    print('encoding spikes after velocity filter: '+str(encode_spikes_random_trial.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    # #decoding spikes
+    linflat_obj = pos.get_mapped_single_axis()
+    linflat_spkindex = linflat_obj.get_irregular_resampled(random_trial_spk_subset_sparse)
+    linflat_spkindex_decode_velthresh = linflat_spkindex.query('linvel_flat < 4')
+
+    decode_spikes_random_trial = random_trial_spk_subset_sparse.loc[linflat_spkindex_decode_velthresh.index]
+
+    print('decoding spikes after velocity filter: '+str(decode_spikes_random_trial.shape[0]))
+    print('decoding spikes after velocity filter: '+str(decode_spikes_random_trial.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    #filter position for velocity
+    random_trial_pos_all_vel = random_trial_pos_all.loc[(random_trial_pos_all["linvel_flat"]>4)]
+
+    #cell 9.2 shuffle encoding marks by set amount of time
+    # try shifting all marks and then applying velocity filter
+
+    # yes, we want to do this after the velocity filter for encoding spikes
+    # hmmmm this is not going to work after trial order is randomized - actually it might, becuase the mask is time based
+    # also what about the amplitude filter - can that still come before the shift?
+    
+    # pull out timestamp and time levels of the multiindex
+    marks_timestamp = encode_spikes_random_trial.reset_index(level='timestamp')
+    # apply shift to all marks - NOPE
+    #marks_timestamp = random_trial_spk_subset_sparse.reset_index(level='timestamp')
+
+    marks_time = marks_timestamp.reset_index(level='time')
+
+    # keep original time and timestamps in new columns
+    marks_time['timestamp_original'] = marks_time['timestamp']
+    marks_time['time_original'] = marks_time['time']
+
+    marks_time.drop(columns=['timestamp'])
+
+    # caclulate epoch min and max times - need to do this on pre-filter marks
+    marks_for_epoch_time = marks.reset_index(level='time')
+    min_time = marks_for_epoch_time['time'].iloc[0]
+    max_time = marks_for_epoch_time['time'].iloc[-1]
+    epoch_time = max_time - min_time
+    print('Total spoch time (sec): ',epoch_time)
+    print('Total epoch time (sec) ',epoch_time, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))  
+
+    # add shift amount to all time values
+    # shift amount: 5 mins + 5 sec (1/2 period) = 305
+    # shift amount for whole trial: 5 mins + 18 sec (1/2 period) = 318 - cant do this
+    marks_time_shift_amount = 305
+    print('Marks shuffle shift: ',marks_time_shift_amount)
+    print('Marks shuffle shift: ',marks_time_shift_amount, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))    
+    marks_time_shift = marks_time
+    marks_time_shift['time'] = marks_time['time'] + marks_time_shift_amount
+
+    # need to make a mask of immobility times (removed) with an increasing time counter within each segment
+    # then need to add this column to the shifted marks to add back the gaps for immobility times - wait this isnt the problem
+    # this problem is that the marks will get shifted into immobility times and then the velocity filtered position wont line up
+    # i guess you could subtract the time difference in each immobility period from the time of the marks to generate a 
+    # marks file with no time gaps
+
+    # make mask for times past end of epoch (this is a conditional mask)
+    max_time_mask = marks_time_shift.time > max_time
+
+    # subtract epoch total time from times past end of epoch (this is to change values based on the condition in the mask)
+    marks_time_shift.loc[max_time_mask, 'time'] = marks_time_shift.loc[max_time_mask, 'time'] - epoch_time
+
+    #make new timestamps
+    marks_time_shift['timestamp'] = 30000*marks_time_shift['time']
+    marks_time_shift = marks_time_shift.astype({'timestamp': int})
+
+    # re-order based on new times - dont use if doing position shuffle
+    #marks_time_shift.sort_values(by='time', ascending=1, inplace=True)
+
+    # remake multiindex
+    marks_time_shift.set_index('timestamp', append=True, inplace=True)
+    marks_time_shift.set_index('time', append=True, inplace=True)
+
+    # save marks with original time and timestamps
+    shifted_marks_file_name = '/data2/mcoulter/linearized_position/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_all_marks_shuffle_318_marks_4_12_19.nc'
+    marks_time_shift2 = marks_time_shift.reset_index()
+    marks_time_shift3 = marks_time_shift2.to_xarray()
+    marks_time_shift3.to_netcdf(shifted_marks_file_name)
+    print('Saved shifted marks to: '+shifted_marks_file_name)
+    print('Saved shifted marks to: '+shifted_marks_file_name, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    # copy of shifted marks without original time and timestamp columns
+    marks_time_shift_encode_input =  marks_time_shift.drop(columns=['timestamp_original','time_original'])
+
+    # shift all marks - NOPE
+    #marks_time_shift_all_input =  marks_time_shift.drop(columns=['timestamp_original','time_original'])
+
+    print('Shifted marks shape: ',marks_time_shift_all_input.shape)
+    print('Shifted marks shape: ',marks_time_shift_all_input.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+
+    #cell 9.25
+    # apply velocity filter to shifted marks - nope cant do this - we want to decode the same spikes 
+
+    # #encoding spikes
+    # linflat_obj = random_trial_pos_all.get_mapped_single_axis()
+    # linflat_spkindex = linflat_obj.get_irregular_resampled(marks_time_shift_all_input)
+    # linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > 4')
+
+    # encode_spikes_random_trial_shifted = marks_time_shift_all_input.loc[linflat_spkindex_encode_velthresh.index]
+    
+    # # shifted marks table with original times included
+    # encode_spikes_random_trial_shifted_save = marks_time_shift.loc[linflat_spkindex_encode_velthresh.index]
+
+
+    # print('shifted encoding spikes after velocity filter: '+str(encode_spikes_random_trial_shifted.shape[0]))
+    # print('shifted encoding spikes after velocity filter: '+str(encode_spikes_random_trial_shifted.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    # # to save shifted encoding marks
+    # shifted_marks_file_name = '/data2/mcoulter/linearized_position/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_all_marks_shuffle_318_marks_4_12_19.nc'
+    # marks_time_shift2 = encode_spikes_random_trial_shifted_save.reset_index()
+    # marks_time_shift3 = marks_time_shift2.to_xarray()
+    # marks_time_shift3.to_netcdf(shifted_marks_file_name)
+    # print('Saved shifted marks to: '+shifted_marks_file_name)
+    # print('Saved shifted marks to: '+shifted_marks_file_name, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    # #decoding spikes
+    # linflat_obj = random_trial_pos_all.get_mapped_single_axis()
+    # linflat_spkindex = linflat_obj.get_irregular_resampled(marks_time_shift_all_input)
+    # linflat_spkindex_decode_velthresh = linflat_spkindex.query('linvel_flat < 4')
+
+    # decode_spikes_random_trial_shifted = marks_time_shift_all_input.loc[linflat_spkindex_decode_velthresh.index]
+
+    # print('shifted decoding spikes after velocity filter: '+str(decode_spikes_random_trial_shifted.shape[0]))
+    # print('shifted decoding spikes after velocity filter: '+str(decode_spikes_random_trial_shifted.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+
+    #cell 9.3 shuffle position by set number of position time bins - use variable called shift_in_30Hz_time_bins
+    # when we shifted position, shift was 9150
+    offset_30Hz_time_bins = 0
+    print('Position shuffle offset: ',offset_30Hz_time_bins)
+    print('Position shuffle offset: ',offset_30Hz_time_bins, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    #random_trial_pos_all_vel_shuffle = random_trial_pos_all_vel
+
+    #comment out next line to turn off shuffle
+    #random_trial_pos_all_vel_shuffle['linpos_flat'] = np.roll(random_trial_pos_all_vel_shuffle['linpos_flat'],-(offset_30Hz_time_bins))
+
+    # version of shifted position for saving - includes original position
+    # random_trial_pos_all_vel_shuffle_save = random_trial_pos_all_vel
+    # random_trial_pos_all_vel_shuffle_save['linpos_flat_original'] = random_trial_pos_all_vel_shuffle_save['linpos_flat']
+    # random_trial_pos_all_vel_shuffle_save['linpos_flat'] = np.roll(random_trial_pos_all_vel_shuffle_save['linpos_flat'],-(offset_30Hz_time_bins))
+    # shifted_position_file_name = '/data2/mcoulter/linearized_position/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_position_shuffle_9150_position_4_10_19.nc'
+    # position_shift2 = random_trial_pos_all_vel_shuffle_save.reset_index()
+    # position_shift3 = position_shift2.to_xarray()
+    # position_shift3.to_netcdf(shifted_position_file_name)
+    # print('Saved shifted position to: '+shifted_position_file_name)
+    # print('Saved shifted position to: '+shifted_position_file_name, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    #Note: i think we want to use the shuffled position for occupancy normalization - this is most similar to the normal decoder
+
     #cell 10
     # Run encoder
     # these time-table lines are so that we can record the time it takes for encoder to run even if notebook disconnects
@@ -516,8 +656,8 @@ for ratz_name in ratz:
 
     #for whole epoch: linflat=pos_all_linear_vel
     #for subset: linflat=pos_subset
-    encoder = OfflinePPEncoder(linflat=pos_all_linear_vel, dec_spk_amp=spk_subset_sparse_decode_filt, encode_settings=encode_settings, 
-                               decode_settings=decode_settings, enc_spk_amp=spk_subset_sparse_encode, dask_worker_memory=1e9,
+    encoder = OfflinePPEncoder(linflat=random_trial_pos_all_vel, dec_spk_amp=decode_spikes_random_trial, encode_settings=encode_settings, 
+                               decode_settings=decode_settings, enc_spk_amp=marks_time_shift_encode_input, dask_worker_memory=1e9,
                                dask_chunksize = None)
 
     #new output format to call results, prob_no_spike, and trans_mat for doing single tetrode encoding
@@ -540,9 +680,9 @@ for ratz_name in ratz:
     #make observations table from results
     # if the master script has the list of all tetrodes then this cell should be able to combine the results table from each tetrode
 
-    tet_ids = np.unique(spk_subset_sparse_decode_filt.index.get_level_values('elec_grp_id'))
+    tet_ids = np.unique(decode_spikes_random_trial.index.get_level_values('elec_grp_id'))
     observ_tet_list = []
-    grp = spk_subset_sparse_decode_filt.groupby('elec_grp_id')
+    grp = decode_spikes_random_trial.groupby('elec_grp_id')
     for tet_ii, (tet_id, grp_spk) in enumerate(grp):
         tet_result = results[tet_ii]
         tet_result.set_index(grp_spk.index, inplace=True)
@@ -624,13 +764,17 @@ for ratz_name in ratz:
     decoder = OfflinePPDecoder(observ_obj=observ_obj, trans_mat=encoder.trans_mat['flat_powered'], 
                                prob_no_spike=encoder.prob_no_spike,
                                encode_settings=encode_settings, decode_settings=decode_settings, 
-                               time_bin_size=time_bin_size)
+                               time_bin_size=time_bin_size, all_linear_position=random_trial_pos_all, velocity_filter=4)
 
     posteriors = decoder.run_decoder()
     print('Decoder finished!')
     print('Decoder finished!', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
     print('Posteriors shape: '+ str(posteriors.shape))
     print('Posteriors shape: '+ str(posteriors.shape), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    #cell 15.1
+    # reorder posteriors and position to restore original trial order (undo the randomization)
+
 
     #cell 16
     #save posteriors with hdf
@@ -649,19 +793,12 @@ for ratz_name in ratz:
     # add ripple labels to posteriors and then convert posteriors to xarray then save as netcdf
     # this requires folding multiindex into posteriors dataframe first
 
-    posterior_file_name = '/data2/mcoulter/posteriors/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_whole_testing_redux_new_marks_posteriors_4_16_19.nc'
-
-    velocity_filter = 2
-    offset_30Hz_time_bins = 0
-    trialsindex_shuffled = 0
-    marks_index_shift = 0
-
+    posterior_file_name = '/data2/mcoulter/posteriors/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_all_marks_shuffle_318_posteriors_4_12_19.nc'
 
     post1 = posteriors.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
     post2 = post1.reset_index()
     #post3 = post2.to_xarray()
-    post3 = convert_dan_posterior_to_xarray(post2, tetrodes_dictionary[rat_name], velocity_filter, encode_settings, decode_settings, trans_mat, offset_30Hz_time_bins, trialsindex_shuffled, marks_index_shift)
-    #post3.to_netcdf('/data2/mcoulter/posteriors/remy_20_2_whole_testing_new_4_2_19.nc')
+    post3 = convert_dan_posterior_to_xarray(post2, tetrodes_dictionary[rat_name], velocity_filter, encode_settings, decode_settings, trans_mat, offset_30Hz_time_bins, trialsindex_shuffled, marks_time_shift_amount)
     #print(len(post3))
     post3.to_netcdf(posterior_file_name)
     print('Saved posteriors to '+posterior_file_name)
@@ -669,12 +806,11 @@ for ratz_name in ratz:
 
     # to export linearized position to MatLab: again convert to xarray and then save as netcdf
 
-    position_file_name = '/data2/mcoulter/linearized_position/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_whole_testing_redux_new_marks_linearposition_4_16_19.nc'
+    position_file_name = '/data2/mcoulter/linearized_position/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_all_marks_shuffle_318_linearposition_4_12_19.nc'
 
     linearized_pos1 = pos_all_linear.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
     linearized_pos2 = linearized_pos1.reset_index()
     linearized_pos3 = linearized_pos2.to_xarray()
-    #linearized_pos3.to_netcdf('/data2/mcoulter/linearized_position/remy_20_2_whole_testing_4_2_19.nc')
     linearized_pos3.to_netcdf(position_file_name)
     print('Saved linearized position to '+position_file_name)
     print('Saved linearized position to '+position_file_name, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
