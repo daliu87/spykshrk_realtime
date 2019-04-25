@@ -9,6 +9,10 @@ _templates/
 
 *.pyc
 
+pstats
+
+RSTPython.html
+
 .ipynb_checkpoints/
 
 *.log
@@ -16,3 +20,5 @@ _templates/
 *.swp
 dask-worker-space/
 .nfs*
+
+

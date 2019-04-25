@@ -143,7 +143,7 @@ class OfflinePPEncoder(object):
             enc_settings (EncodeSettings): Realtime encoding settings.
         Returns (np.array): The occupancy of the animal
         """
-        occupancy, occ_bin_edges = np.histogram(lin_obj, bins=enc_settings.pos_bin_edges,
+        occupancy, occ_bin_edges = np.histogram(lin_obj['linpos_flat'], bins=enc_settings.pos_bin_edges,
                                                 normed=True)
         occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
         occupancy += 1e-10
@@ -154,8 +154,8 @@ class OfflinePPEncoder(object):
         # initialize conditional intensity function
         firing_rate = {}
         enc_tet_lin_pos = (lin_obj.get_irregular_resampled(observ))
-        enc_tet_lin_pos['elec_grp_id'] = observ.index.get_level_values(level='elec_grp_id')
-        tet_pos_groups = enc_tet_lin_pos.loc[:, ('elec_grp_id', 'linpos_flat')].groupby('elec_grp_id')
+        #enc_tet_lin_pos['elec_grp_id'] = observ.index.get_level_values(level='elec_grp_id')
+        tet_pos_groups = enc_tet_lin_pos.loc[:, 'linpos_flat'].groupby('elec_grp_id')
         for tet_id, tet_spikes in tet_pos_groups:
             tet_pos_hist, _ = np.histogram(tet_spikes, bins=enc_settings.pos_bin_edges)
             firing_rate[tet_id] = tet_pos_hist
@@ -381,12 +381,9 @@ class OfflinePPDecoder(object):
         self.posteriors = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
         self.posteriors_obj = Posteriors.from_dataframe(self.posteriors, enc_settings=self.encode_settings,
                                                         dec_settings=self.decode_settings,
-                                                        user_key={'mark_kernel_std':
-                                                                  self.encode_settings.mark_kernel_std,
-                                                                  'pos_kernel_std':
-                                                                  self.encode_settings.pos_kernel_std,
-                                                                  'vel': self.encode_settings.vel,
-                                                                  'spk_amp': self.encode_settings.spk_amp})
+                                                        user_key={'encode_settings': self.encode_settings,
+                                                                  'decode_settings': self.decode_settings,
+                                                                  'multi_index_keys': self.posteriors.index.names})
 
 
 
