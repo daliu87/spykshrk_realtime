@@ -389,7 +389,6 @@ class OfflinePPEncoder(object):
         #transition_mat = np.genfromtxt ('/home/mcoulter/spykshrk_realtime/simple_transition_matrix_1cm_2_8_19_edit_v2.csv', delimiter=",")
         transition_mat = np.genfromtxt (os.path.join(enc_settings.path_trans_mat, 'simple_transition_matrix_1cm_2_8_19_edit_v2.csv'), delimiter=",")
 
-        transition_mat = np.genfromtxt (os.path.join(enc_settings.path_trans_mat, 'simple_transition_matrix_1cm_2_8_19_edit_v2.csv'), delimiter=",")
         #normalize transition matrix
 
         return transition_mat
