@@ -45,7 +45,7 @@ def main(path_base_rawdata, rat_name, path_arm_nodes, path_base_analysis, shift_
     # Define parameters
     # for epochs we want 2 and 4 for each day
     #shifts = [0, .10, .15, .20]
-    shifts = [0]
+    #shifts = [0]
     #for shift_amt in shifts:
     #rat_name = 'remy'
     print(rat_name)
@@ -54,14 +54,14 @@ def main(path_base_rawdata, rat_name, path_arm_nodes, path_base_analysis, shift_
     directory_temp = path_base_rawdata + rat_name + '/'
     day_dictionary = {'remy':[20], 'gus':[28], 'bernard':[23], 'fievel':[19]}
     epoch_dictionary = {'remy':[2], 'gus':[4], 'bernard':[4], 'fievel':[4]} 
-    #tetrodes_dictionary = {'remy': [4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
-    #                       'gus': [6,7,8,9,10,11,12,17,18,19,20,21,24,25,26,27,30], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
-    #                       'bernard': [1,2,3,4,5,7,8,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29],
-    #                       'fievel': [1,2,3,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,22,23,24,25,27,28,29]}
-    tetrodes_dictionary = {'remy': [4], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
-                           'gus': [6], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
-                           'bernard': [1],
-                           'fievel': [1]}
+    tetrodes_dictionary = {'remy': [4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
+                           'gus': [6,7,8,9,10,11,12,17,18,19,20,21,24,25,26,27,30], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
+                           'bernard': [1,2,3,4,5,7,8,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29],
+                           'fievel': [1,2,3,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,22,23,24,25,27,28,29]}
+    #tetrodes_dictionary = {'remy': [4], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
+     #                      'gus': [6], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
+      #                     'bernard': [1],
+       #                    'fievel': [1]}
                                                   
     # Maze information
     #os.chdir('/usr/workspace/wsb/coulter5/spykshrk_realtime/')
