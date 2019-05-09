@@ -382,10 +382,12 @@ class OfflinePPEncoder(object):
         It doesn't currently use encoder settings for getting position bins, it is just hard coded in csv.
         """
 
+        import os
         #setup transition matrix
         transition_mat = []
         #transition_mat = np.genfromtxt ('/home/mcoulter/spykshrk_realtime/simple_transition_matrix_1cm_2_8_19_edit_v2.csv', delimiter=",")
 
+        transition_mat = np.genfromtxt (os.path.join(enc_settings.path_trans_mat, 'simple_transition_matrix_1cm_2_8_19_edit_v2.csv'), delimiter=",")
         #normalize transition matrix
 
         return transition_mat
