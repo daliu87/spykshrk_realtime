@@ -174,39 +174,39 @@ class OfflinePPEncoder(object):
         Returns (np.array): The occupancy of the animal
         """
         # this method to calculate occupancy uses convolution and doesnt do a good job, so were switching to KDE below
-        #occupancy, occ_bin_edges = np.histogram(lin_obj['linpos_flat'], bins=enc_settings.pos_bin_edges,
-        #                                      normed=True)
-        #occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
-        #occupancy += 1e-10
-        #print('convolution occupancy normalization')         
-        #return occupancy
+        occupancy, occ_bin_edges = np.histogram(lin_obj['linpos_flat'], bins=enc_settings.pos_bin_edges,
+                                              normed=True)
+        occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
+        occupancy += 1e-10
+        print('convolution occupancy normalization')         
+        return occupancy
 
         # # new method to calculate occpancy using kernel density estimate
         # # MEC 2-15-19
-        import seaborn as sns
-        from scipy import stats
-        from scipy.integrate import trapz
+        #import seaborn as sns
+        #from scipy import stats
+        #from scipy.integrate import trapz
 
         # #moved velocity filter out into jupyter notebook
-        pos_vel_2 = lin_obj.loc[(lin_obj["linvel_flat"]>2)]
-        print(pos_vel_2.shape)
-        print(lin_obj.shape)
-        column_names_test = lin_obj.columns.values
-        print(column_names_test)
+        #pos_vel_2 = lin_obj.loc[(lin_obj["linvel_flat"]>2)]
+        #print(pos_vel_2.shape)
+        #print(lin_obj.shape)
+        #column_names_test = lin_obj.columns.values
+        #print(column_names_test)
         # #pos_vel_0 = lin_obj
-        bandwidth = enc_settings.pos_kernel_std
-        support = enc_settings.pos_bin_edges[0:-1]
-        kernels = []
-        for x_i in lin_obj['linpos_flat']:
-            kernel = stats.norm(x_i, bandwidth).pdf(support)
-            kernels.append(kernel)
+        #bandwidth = enc_settings.pos_kernel_std
+        #support = enc_settings.pos_bin_edges[0:-1]
+        #kernels = []
+        #for x_i in lin_obj['linpos_flat']:
+        #    kernel = stats.norm(x_i, bandwidth).pdf(support)
+        #    kernels.append(kernel)
 
-        from scipy.integrate import trapz
-        density = np.sum(kernels, axis=0)
-        density /= trapz(density, support)
-        occupancy = density
-        occupancy += 1e-10
-        return occupancy
+        #from scipy.integrate import trapz
+        #density = np.sum(kernels, axis=0)
+        #density /= trapz(density, support)
+        #occupancy = density
+        #occupancy += 1e-10
+        #return occupancy
 
     @staticmethod
     def _calc_firing_rate_tet(observ: SpikeObservation, lin_obj: FlatLinearPosition, enc_settings: EncodeSettings):
@@ -383,7 +383,8 @@ class OfflinePPEncoder(object):
         """
 
         #setup transition matrix
-        transition_mat = np.genfromtxt ('/home/mcoulter/spykshrk_realtime/simple_transition_matrix_1cm_2_8_19_edit_v2.csv', delimiter=",")
+        transition_mat = []
+        #transition_mat = np.genfromtxt ('/home/mcoulter/spykshrk_realtime/simple_transition_matrix_1cm_2_8_19_edit_v2.csv', delimiter=",")
 
         #normalize transition matrix
 
@@ -556,16 +557,16 @@ class OfflinePPDecoder(object):
         # add mask for velocity filter - put NaN in all movement time bins we dont want to decode
         # MEC 04-09-19
         # use get_irregular_resample to find all timebins in likelihoods when vel > 4, then set position columns to NaN
-        #vel_filter_obj = self.all_linear_position.get_mapped_single_axis()
-        #linflat_spkindex = vel_filter_obj.get_irregular_resampled(self.likelihoods)
+        vel_filter_obj = self.all_linear_position.get_mapped_single_axis()
+        linflat_spkindex = vel_filter_obj.get_irregular_resampled(self.likelihoods)
         #linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > 4')
-        #linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > self.velocity_filter')
-        #self.velocity_mask = linflat_spkindex_encode_velthresh
+        linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > @self.velocity_filter')
+        self.velocity_mask = linflat_spkindex_encode_velthresh
         #okay this for loop works, but its kinda slow - took about 5 mins for [0,10000] subset
         #for name in self.encode_settings['pos_col_names']:
         #    print(name)
         #    self.likelihoods.loc[self.velocity_mask.index,name] = np.NaN
-        #self.likelihoods.loc[self.velocity_mask.index,'x000'] = np.NaN
+        self.likelihoods.loc[self.velocity_mask.index,'x000'] = np.NaN
 
         print("Beginning posterior calculation")
         self.recalc_posterior()
