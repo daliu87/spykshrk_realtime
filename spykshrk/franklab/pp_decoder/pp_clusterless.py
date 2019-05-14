@@ -36,16 +36,16 @@ class OfflinePPEncoder(object):
         if dask_chunksize is not None:
             memory_per_dec = (len(enc_spk_amp) * np.sum([np.dtype(dtype).itemsize for dtype in enc_spk_amp.dtypes]))
             self.dask_chunksize = dask_chunksize
-            logger.info('Manual Dask chunksize: {}'.format(self.dask_chunksize))
-            logger.info('Expected worker peak memory usage: {:0.2f} MB'.format(self.dask_chunksize * memory_per_dec / 2**20))
-            logger.info('Worker total memory: UNKNOWN')
+            logger.info('TEST Manual Dask chunksize: {}'.format(self.dask_chunksize))
+            logger.info('TEST Expected worker peak memory usage: {:0.2f} MB'.format(self.dask_chunksize * memory_per_dec / 2**20))
+            logger.info('TEST Worker total memory: UNKNOWN')
 
         if dask_worker_memory is not None:
             memory_per_dec = (len(enc_spk_amp) * np.sum([np.dtype(dtype).itemsize for dtype in enc_spk_amp.dtypes]))
             self.dask_chunksize = np.int(dask_memory_utilization * dask_worker_memory / memory_per_dec)
-            logger.info('Dask chunksize: {}'.format(self.dask_chunksize))
-            logger.info('Memory utilization at: {:0.1f}%'.format(dask_memory_utilization * 100))
-            logger.info('Expected worker peak memory usage: {:0.2f} MB'.
+            logger.info('TEST Dask chunksize: {}'.format(self.dask_chunksize))
+            logger.info('TEST Memory utilization at: {:0.1f}%'.format(dask_memory_utilization * 100))
+            logger.info('TEST Expected worker peak memory usage: {:0.2f} MB'.
                         format(self.dask_chunksize * memory_per_dec / 2**20))
 
         self.linflat = linflat
@@ -386,8 +386,9 @@ class OfflinePPEncoder(object):
         #setup transition matrix
 
         transition_mat = []
-        #transition_mat = np.genfromtxt ('/home/mcoulter/spykshrk_realtime/simple_transition_matrix_1cm_2_8_19_edit_v2.csv', delimiter=",")
-        transition_mat = np.genfromtxt (os.path.join(enc_settings.path_trans_mat, 'simple_transition_matrix_1cm_2_8_19_edit_v2.csv'), delimiter=",")
+        
+        transition_mat = np.genfromtxt ('/usr/workspace/wsb/coulter5/spykshrk_realtime/simple_transition_matrix_1cm_2_8_19_edit_v2.csv', delimiter=",")
+        #transition_mat = np.genfromtxt (os.path.join(enc_settings.path_trans_mat, 'simple_transition_matrix_1cm_2_8_19_edit_v2.csv'), delimiter=",")
 
         #normalize transition matrix
 
