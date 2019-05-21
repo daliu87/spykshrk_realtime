@@ -204,7 +204,7 @@ class FrankDataInfo:
 
 
     def get_file_entry_from_ind(self, ind):
-        return self.datatype_paths.loc[ind]
+        return self.datatype_paths.loc[ind, :]
 
     def get_date_from_ind(self, ind):
         return self.get_file_entry_from_ind(ind).date[0]

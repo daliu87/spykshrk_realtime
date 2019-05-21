@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import scipy as sp
 import scipy.signal
+import warnings
 
 from spykshrk.franklab.data_containers import LinearPosition, FlatLinearPosition, SpikeObservation, EncodeSettings, DecodeSettings, Posteriors, pos_col_format
 from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary, normal_pdf_int_lookup
@@ -61,7 +62,7 @@ class OfflinePPEncoder(object):
         self.trans_mat = dict.fromkeys(['learned', 'simple', 'uniform'])
         self.trans_mat['learned'] = self.calc_learned_state_trans_mat(self.linflat,self.encode_settings, self.decode_settings)
         self.trans_mat['simple'] = self.calc_simple_trans_mat(self.encode_settings)
-        self.trans_mat['uniform'] =self.calc_uniform_trans_mat(self.encode_settings)
+        self.trans_mat['uniform'] = self.calc_uniform_trans_mat(self.encode_settings)
 
     def run_encoder(self):
         logging.info("Setting up encoder dask task.")
@@ -498,11 +499,14 @@ class OfflinePPDecoder(object):
             num_missing_bins = spike_bin_raw[-1,num_missing_ind]
             """
             # Contribution of each spike
+            missing_bins_list = []
+            dec_bin_timestamp = spike_bin_raw[0, dec_bin_start_ind]
             for obv, elec_grp_id, num_missing_bins in zip(spike_bin_raw[:, slice(*pos_col_ind)],
                                                           spike_bin_raw[:, elec_grp_ind],
                                                           spike_bin_raw[:, num_missing_ind]):
 
                 elec_set.add(elec_grp_id)
+                missing_bins_list.append(num_missing_bins)
 
                 obv_in_bin = obv_in_bin * obv
                 obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
@@ -512,10 +516,16 @@ class OfflinePPDecoder(object):
             for elec_grp_id in elec_set.symmetric_difference(elec_grp_list):
                 obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
 
-            dec_bin_timestamp = spike_bin_raw[0, dec_bin_start_ind]
-            results.append(np.concatenate([obv_in_bin, [dec_bin_timestamp, num_spikes, dec_bin_ii]]))
+            # Checking if missing bin has more than 1 whole number (and the rest are zeros)
+            missing_bins_list = np.array(missing_bins_list)
+            if np.count_nonzero(missing_bins_list) > 1:
+                warnings.warn('For decode bin (' + dec_bin_ii + ') bin time (' + dec_bin_timestamp +
+                              ') there are multiple possible values for missing bins ' + missing_bins_list +
+                              ', which is not allowed.')
 
-            for missing_ii in range(int(num_missing_bins)):
+
+            results.append(np.concatenate([obv_in_bin, [dec_bin_timestamp, num_spikes, dec_bin_ii]]))
+            for missing_ii in range(int(max(missing_bins_list))):
                 results.append(np.concatenate([global_prob_no_spike, [dec_bin_timestamp+((missing_ii+1)*time_bin_size),
                                                                       0, dec_bin_ii+missing_ii+1]]))
 
