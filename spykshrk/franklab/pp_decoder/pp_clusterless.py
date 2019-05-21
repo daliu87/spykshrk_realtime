@@ -69,6 +69,28 @@ class OfflinePPEncoder(object):
         task = self.setup_encoder_dask()
         logging.info("Running compute tasks on dask workers.")
         self.results = dask.compute(*task)
+
+        tet_ids = np.unique(self.enc_spk_amp.index.get_level_values('elec_grp_id'))
+        observ_tet_list = []
+        grp = self.dec_spk_amp.groupby('elec_grp_id')
+        for tet_ii, (tet_id, grp_spk) in enumerate(grp):
+            tet_result = self.results[tet_ii]
+            tet_result.set_index(grp_spk.index, inplace=True)
+            observ_tet_list.append(tet_result)
+
+        observ = pd.concat(observ_tet_list)
+        observ_obj = SpikeObservation.create_default(observ.sort_index(level=['day', 'epoch',
+                                                                              'timestamp', 'elec_grp_id']),
+                                                     self.encode_settings)
+
+        observ_obj['elec_grp_id'] = observ_obj.index.get_level_values('elec_grp_id')
+        observ_obj.index = observ_obj.index.droplevel('elec_grp_id')
+
+        observ_obj['position'] = (self.linflat.get_irregular_resampled(observ_obj).
+                                  get_mapped_single_axis()['linpos_flat'])
+
+        observ_obj.loc[:, 'x000':'x449'] = observ_obj.loc[:, 'x000':'x449'].values + 1e-20
+
         return self.results
 
     def setup_encoder_dask(self):
