@@ -15,7 +15,7 @@ from scipy.io import loadmat
 import spykshrk.franklab.filterframework_util as ff_util
 from spykshrk.franklab.data_containers import RippleTimes, UnitTime
 from spykshrk.realtime.datatypes import LFPPoint, LinearPosPoint, SpikePoint
-
+from spykshrk.franklab.errors import DataReadError, DataContentError, ConfigurationError
 idx = pd.IndexSlice
 
 try:
@@ -32,30 +32,6 @@ pd.set_option('display.width', 120)
 
 # Constant variable definitions
 TIMESTAMP_SCALE = 10000  # factor to convert timestamp to s
-
-
-class DataReadError(RuntimeError):
-    def __init__(self, value):
-        self.value = value
-
-    def __str__(self):
-        return repr(self.value)
-
-
-class DataContentError(RuntimeError):
-    def __init__(self, value):
-        self.value = value
-
-    def __str__(self):
-        return repr(self.value)
-
-
-class ConfigurationError(RuntimeError):
-    def __init__(self, value):
-        self.value = value
-
-    def __str__(self):
-        return repr(self.value)
 
 
 class AnimalInfo:

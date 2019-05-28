@@ -79,19 +79,19 @@ class OfflinePPEncoder(object):
             observ_tet_list.append(tet_result)
 
         observ = pd.concat(observ_tet_list)
-        observ_obj = SpikeObservation.create_default(observ.sort_index(level=['day', 'epoch',
+        self.observ_obj = SpikeObservation.create_default(observ.sort_index(level=['day', 'epoch',
                                                                               'timestamp', 'elec_grp_id']),
                                                      self.encode_settings)
 
-        observ_obj['elec_grp_id'] = observ_obj.index.get_level_values('elec_grp_id')
-        observ_obj.index = observ_obj.index.droplevel('elec_grp_id')
+        self.observ_obj['elec_grp_id'] = self.observ_obj.index.get_level_values('elec_grp_id')
+        self.observ_obj.index = self.observ_obj.index.droplevel('elec_grp_id')
 
-        observ_obj['position'] = (self.linflat.get_irregular_resampled(observ_obj).
+        self.observ_obj['position'] = (self.linflat.get_irregular_resampled(self.observ_obj).
                                   get_mapped_single_axis()['linpos_flat'])
 
-        observ_obj.loc[:, 'x000':'x449'] = observ_obj.loc[:, 'x000':'x449'].values + 1e-20
+        self.observ_obj.loc[:, 'x000':'x449'] = self.observ_obj.loc[:, 'x000':'x449'].values + 1e-20
 
-        return self.results
+        return self.observ_obj
 
     def setup_encoder_dask(self):
         # grp = self.spk_amp.groupby('elec_grp_id')

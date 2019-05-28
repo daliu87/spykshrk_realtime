@@ -30,7 +30,6 @@
         "profile_postfix": "pstats",
         "timing_postfix": "timing", 
         "backup_dir": "/opt/data36/daliu/realtime/spykshrk/ripple_dec"
-
     },
 
     "ripple": {
@@ -73,7 +72,7 @@
 
     "encoder": {
         "sampling_rate": 30000,
-        "kernel": {
+        "mark_kernel": {
             "mean": 0,
             "std": 5,
             "lower": -1024,
@@ -84,14 +83,26 @@
         "position": {
             "lower": 0,
             "upper": 450,
-            "bins": 150
+            "bins": 450,
+            "arm_pos": [[0, 69], [150, 252], [300, 404]]
         },
-        "vel": 2.0,
-        "spk_amp": 100
+        "position_kernel": {
+            "std": 1
+        },
+        "vel": 0,
+        "spk_amp": 60
     },
 
-    "decoder": {
-        "bin_size": 6000
-    }
+    "decoder": "pp_decoder",
 
+    "bayesian_decoder": {
+        "bin_size": 30000
+    },
+
+    "pp_decoder": {
+        "bin_size": 30,
+        "trans_mat_uniform_gain": 0.001,
+        "trans_mat_smoother_std": 1
+
+    }
 }

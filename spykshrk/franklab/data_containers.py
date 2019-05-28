@@ -8,6 +8,8 @@ import enum
 import os
 import warnings
 
+from spykshrk.franklab import print_util
+
 from spykshrk.franklab.warnings import ConstructorWarning, OverridingAttributeWarning
 from spykshrk.franklab.errors import HDFKeyExistsError
 
@@ -533,6 +535,15 @@ class EncodeSettings:
     def pos_column_slice(self, slice):
         raise NotImplementedError
 
+    def __str__(self):
+        new_str = '{'
+        for ind, (key, en) in enumerate(self.__dict__.items()):
+            new_str += '\'' + key + '\'' + ':' + print_util.pretty_str_list(en)
+            if ind != len(self.__dict__.items()) - 1:
+                new_str += '\n'
+        new_str += '}'
+        return new_str
+
 
 class DecodeSettings:
     """
@@ -547,6 +558,15 @@ class DecodeSettings:
         self.time_bin_size = realtime_config['pp_decoder']['bin_size']     # Decode bin size in samples (usually 30kHz)
         self.trans_smooth_std = realtime_config['pp_decoder']['trans_mat_smoother_std']
         self.trans_uniform_gain = realtime_config['pp_decoder']['trans_mat_uniform_gain']
+
+    def __str__(self):
+        new_str = '{'
+        for ind, (key, en) in enumerate(self.__dict__.items()):
+            new_str += '\'' + key + '\'' + ':' + print_util.pretty_str_list(en)
+            if ind != len(self.__dict__.items()) - 1:
+                new_str += '\n'
+        new_str += '}'
+        return new_str
 
 
 class SpikeWaves(DayEpochElecTimeChannelSeries):
