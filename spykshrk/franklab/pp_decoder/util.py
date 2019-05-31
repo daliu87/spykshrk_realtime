@@ -48,7 +48,7 @@ def apply_no_anim_boundary(x_bins, arm_coor, image):
 
 
 def simplify_pos_pandas(pos_data):
-    pos_data_time = pos_data.loc[:, 'time']
+    pos_data_time = pos_data.index.get_level_values('time')
 
     pos_data_notebook = pos_data.loc[:,'lin_dist_well']
     pos_data_notebook.loc[:, 'lin_vel_center'] = pos_data.loc[:,('lin_vel', 'well_center')]

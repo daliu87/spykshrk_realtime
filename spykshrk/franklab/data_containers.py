@@ -141,7 +141,7 @@ class DataFrameClass(pd.DataFrame):
         raise NotImplementedError
 
     @classmethod
-    @abstractclassmethod
+    @abstractmethod
     def create_default(cls, df, parent=None, **kwd):
         pass
 
@@ -502,6 +502,7 @@ class EncodeSettings:
 
         self.sampling_rate = encoder_config['sampling_rate']
         self.arm_coordinates = encoder_config['position']['arm_pos']
+        self.tetrodes = realtime_config[realtime_config['datasource']]['nspike_animal_info']['tetrodes']
         
         self.pos_upper = encoder_config['position']['upper']
         self.pos_lower = encoder_config['position']['lower']
@@ -867,6 +868,15 @@ class SpikeObservation(DayEpochTimeSeries):
 
         return df
 
+    def get_distribution_as_np(self):
+        return self.loc[:, pos_col_format(0, self.kwds['enc_settings'].pos_num_bins):
+                        pos_col_format(self.kwds['enc_settings'].pos_num_bins-1,
+                                       self.kwds['enc_settings'].pos_num_bins)].values
+
+    def set_distribution(self, dist):
+        self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
+                 pos_col_format(self.enc_settings.pos_num_bins-1, self.enc_settings.pos_num_bins)] = dist
+
     def get_distribution_view(self):
         return self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
                         pos_col_format(self.enc_settings.pos_num_bins-1, self.enc_settings.pos_num_bins)]
@@ -904,7 +914,6 @@ class Posteriors(DayEpochTimeSeries):
 
             else:
                 self.sampling_rate = data.kwds['sampling_rate']
-
 
         super().__init__(sampling_rate=sampling_rate, data=data, index=index, columns=columns,
                          dtype=dtype, copy=copy, parent=parent, history=history, enc_settings=self.enc_settings,
@@ -993,6 +1002,9 @@ class Posteriors(DayEpochTimeSeries):
                     pos_col_format(self.kwds['enc_settings'].pos_num_bins-1,
                                    self.kwds['enc_settings'].pos_num_bins)].values
 
+    def set_posterior(self, post):
+        self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
+                 pos_col_format(self.enc_settings.pos_num_bins-1, self.enc_settings.pos_num_bins)] = post
 
     def get_distribution_view(self):
         return self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):

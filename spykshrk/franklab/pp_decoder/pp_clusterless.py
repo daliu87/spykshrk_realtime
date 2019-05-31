@@ -89,7 +89,7 @@ class OfflinePPEncoder(object):
         self.observ_obj['position'] = (self.linflat.get_irregular_resampled(self.observ_obj).
                                   get_mapped_single_axis()['linpos_flat'])
 
-        self.observ_obj.loc[:, 'x000':'x449'] = self.observ_obj.loc[:, 'x000':'x449'].values + 1e-20
+        self.observ_obj.set_distribution(self.observ_obj.get_distribution_as_np() + np.finfo(float).eps)
 
         return self.observ_obj
 
@@ -359,8 +359,10 @@ class OfflinePPDecoder(object):
             
             time_bin_size (float, optional): Delta time per bin to run decode, defaults to decoder_settings value.
         """
-
-        self.prob_no_spike = prob_no_spike
+        if prob_no_spike:
+            self.prob_no_spike = prob_no_spike
+        else:
+            self.prob_no_spike = {tet_id: np.ones(encode_settings.pos_num_bins) for tet_id in encode_settings.tetrodes}
         self.trans_mat = trans_mat
         self.observ_obj = observ_obj
         self.encode_settings = encode_settings

@@ -163,3 +163,5 @@ class BinaryRecordsFileReader:
         panda_numeric_frames = {key: df.apply(pd.to_numeric, errors='ignore') for key, df in panda_frames.items()}
 
         return panda_numeric_frames
+
+
