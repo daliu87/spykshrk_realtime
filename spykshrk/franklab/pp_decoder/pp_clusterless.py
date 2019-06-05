@@ -136,14 +136,20 @@ class OfflinePPEncoder(object):
         del mark_contrib
         observ = np.matmul(all_contrib, pos_distrib_tet)
         del all_contrib
+
         # occupancy normalize 
         observ = observ / (occupancy)
-        # normalize each row (#dec spks x #pos_bins)
-        observ_sum = observ.sum(axis=1)
+
+        # normalize factor for each row (#dec spks x #pos_bins)
+        observ_sum = np.nansum(observ, axis=1)
+
+        # replace all rows that are all zeros with uniform distribution
         observ_sum_zero = observ_sum == 0
         observ[observ_sum_zero, :] = 1/(self.encode_settings.pos_bins[-1] - self.encode_settings.pos_bins[0])
         observ_sum[observ_sum_zero] = 1
-        observ = observ / observ.sum(axis=1)[:, np.newaxis]
+
+        # apply normalization factor
+        observ = observ / observ_sum[:, np.newaxis]
         ret_df = pd.DataFrame(observ, index=dec_spk.set_index(index_columns).index,
                               columns=[pos_col_format(pos_ii, observ.shape[1])
                                        for pos_ii in range(observ.shape[1])])
@@ -169,6 +175,9 @@ class OfflinePPEncoder(object):
         occupancy, occ_bin_edges = np.histogram(lin_obj['linpos_flat'], bins=enc_settings.pos_bin_edges,
                                                 normed=True)
         occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
+
+        # occupancy
+        occupancy = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, occupancy, np.nan)
         occupancy += 1e-10
         return occupancy
 
@@ -534,7 +543,7 @@ class OfflinePPDecoder(object):
 
                 obv_in_bin = obv_in_bin * obv
                 obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
-                obv_in_bin = obv_in_bin / (np.sum(obv_in_bin) * enc_settings.pos_bin_delta)
+                obv_in_bin = obv_in_bin / (np.nansum(obv_in_bin) * enc_settings.pos_bin_delta)
 
             # Contribution for electrodes that no spikes in this bin
             for elec_grp_id in elec_set.symmetric_difference(elec_grp_list):
@@ -599,8 +608,8 @@ class OfflinePPDecoder(object):
         posteriors = np.zeros(likelihoods.shape)
 
         for like_ii, like in enumerate(likelihoods):
-            posteriors[like_ii, :] = like * np.matmul(transition_mat, last_posterior)
-            posteriors[like_ii, :] = posteriors[like_ii, :] / (posteriors[like_ii, :].sum() *
+            posteriors[like_ii, :] = like * np.matmul(transition_mat, np.nan_to_num(last_posterior))
+            posteriors[like_ii, :] = posteriors[like_ii, :] / (np.nansum(posteriors[like_ii, :]) *
                                                                pos_delta)
             last_posterior = posteriors[like_ii, :]
 

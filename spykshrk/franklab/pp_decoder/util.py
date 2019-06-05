@@ -18,13 +18,14 @@ def normal_pdf_int_lookup(x, mean, std):
     return norm_dist[x-mean+max_amp]
 
 
-def apply_no_anim_boundary(x_bins, arm_coor, image):
+def apply_no_anim_boundary(x_bins, arm_coor, image, fill=0):
     """
 
     Args:
         x_bins: the position value for each bin
         arm_coor: the inclusive arm coordinates of valid animal positions
         image: the image or array to apply
+        fill: value to fill in outside of boundary
 
     Returns:
 
@@ -40,10 +41,10 @@ def apply_no_anim_boundary(x_bins, arm_coor, image):
 
     for bounds in boundary_ind:
         if image.ndim == 1:
-            image[bounds[0]:bounds[1]] = 0
+            image[bounds[0]:bounds[1]] = fill
         elif image.ndim == 2:
-            image[bounds[0]:bounds[1], :] = 0
-            image[:, bounds[0]:bounds[1]] = 0
+            image[bounds[0]:bounds[1], :] = fill
+            image[:, bounds[0]:bounds[1]] = fill
     return image
 
 
