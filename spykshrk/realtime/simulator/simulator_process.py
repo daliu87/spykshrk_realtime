@@ -55,6 +55,7 @@ class TrodesDataReceiver(realtime_base.DataSourceReceiver):
         self.stop = False
         self.timestamp = 0
         self.network = config['trodes_network']['networkobject'] 
+        self.channels = []
         if self.datatype is datatypes.Datatypes.LFP:
             self.DataPointCls = datatypes.LFPPoint
 
@@ -68,25 +69,20 @@ class TrodesDataReceiver(realtime_base.DataSourceReceiver):
             raise SimulatorError('{} is not a valid datatype.'.format(self.datatype))
 
     def register_datatype_channel(self, channel):
+        self.channels.append(channel)
+        
+    def start_all_streams(self):
         if self.datatype is datatypes.Datatypes.LFP:
-            channels = []
-            if isinstance(channel, list):
-                channels = [str(i) for i in channel]
-            else:
-                channels = [str(channel)]
-            self.datastream = self.network.subscribeLFPData(300, channels)
+            chnls = [str(i) for i in self.channels]
+            self.datastream = self.network.subscribeLFPData(300, chnls)
             self.datastream.initialize()
             self.buf = self.datastream.create_numpy_array()
             self.curntrode = -1
-            self.subbedntrodes = len(channels)
+            self.subbedntrodes = len(chnls)
             
         elif self.datatype is datatypes.Datatypes.SPIKES:
-            channels = []
-            if isinstance(channel, list):
-                channels = [str(i)+',0' for i in channel]
-            else:
-                channels = [str(channel)+',0']
-            self.datastream = self.network.subscribeSpikesData(300, channels)
+            chnls = [str(i)+',0' for i in self.channels]
+            self.datastream = self.network.subscribeSpikesData(300, chnls)
             self.datastream.initialize()
             self.buf = self.datastream.create_numpy_array()
             
@@ -100,9 +96,6 @@ class TrodesDataReceiver(realtime_base.DataSourceReceiver):
             
         else:
             raise SimulatorError('{} is not a valid datatype.'.format(self.datatype))
-        
-        self.channel = channel
-    def start_all_streams(self):
         self.start = True
 
     def stop_all_streams(self):
@@ -125,7 +118,7 @@ class TrodesDataReceiver(realtime_base.DataSourceReceiver):
         if self.datatype is datatypes.Datatypes.LFP:
             # if haven't gotten anything yet, curntrode = -1. if already sent all in one packet, curntrode = subbedntrodes
             if self.curntrode > 0 and self.curntrode < self.subbedntrodes:
-                pt = datatypes.LFPPoint(self.timestamp.trodes_timestamp, self.channel[self.curntrode], self.channel[self.curntrode], self.buf[self.curntrode])
+                pt = datatypes.LFPPoint(self.timestamp.trodes_timestamp, self.channels[self.curntrode], self.channels[self.curntrode], self.buf[self.curntrode])
                 self.curntrode = self.curntrode + 1
                 return pt, None
         
@@ -138,7 +131,7 @@ class TrodesDataReceiver(realtime_base.DataSourceReceiver):
                 self.timestamp = self.datastream.getData()
                 # Reset curntrode value. If lfp buffer is more than 1, then above code will read from buffer before reading from Trodes stream
                 self.curntrode = 0
-                pt = datatypes.LFPPoint(self.timestamp.trodes_timestamp, self.channel[self.curntrode], self.channel[self.curntrode], self.buf[self.curntrode])
+                pt = datatypes.LFPPoint(self.timestamp.trodes_timestamp, self.channels[self.curntrode], self.channels[self.curntrode], self.buf[self.curntrode])
                 self.curntrode = 1
                 return pt, None
                 
@@ -147,7 +140,7 @@ class TrodesDataReceiver(realtime_base.DataSourceReceiver):
                 # Reshape data to look like what spykshrk expects
                 d = self.buf[0][3][:,1]
                 newshape = (int(len(d)/40), 40)
-                return datatypes.SpikePoint(self.timestamp.trodes_timestamp, self.channel, np.reshape(d, newshape)), None
+                return datatypes.SpikePoint(self.timestamp.trodes_timestamp, self.channels, np.reshape(d, newshape)), None
                 
             elif self.datatype is datatypes.Datatypes.LINEAR_POSITION:
                 byteswritten = self.datastream.readData(self.buf) #Data is [(timestamp, linear segment, position, x location, y location)]

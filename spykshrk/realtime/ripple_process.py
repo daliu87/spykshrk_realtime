@@ -374,9 +374,8 @@ class RippleManager(realtime_base.BinaryRecordBaseWithTiming, rt_logging.Logging
 
     def select_ntrodes(self, ntrode_list):
         self.class_log.debug("Registering continuous channels: {:}.".format(ntrode_list))
-        self.data_interface.register_datatype_channel(channel=ntrode_list)
         for electrode_group in ntrode_list:
-            # self.data_interface.register_datatype_channel(channel=electrode_group)
+            self.data_interface.register_datatype_channel(channel=electrode_group)
             self.ripple_filters.setdefault(electrode_group, RippleFilter(rec_base=self, param=self.param,
                                                                          elec_grp_id=electrode_group))
 
