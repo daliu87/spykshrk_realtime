@@ -139,7 +139,7 @@ class OfflinePPEncoder(object):
         del all_contrib
 
         # occupancy normalize 
-        ##observ = observ / (occupancy)
+        observ = observ / (occupancy)
 
         # normalize factor for each row (#dec spks x #pos_bins)
         observ_sum = np.nansum(observ, axis=1)
