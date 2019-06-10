@@ -7,89 +7,70 @@
 # Setup and import packages
 import sys
 sys.path.append('/usr/workspace/wsb/coulter5/spykshrk_realtime')
-import os 
-import glob
+import os
+import pdb
 from datetime import datetime
 import trodes2SS
 from trodes2SS import AttrDict, TrodesImport, convert_dan_posterior_to_xarray
 import sungod_linearization
-from sungod_linearization import createTrackGraph, hack_determinearmorder, turn_array_into_ranges, \
-chunk_data, change_to_directory_make_if_nonexistent
-import numpy as np
-import scipy.io
-import scipy as sp
-import scipy.stats as ss
-import pandas as pd
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-import holoviews as hv
-import json
-import functools
-import dask
-import dask.dataframe as dd
-import dask.array as da
-import networkx as nx
-import loren_frank_data_processing as lfdp
-import scipy.io as sio # for saving .mat files 
-import inspect # for inspecting files (e.g. finding file source)
-import multiprocessing 
-import sys 
-import pickle
-from tempfile import TemporaryFile
-from multiprocessing import Pool
-import math 
-
-# set log file name
-log_file = '/p/lustre1/coulter5/remy/1d_decoder_log.txt'
-print(datetime.now())
-print(datetime.now(), file=open(log_file,"a"))
-
-# set path to folders where spykshrk core scripts live
-path_main = '/usr/workspace/wsb/coulter5/spykshrk_realtime'
-os.chdir(path_main)
-from spykshrk.franklab.data_containers import FlatLinearPosition, SpikeFeatures, Posteriors, \
-        EncodeSettings, pos_col_format, SpikeObservation, RippleTimes, DayEpochEvent, DayEpochTimeSeries
+from sungod_linearization import createTrackGraph, hack_determinearmorder, turn_array_into_ranges, chunk_data, change_to_directory_make_if_nonexistent
+from spykshrk.franklab.data_containers import FlatLinearPosition, SpikeFeatures, Posteriors, EncodeSettings, pos_col_format, SpikeObservation, RippleTimes, DayEpochEvent, DayEpochTimeSeries
 from spykshrk.franklab.pp_decoder.util import normal_pdf_int_lookup, gaussian, apply_no_anim_boundary, normal2D
 from spykshrk.franklab.pp_decoder.pp_clusterless import OfflinePPEncoder, OfflinePPDecoder
 #from spykshrk.franklab.pp_decoder.visualization import DecodeVisualizer
 from spykshrk.util import Groupby
+import numpy as np
+import scipy.io
+import scipy as sp
+import pandas as pd
+import loren_frank_data_processing as lfdp
+import scipy.io as sio # for saving .mat files 
 
+def main(path_base_rawdata, rat_name, path_arm_nodes, path_base_analysis, shift_amt, path_out):
+    # set log file name
+    #log_file = '/p/lustre1/coulter5/remy/1d_decoder_log.txt'
+    print(datetime.now())
+    #print(datetime.now(), file=open(log_file,"a"))
 
-#cell 2
-# Import data
+    # set path to folders where spykshrk core scripts live
+    #path_main = '/usr/workspace/wsb/coulter5/spykshrk_realtime'
+    #os.chdir(path_main)
 
-# Define path bases 
-path_base_rawdata = '/p/lustre1/coulter5/remy/'
+    #cell 2
+    # Import data
 
-# Define parameters
-# for epochs we want 2 and 4 for each day
-#shifts = [0, .10, .15, .20]
-shifts = [0]
-for shift_amt in shifts:
-    rat_name = 'remy'
+    # Define path bases 
+    #path_base_rawdata = '/p/lustre1/coulter5/remy/'
+
+    # Define parameters
+    # for epochs we want 2 and 4 for each day
+    #shifts = [0, .10, .15, .20]
+    #shifts = [0]
+    #for shift_amt in shifts:
+    #rat_name = 'remy'
     print(rat_name)
-    print(rat_name, file=open(log_file,"a"))
+    #print(rat_name, file=open(log_file,"a"))
     
     directory_temp = path_base_rawdata + rat_name + '/'
     day_dictionary = {'remy':[20], 'gus':[28], 'bernard':[23], 'fievel':[19]}
     epoch_dictionary = {'remy':[2], 'gus':[4], 'bernard':[4], 'fievel':[4]} 
-    #tetrodes_dictionary = {'remy': [4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
-    #                       'gus': [6,7,8,9,10,11,12,17,18,19,20,21,24,25,26,27,30], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
-    #                       'bernard': [1,2,3,4,5,7,8,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29],
-    #                       'fievel': [1,2,3,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,22,23,24,25,27,28,29]}
-    tetrodes_dictionary = {'remy': [4], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
-                           'gus': [6], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
-                           'bernard': [1],
-                           'fievel': [1]}
+    tetrodes_dictionary = {'remy': [4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
+                           'gus': [6,7,8,9,10,11,12,17,18,19,20,21,24,25,26,27,30], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
+                           'bernard': [1,2,3,4,5,7,8,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29],
+                           'fievel': [1,2,3,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,22,23,24,25,27,28,29]}
+    #tetrodes_dictionary = {'remy': [4], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
+     #                      'gus': [6], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
+      #                     'bernard': [1],
+       #                    'fievel': [1]}
                                                   
     # Maze information
-    os.chdir('/usr/workspace/wsb/coulter5/spykshrk_realtime/')
+    #os.chdir('/usr/workspace/wsb/coulter5/spykshrk_realtime/')
     #maze_coordinates = scipy.io.loadmat('set_arm_nodes.mat',variable_names = 'linearcoord_NEW')
     # new maze coordinates with only one segment for box
-    maze_coordinates = scipy.io.loadmat('set_arm_nodes.mat',variable_names = 'linearcoord_one_box')
+    maze_coordinates = scipy.io.loadmat(os.path.join(path_arm_nodes, 'set_arm_nodes.mat'), variable_names = 'linearcoord_one_box')
 
     print('Lodaing raw data! '+str(rat_name)+' Day '+str(day_dictionary[rat_name])+' Epoch '+str(epoch_dictionary[rat_name]))
-    print('Lodaing raw data! '+str(rat_name)+' Day '+str(day_dictionary[rat_name])+' Epoch '+str(epoch_dictionary[rat_name]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    #print('Lodaing raw data! '+str(rat_name)+' Day '+str(day_dictionary[rat_name])+' Epoch '+str(epoch_dictionary[rat_name]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
     datasrc = TrodesImport(directory_temp, rat_name, day_dictionary[rat_name], 
                            epoch_dictionary[rat_name], tetrodes_dictionary[rat_name])
@@ -118,7 +99,7 @@ for shift_amt in shifts:
 
     # Define path bases
     path_base_dayepoch = 'day' + str(day_dictionary[rat_name][0]) + '_epoch' + str(epoch_dictionary[rat_name][0])
-    path_base_analysis = '/p/lustre1/coulter5/remy/maze_info/'
+    #path_base_analysis = '/p/lustre1/coulter5/remy/maze_info/'
 
     #cell 3
     #filter ripples for velocity < 4
@@ -143,7 +124,7 @@ for shift_amt in shifts:
     rips_vel_filtered = RippleTimes.create_default(rips_vel_filt, 1)
 
     print('rips when animal velocity <= 4: '+str(linflat_ripindex_encode_velthresh.shape[0]))
-    print('rips when animal velocity <= 4: '+str(linflat_ripindex_encode_velthresh.shape[0]), file=open(log_file,"a"))
+    #print('rips when animal velocity <= 4: '+str(linflat_ripindex_encode_velthresh.shape[0]), file=open(log_file,"a"))
 
     #cell 4
     # dont run encoding or decdoing subset cells for the crossvalidation runs
@@ -172,15 +153,17 @@ for shift_amt in shifts:
     linearization_output_save_path
     # Check if it exists, make if it doesn't
     directory_path = linearization_output_save_path
-    change_to_directory_make_if_nonexistent(directory_path)
+    if not os.path.exists(directory_path):
+        os.mkdir(directory_path)
+    #change_to_directory_make_if_nonexistent(directory_path)
 
     # Define name of linearization result
-    linearization_output1_save_filename = 'linearization_' + path_base_timewindow + '_speed' + str(speed_threshold_save) + '_linear_distance_arm_shift' + '.npy'
-    linearization_output2_save_filename = 'linearization_' + path_base_timewindow + '_speed' + str(speed_threshold_save) + '_track_segment_id_use' + '.npy'
+    linearization_output1_save_filename = os.path.join(directory_path, 'linearization_' + path_base_timewindow + '_speed' + str(speed_threshold_save) + '_linear_distance_arm_shift' + '.npy')
+    linearization_output2_save_filename = os.path.join(directory_path, 'linearization_' + path_base_timewindow + '_speed' + str(speed_threshold_save) + '_track_segment_id_use' + '.npy')
     # If linearization result doesn't exist, do linearization calculation
     if os.path.exists(linearization_output1_save_filename) == False:
         print('Linearization result doesnt exist. Doing linearization calculation')
-        print("Linearization result doesnt exist. Doing linearization calculation.", file=open(log_file,"a"))
+        #print("Linearization result doesnt exist. Doing linearization calculation.", file=open(log_file,"a"))
 
         # Prepare for linearization 
         
@@ -223,8 +206,7 @@ for shift_amt in shifts:
         track_segment_id_nodes = lfdp.track_segment_classification.find_nearest_segment(track_segments, node_coords)
 
         # Calculate linear distance of nodes to back well 
-        linear_distance_nodes = lfdp.track_segment_classification.calculate_linear_distance(
-                track_graph, track_segment_id_nodes, center_well_id, node_coords)
+        linear_distance_nodes = lfdp.track_segment_classification.calculate_linear_distance(track_graph, track_segment_id_nodes, center_well_id, node_coords)
 
         # Linearize position
         #pos_subset_linear = pos.loc[(pos.index.get_level_values('time') <= linear_end) & (pos.index.get_level_values('time') >= linear_start)]
@@ -259,8 +241,7 @@ for shift_amt in shifts:
         elif assign_track_segments_one_is_Markov_two_is_naive == 2:   
             track_segment_id_use = track_segment_id_naive
         # Find linear distance of position from back well 
-        linear_distance = lfdp.track_segment_classification.calculate_linear_distance(track_graph, 
-                                     track_segment_id_use, center_well_id, simplepos.T)
+        linear_distance = lfdp.track_segment_classification.calculate_linear_distance(track_graph, track_segment_id_use, center_well_id, simplepos.T)
 
         # Modify: 1) collapse non-arm locations, 2) shift linear distance for the 8 arms
         newseg = np.copy(track_segment_id_use)
@@ -291,12 +272,9 @@ for shift_amt in shifts:
             temp = [key,shift_linear_distance_by_arm_dictionary[key]]
             linearization_shift_segments_list.append(temp)    
         # Change directory
-        change_to_directory_make_if_nonexistent(linearization_output_save_path)
+        #change_to_directory_make_if_nonexistent(linearization_output_save_path)
         # Define file name 
-        file_name_temp = [rat_name + '_day' + str(day_dictionary[rat_name][0]) + '_epoch' + str(epoch_dictionary[rat_name][0]) + 
-                          '_' + path_base_timewindow +
-                          '_speed' + str(speed_threshold_save) + 
-                          '_linearization_variables.mat']    
+        file_name_temp = os.path.join(linearization_output_save_path, rat_name + '_day' + str(day_dictionary[rat_name][0]) + '_epoch' + str(epoch_dictionary[rat_name][0]) + '_' + path_base_timewindow +'_speed' + str(speed_threshold_save) + '_linearization_variables.mat')
 
         # Store variables 
         export_this = AttrDict({'linearization_segments': track_segments,
@@ -308,18 +286,18 @@ for shift_amt in shifts:
                                 'linearization_position_distance_from_back_well_arm_shift':linear_distance_arm_shift
                                })
         # Warn before overwriting file 
-        if os.path.exists(file_name_temp[0]) == True:
-            input("Press Enter to overwrite file")
-            print('overwriting')
+        #if os.path.exists(file_name_temp[0]) == True:
+        #    input("Press Enter to overwrite file")
+        #    print('overwriting')
         # Save 
         print('saving file:',file_name_temp)
-        print('saving file:',file_name_temp, file=open(log_file,"a"))
-        sio.savemat(file_name_temp[0],export_this)
+        #print('saving file:',file_name_temp, file=open(log_file,"a"))
+        sio.savemat(file_name_temp,export_this)
         
     # If linearization result exists, load it 
     else:
         print('Linearization result exists. Loading it.')
-        print("Linearization result exists. Loading it.", file=open(log_file,"a"))
+        #print("Linearization result exists. Loading it.", file=open(log_file,"a"))
         linear_distance_arm_shift = np.load(linearization_output1_save_filename)
         track_segment_id_use = np.load(linearization_output2_save_filename)
         #pos_subset['linpos_flat'] = linear_distance_arm_shift[(encode_subset_start-encode_subset_start):(encode_subset_end-encode_subset_start+1)]
@@ -377,7 +355,7 @@ for shift_amt in shifts:
     start_temp, end_temp = turn_array_into_ranges(edges_wewant)
     arm_coordinates_WEWANT = np.column_stack((start_temp, end_temp))
     print('Arm coordinates: ',arm_coordinates_WEWANT)
-    print('Arm coordinates: ',arm_coordinates_WEWANT, file=open(log_file,"a"))
+    #print('Arm coordinates: ',arm_coordinates_WEWANT, file=open(log_file,"a"))
 
     #cell 7.1
     # this cell speeds up encoding with larger position bins
@@ -390,7 +368,7 @@ for shift_amt in shifts:
     arm_coordinates_WEWANT = arm_coordinates_WEWANT/5
     arm_coordinates_WEWANT = np.around(arm_coordinates_WEWANT)
     print('Arm coordinates: ',arm_coordinates_WEWANT)
-    print('Arm coordinates: ',arm_coordinates_WEWANT, file=open(log_file,"a"))
+    #print('Arm coordinates: ',arm_coordinates_WEWANT, file=open(log_file,"a"))
 
     #cell 8
     #define encoding settings
@@ -409,10 +387,11 @@ for shift_amt in shifts:
                                 'mark_kernel_std': int(20), 
                                 'pos_num_bins': max_pos, # len(arm_coords_wewant)
                                 'pos_col_names': [pos_col_format(ii, max_pos) for ii in range(max_pos)], # or range(0,max_pos,10)
-                                'arm_coordinates': arm_coordinates_WEWANT}) # includes box, removes bins in the gaps 'arm_coordinates': [[0,max_pos]]})
+                                'arm_coordinates': arm_coordinates_WEWANT,
+                                'path_trans_mat': path_arm_nodes}) # includes box, removes bins in the gaps 'arm_coordinates': [[0,max_pos]]})
 
     print('Encode settings: ',encode_settings)
-    print('Encode settings: ',encode_settings, file=open(log_file,"a"))
+    #print('Encode settings: ',encode_settings, file=open(log_file,"a"))
 
     #cell 9
     #define decode settings
@@ -421,7 +400,7 @@ for shift_amt in shifts:
                                 'time_bin_size':60})
 
     print('Decode settings: ',decode_settings)
-    print('Decode settings: ',decode_settings, file=open(log_file,"a"))
+    #print('Decode settings: ',decode_settings, file=open(log_file,"a"))
 
     #cell 9.1 randomize trial order within epoch
     #read in trial times
@@ -433,7 +412,7 @@ for shift_amt in shifts:
     endtimes = endtimes.astype(np.float64,copy=False)
     trialsindex = np.arange(starttimes.shape[0])
     print('Number of trials: ',trialsindex.shape)
-    print('Number of trials: ',trialsindex.shape, file=open(log_file,"a"))
+    #print('Number of trials: ',trialsindex.shape, file=open(log_file,"a"))
 
     # randomize trial order
     indices = np.arange(starttimes.shape[0])
@@ -451,7 +430,7 @@ for shift_amt in shifts:
     endtimes_shuffled = endtimes[indices]
     trialsindex_shuffled = trialsindex[indices]
     print('Randomized trial order: ',trialsindex_shuffled)
-    print('Randomized trial order: ',trialsindex_shuffled, file=open(log_file,"a"))
+    #print('Randomized trial order: ',trialsindex_shuffled, file=open(log_file,"a"))
 
     #to make a new position, marks and trial file with new start and end times:
     #position
@@ -469,20 +448,20 @@ for shift_amt in shifts:
     # filter for large negative marks and spike amplitude
     marks_random_trial_non_negative = trodes2SS.threshold_marks_negative(random_trial_marks_all, negthresh=-999)
     print('Original encode length: ',random_trial_marks_all.shape)
-    print('Original encode length: ',random_trial_marks_all.shape, file=open(log_file,"a"))
+    #print('Original encode length: ',random_trial_marks_all.shape, file=open(log_file,"a"))
     print('Encoding marks non-negative filter: ',marks_random_trial_non_negative.shape)
-    print('Encoding marks non-negative filter: ',marks_random_trial_non_negative.shape, file=open(log_file,"a"))
+    #print('Encoding marks non-negative filter: ',marks_random_trial_non_negative.shape, file=open(log_file,"a"))
 
     random_trial_spk_subset_sparse = trodes2SS.threshold_marks(marks_random_trial_non_negative, maxthresh=2000,minthresh=100)
     print('original length: '+str(marks_random_trial_non_negative.shape[0]))
     print('after filtering: '+str(random_trial_spk_subset_sparse.shape[0]))
-    print('original length: '+str(marks_random_trial_non_negative.shape[0]), file=open(log_file,"a"))
-    print('after filtering: '+str(random_trial_spk_subset_sparse.shape[0]), file=open(log_file,"a"))
+    #print('original length: '+str(marks_random_trial_non_negative.shape[0]), file=open(log_file,"a"))
+    #print('after filtering: '+str(random_trial_spk_subset_sparse.shape[0]), file=open(log_file,"a"))
 
     # velocity filter to define encoding and decoding times
     velocity_filter = 4
     print('Velocity filter: ',velocity_filter)
-    print('Velocity filter: ',velocity_filter, file=open(log_file,"a"))
+    #print('Velocity filter: ',velocity_filter, file=open(log_file,"a"))
 
     #NOTE: to try marks shift on whole trials we need to do shift first, then velocity filter for encoding and decoding marks
     # nope - cant do this, need to do velocity filter first
@@ -497,7 +476,7 @@ for shift_amt in shifts:
     encode_spikes_random_trial = random_trial_spk_subset_sparse.loc[linflat_spkindex_encode_velthresh.index]
 
     print('encoding spikes after velocity filter: '+str(encode_spikes_random_trial.shape[0]))
-    print('encoding spikes after velocity filter: '+str(encode_spikes_random_trial.shape[0]), file=open(log_file,"a"))
+    #print('encoding spikes after velocity filter: '+str(encode_spikes_random_trial.shape[0]), file=open(log_file,"a"))
 
     # #decoding spikes
     linflat_obj = random_trial_pos_all.get_mapped_single_axis()
@@ -508,7 +487,7 @@ for shift_amt in shifts:
     decode_spikes_random_trial = random_trial_spk_subset_sparse.loc[linflat_spkindex_decode_velthresh.index]
 
     print('decoding spikes after velocity filter: '+str(decode_spikes_random_trial.shape[0]))
-    print('decoding spikes after velocity filter: '+str(decode_spikes_random_trial.shape[0]), file=open(log_file,"a"))
+    #print('decoding spikes after velocity filter: '+str(decode_spikes_random_trial.shape[0]), file=open(log_file,"a"))
 
     #filter position for velocity
     random_trial_pos_all_vel = random_trial_pos_all.loc[(random_trial_pos_all['linvel_flat']>velocity_filter)]
@@ -526,7 +505,7 @@ for shift_amt in shifts:
     max_time = marks_for_epoch_time['time'].iloc[-1]
     epoch_time = max_time - min_time
     print('Total spoch time (sec): ',epoch_time)
-    print('Total epoch time (sec) ',epoch_time, file=open(log_file,"a"))  
+    #print('Total epoch time (sec) ',epoch_time, file=open(log_file,"a"))  
 
     # dont use firing rate to calculate the size of the shift, instead find the index at 25% of epoch, eg
     #tetrode_x_firing_rate = []
@@ -550,7 +529,7 @@ for shift_amt in shifts:
     marks_index_shift = encode_spikes_shift_query.iloc[(encode_spikes_shift_query['time']-marks_index_target).abs().argsort()[:1]].index.item()
 
     print('Marks index shift: ',marks_index_shift)
-    print('Marks index shift: ',marks_index_shift, file=open(log_file,"a"))
+    #print('Marks index shift: ',marks_index_shift, file=open(log_file,"a"))
 
     # save dataframe with both shifted and original marks
     encode_spikes_random_trial_save = encode_spikes_random_trial
@@ -564,7 +543,7 @@ for shift_amt in shifts:
     marks_time_shift3 = marks_time_shift2.to_xarray()
     marks_time_shift3.to_netcdf(shifted_marks_file_name)
     print('Saved shifted marks to: '+shifted_marks_file_name)
-    print('Saved shifted marks to: '+shifted_marks_file_name, file=open(log_file,"a"))
+    #print('Saved shifted marks to: '+shifted_marks_file_name, file=open(log_file,"a"))
  
     # apply shift to tetrode channel columns in original dataframe
     encode_spikes_random_trial = []
@@ -578,7 +557,7 @@ for shift_amt in shifts:
     #marks_time_shift_all_input =  marks_time_shift.drop(columns=['timestamp_original','time_original'])
 
     print('Shifted marks shape: ',encode_spikes_random_trial.shape)
-    print('Shifted marks shape: ',encode_spikes_random_trial.shape, file=open(log_file,"a"))
+    #print('Shifted marks shape: ',encode_spikes_random_trial.shape, file=open(log_file,"a"))
 
     # re-order enoc
 
@@ -614,16 +593,15 @@ for shift_amt in shifts:
     # these time-table lines are so that we can record the time it takes for encoder to run even if notebook disconnects
     # look at the time stamps for the two files in /data2/mcoulter called time_stamp1 and time_stamp2
     print('Starting encoder')
-    print("Starting encoder", file=open(log_file,"a"))
-    time_table_data = {'age': [1, 2, 3, 4, 5]}
-    time_table = pd.DataFrame(time_table_data)
-    time_table.to_csv('/p/lustre1/coulter5/remy/time_stamp1.csv')
+    #print("Starting encoder", file=open(log_file,"a"))
+    #time_table_data = {'age': [1, 2, 3, 4, 5]}
+    #time_table = pd.DataFrame(time_table_data)
+    #time_table.to_csv('/p/lustre1/coulter5/remy/time_stamp1.csv')
+    time_started = datetime.now()
 
     #for whole epoch: linflat=pos_all_linear_vel
     #for subset: linflat=pos_subset
-    encoder = OfflinePPEncoder(linflat=random_trial_pos_all_vel, dec_spk_amp=decode_spikes_random_trial, encode_settings=encode_settings, 
-                               decode_settings=decode_settings, enc_spk_amp=encode_spikes_random_trial, dask_worker_memory=1e9,
-                               dask_chunksize = None)
+    encoder = OfflinePPEncoder(linflat=random_trial_pos_all_vel, dec_spk_amp=decode_spikes_random_trial, encode_settings=encode_settings, decode_settings=decode_settings, enc_spk_amp=encode_spikes_random_trial, dask_worker_memory=1e9, dask_chunksize = None)
 
     #new output format to call results, prob_no_spike, and trans_mat for doing single tetrode encoding
     encoder_output = encoder.run_encoder()
@@ -633,13 +611,16 @@ for shift_amt in shifts:
 
     #results = encoder.run_encoder()
 
-    time_table.to_csv('/p/lustre1/coulter5/remy/time_stamp2.csv')
+    #time_table.to_csv('/p/lustre1/coulter5/remy/time_stamp2.csv')
+    time_finished =datetime.now()
+
     print('Enocder finished!')
-    print('Encoder started at: ',datetime.fromtimestamp(os.path.getmtime('/p/lustre1/coulter5/remy/time_stamp1.csv')).strftime('%Y-%m-%d %H:%M:%S'))
-    print('Encoder finished at: ',datetime.fromtimestamp(os.path.getmtime('/p/lustre1/coulter5/remy/time_stamp2.csv')).strftime('%Y-%m-%d %H:%M:%S'))
-    print("Encoder finished!", file=open(log_file,"a"))
-    print('Encoder started at: ',datetime.fromtimestamp(os.path.getmtime('/p/lustre1/coulter5/remy/time_stamp1.csv')).strftime('%Y-%m-%d %H:%M:%S'), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
-    print('Encoder finished at: ',datetime.fromtimestamp(os.path.getmtime('/p/lustre1/coulter5/remy/time_stamp2.csv')).strftime('%Y-%m-%d %H:%M:%S'), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    #print('Encoder started at: ',datetime.fromtimestamp(os.path.getmtime('/p/lustre1/coulter5/remy/time_stamp1.csv')).strftime('%Y-%m-%d %H:%M:%S'))
+    print('Encoder started at: %s'%str(time_started))
+    print('Encoder finished at: %s'%str(time_finished))
+    #print("Encoder finished!", file=open(log_file,"a"))
+    #print('Encoder started at: ',datetime.fromtimestamp(os.path.getmtime('/p/lustre1/coulter5/remy/time_stamp1.csv')).strftime('%Y-%m-%d %H:%M:%S'), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    #print('Encoder finished at: ',datetime.fromtimestamp(os.path.getmtime('/p/lustre1/coulter5/remy/time_stamp2.csv')).strftime('%Y-%m-%d %H:%M:%S'), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
     #cell 11
     #make observations table from results
@@ -654,9 +635,7 @@ for shift_amt in shifts:
         observ_tet_list.append(tet_result)
 
     observ = pd.concat(observ_tet_list)
-    observ_obj = SpikeObservation.create_default(observ.sort_index(level=['day', 'epoch', 
-                                                                          'timestamp', 'elec_grp_id']), 
-                                                 encode_settings)
+    observ_obj = SpikeObservation.create_default(observ.sort_index(level=['day', 'epoch', 'timestamp', 'elec_grp_id']), encode_settings)
 
     observ_obj['elec_grp_id'] = observ_obj.index.get_level_values('elec_grp_id')
     observ_obj.index = observ_obj.index.droplevel('elec_grp_id')
@@ -725,7 +704,7 @@ for shift_amt in shifts:
     # AND prob_no_spike=probability_no_spike
 
     print('Starting decoder')
-    print("Starting decoder", file=open(log_file,"a"))
+    #print("Starting decoder", file=open(log_file,"a"))
     decoder = OfflinePPDecoder(observ_obj=observ_obj, trans_mat=encoder.trans_mat['flat_powered'], 
                                prob_no_spike=encoder.prob_no_spike,
                                encode_settings=encode_settings, decode_settings=decode_settings, 
@@ -733,9 +712,9 @@ for shift_amt in shifts:
 
     posteriors = decoder.run_decoder()
     print('Decoder finished!')
-    print('Decoder finished!', file=open(log_file,"a"))
+    #print('Decoder finished!', file=open(log_file,"a"))
     print('Posteriors shape: '+ str(posteriors.shape))
-    print('Posteriors shape: '+ str(posteriors.shape), file=open(log_file,"a"))
+    #print('Posteriors shape: '+ str(posteriors.shape), file=open(log_file,"a"))
 
     #cell 15.1
     # reorder posteriors and position to restore original trial order (undo the randomization)
@@ -757,7 +736,7 @@ for shift_amt in shifts:
     # add ripple labels to posteriors and then convert posteriors to xarray then save as netcdf
     # this requires folding multiindex into posteriors dataframe first
 
-    posterior_file_name = '/p/lustre1/coulter5/remy/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_vel4_mask_convol_new_pos_yes_random_marks_shuffle_' + str(marks_index_shift) + '_posteriors_4_19_19.nc'
+    posterior_file_name = os.path.join(path_out,  rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_vel4_mask_convol_new_pos_yes_random_marks_shuffle_' + str(marks_index_shift) + '_posteriors_4_19_19.nc')
 
     post1 = posteriors.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
     post2 = post1.reset_index()
@@ -766,19 +745,33 @@ for shift_amt in shifts:
     #print(len(post3))
     post3.to_netcdf(posterior_file_name)
     print('Saved posteriors to '+posterior_file_name)
-    print('Saved posteriors to '+posterior_file_name, file=open(log_file,"a"))
+    #print('Saved posteriors to '+posterior_file_name, file=open(log_file,"a"))
 
     # to export linearized position to MatLab: again convert to xarray and then save as netcdf
 
-    position_file_name = '/p/lustre1/coulter5/remy/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_vel4_mask_convol_new_pos_yes_random_marks_shuffle_' + str(marks_index_shift) + '_linearposition_4_19_19.nc'
+    position_file_name = os.path.join(path_out, rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_vel4_mask_convol_new_pos_yes_random_marks_shuffle_' + str(marks_index_shift) + '_linearposition_4_19_19.nc')
 
     linearized_pos1 = pos_all_linear.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
     linearized_pos2 = linearized_pos1.reset_index()
     linearized_pos3 = linearized_pos2.to_xarray()
     linearized_pos3.to_netcdf(position_file_name)
     print('Saved linearized position to '+position_file_name)
-    print('Saved linearized position to '+position_file_name, file=open(log_file,"a"))
+    #print('Saved linearized position to '+position_file_name, file=open(log_file,"a"))
 
-print("End of script!")
-print("End of script!", file=open(log_file,"a"))
-print(" ", file=open(log_file,"a"))
+    print("End of script!")
+    #print("End of script!", file=open(log_file,"a"))
+    #print(" ", file=open(log_file,"a"))
+
+if __name__ == '__main__':
+    import argparse
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', action='store', dest='path_base_rawdata', help='Base path to raw data')
+    parser.add_argument('-n', action='store', dest='rat_name', help='Rat Name')
+    parser.add_argument('-a', action='store', dest='path_arm_nodes', help='Path to directory with arm_nodes and simple_transition_matrix files')
+    parser.add_argument('-l', action='store', dest='path_base_linearization', help='Base path to linearization')
+    parser.add_argument('-s', action='store', dest='shift_amt', type=float, help='Shift amount')
+    parser.add_argument('-o', action='store', dest='path_out', help='Path to output')
+    results = parser.parse_args()
+
+    main(results.path_base_rawdata, results.rat_name, results.path_arm_nodes, results.path_base_linearization, results.shift_amt, results.path_out)

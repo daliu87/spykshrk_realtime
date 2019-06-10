@@ -30,7 +30,11 @@ def main(path_base_rawdata, rat_name, path_arm_nodes, path_base_analysis, shift_
     # set log file name
     #log_file = '/p/lustre1/coulter5/remy/1d_decoder_log.txt'
     print(datetime.now())
+<<<<<<< HEAD
     today = date.today()
+=======
+    today = str(date.today())
+>>>>>>> develop
     #print(datetime.now(), file=open(log_file,"a"))
 
     # set path to folders where spykshrk core scripts live
@@ -50,11 +54,16 @@ def main(path_base_rawdata, rat_name, path_arm_nodes, path_base_analysis, shift_
     #for shift_amt in shifts:
     #rat_name = 'remy'
     print(rat_name)
+<<<<<<< HEAD
+=======
+    print('Shift amount is: ',shift_amt)
+>>>>>>> develop
     #print(rat_name, file=open(log_file,"a"))
     
     directory_temp = path_base_rawdata + rat_name + '/'
     day_dictionary = {'remy':[20], 'gus':[28], 'bernard':[23], 'fievel':[19]}
     epoch_dictionary = {'remy':[2], 'gus':[4], 'bernard':[4], 'fievel':[4]} 
+<<<<<<< HEAD
     #tetrodes_dictionary = {'remy': [4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
     #                       'gus': [6,7,8,9,10,11,12,17,18,19,20,21,24,25,26,27,30], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
     #                       'bernard': [1,2,3,4,5,7,8,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29],
@@ -63,6 +72,16 @@ def main(path_base_rawdata, rat_name, path_arm_nodes, path_base_analysis, shift_
                            'gus': [6], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
                            'bernard': [1],
                            'fievel': [1]}
+=======
+    tetrodes_dictionary = {'remy': [4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
+                           'gus': [6,7,8,9,10,11,12,17,18,19,20,21,24,25,26,27,30], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
+                           'bernard': [1,2,3,4,5,7,8,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29],
+                           'fievel': [1,2,3,5,6,7,8,9,10,11,12,14,15,16,17,18,19,20,22,23,24,25,27,28,29]}
+    #tetrodes_dictionary = {'remy': [4,9,11,13,15,19,21,23,25,28,30], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
+    #                       'gus': [6], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
+    #                       'bernard': [1],
+    #                       'fievel': [1]}
+>>>>>>> develop
                                                   
     # Maze information
     #os.chdir('/usr/workspace/wsb/coulter5/spykshrk_realtime/')
@@ -410,7 +429,14 @@ def main(path_base_rawdata, rat_name, path_arm_nodes, path_base_analysis, shift_
     encode_spikes_random_trial_save['c02_shift'] = np.roll(encode_spikes_random_trial_save['c02'],-(marks_index_shift))
     encode_spikes_random_trial_save['c03_shift'] = np.roll(encode_spikes_random_trial_save['c03'],-(marks_index_shift)) 
 
+<<<<<<< HEAD
     shifted_marks_file_name = os.path.join(path_out, rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_vel4_convol_new_pos_marks_shuffle_' + str(marks_index_shift) + '_marks_' + str(date) + '.nc')
+=======
+    # re-order chronologically
+    encode_spikes_random_trial_save = encode_spikes_random_trial_save.loc[linflat_spkindex_encode_velthresh.index]
+
+    shifted_marks_file_name = os.path.join(path_out, rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_mike_vel4_convol_new_pos_marks_shuffle_' + str(marks_index_shift) + '_marks_' + today + '.nc')
+>>>>>>> develop
     marks_time_shift2 = encode_spikes_random_trial_save.reset_index()
     marks_time_shift3 = marks_time_shift2.to_xarray()
     marks_time_shift3.to_netcdf(shifted_marks_file_name)
@@ -432,6 +458,12 @@ def main(path_base_rawdata, rat_name, path_arm_nodes, path_base_analysis, shift_
     encode_spikes_random_trial_random['c02'] = np.roll(encode_spikes_random_trial_random['c02'],-(marks_index_shift))
     encode_spikes_random_trial_random['c03'] = np.roll(encode_spikes_random_trial_random['c03'],-(marks_index_shift))  
 
+<<<<<<< HEAD
+=======
+    # re-order marks chronologically
+    encode_spikes_random_trial_chron = encode_spikes_random_trial_random.loc[linflat_spkindex_encode_velthresh.index]
+
+>>>>>>> develop
     # shift all marks - NOPE
     #marks_time_shift_all_input =  marks_time_shift.drop(columns=['timestamp_original','time_original'])
 
@@ -474,7 +506,11 @@ def main(path_base_rawdata, rat_name, path_arm_nodes, path_base_analysis, shift_
     #for whole epoch: linflat=pos_all_linear_vel
     #for subset: linflat=pos_subset
     encoder = OfflinePPEncoder(linflat=random_trial_pos_all_vel, dec_spk_amp=decode_spikes_random_trial, 
+<<<<<<< HEAD
         encode_settings=encode_settings, decode_settings=decode_settings, enc_spk_amp=encode_spikes_random_trial_random, 
+=======
+        encode_settings=encode_settings, decode_settings=decode_settings, enc_spk_amp=encode_spikes_random_trial_chron, 
+>>>>>>> develop
         dask_worker_memory=1e9, dask_chunksize = None)
 
     #new output format to call results, prob_no_spike, and trans_mat for doing single tetrode encoding
@@ -610,7 +646,11 @@ def main(path_base_rawdata, rat_name, path_arm_nodes, path_base_analysis, shift_
     # add ripple labels to posteriors and then convert posteriors to xarray then save as netcdf
     # this requires folding multiindex into posteriors dataframe first
 
+<<<<<<< HEAD
     posterior_file_name = os.path.join(path_out,  rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_vel4_mask_convol_new_pos_yes_random_marks_shuffle_' + str(marks_index_shift) + '_posteriors_' + str(date) + '.nc')
+=======
+    posterior_file_name = os.path.join(path_out,  rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_mike_vel4_mask_convol_new_pos_yes_random_marks_shuffle_' + str(marks_index_shift) + '_posteriors_' + today + '.nc')
+>>>>>>> develop
 
     post1 = posteriors.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
     post2 = post1.reset_index()
@@ -623,7 +663,11 @@ def main(path_base_rawdata, rat_name, path_arm_nodes, path_base_analysis, shift_
 
     # to export linearized position to MatLab: again convert to xarray and then save as netcdf
 
+<<<<<<< HEAD
     position_file_name = os.path.join(path_out, rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_vel4_mask_convol_new_pos_yes_random_marks_shuffle_' + str(marks_index_shift) + '_linearposition_' + str(date) + '.nc')
+=======
+    position_file_name = os.path.join(path_out, rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_mike_vel4_mask_convol_new_pos_yes_random_marks_shuffle_' + str(marks_index_shift) + '_linearposition_' + today + '.nc')
+>>>>>>> develop
 
     linearized_pos1 = pos_all_linear.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
     linearized_pos2 = linearized_pos1.reset_index()
@@ -658,4 +702,8 @@ if __name__ == '__main__':
     parser.add_argument('-o', action='store', dest='path_out', help='Path to output')
     results = parser.parse_args()
 
+<<<<<<< HEAD
 main(results.path_base_rawdata, results.rat_name, results.path_arm_nodes, results.path_base_linearization, results.shift_amt, results.path_out)
+=======
+main(results.path_base_rawdata, results.rat_name, results.path_arm_nodes, results.path_base_linearization, results.shift_amt, results.path_out)
+>>>>>>> develop
