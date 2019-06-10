@@ -139,7 +139,7 @@ class OfflinePPEncoder(object):
         del all_contrib
 
         # occupancy normalize 
-        observ = observ / (occupancy)
+        ##observ = observ / (occupancy)
 
         # normalize factor for each row (#dec spks x #pos_bins)
         observ_sum = np.nansum(observ, axis=1)
@@ -203,6 +203,21 @@ class OfflinePPEncoder(object):
     @staticmethod
     def _calc_firing_rate_tet(observ: SpikeObservation, lin_obj: FlatLinearPosition, enc_settings: EncodeSettings):
         # initialize conditional intensity function
+        #firing_rate = {}
+        #enc_tet_lin_pos = (lin_obj.get_irregular_resampled(observ))
+        ##enc_tet_lin_pos['elec_grp_id'] = observ.index.get_level_values(level='elec_grp_id')
+        #tet_pos_groups = enc_tet_lin_pos.loc[:, 'linpos_flat'].groupby('elec_grp_id')
+        #for tet_id, tet_spikes in tet_pos_groups:
+        #    tet_pos_hist, _ = np.histogram(tet_spikes, bins=enc_settings.pos_bin_edges)
+        #    firing_rate[tet_id] = tet_pos_hist
+        #for fr_key in firing_rate.keys():
+        #    firing_rate[fr_key] = np.convolve(firing_rate[fr_key], enc_settings.pos_kernel, mode='same')
+        #    firing_rate[fr_key] = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates,
+        #                                                 firing_rate[fr_key])
+        #    firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * enc_settings.pos_bin_delta)
+        #return firing_rate
+
+        #replace with convolution with shift to avoid firing rate = 0 at 0 position bin
         firing_rate = {}
         enc_tet_lin_pos = (lin_obj.get_irregular_resampled(observ))
         #enc_tet_lin_pos['elec_grp_id'] = observ.index.get_level_values(level='elec_grp_id')
@@ -211,10 +226,20 @@ class OfflinePPEncoder(object):
             tet_pos_hist, _ = np.histogram(tet_spikes, bins=enc_settings.pos_bin_edges)
             firing_rate[tet_id] = tet_pos_hist
         for fr_key in firing_rate.keys():
-            firing_rate[fr_key] = np.convolve(firing_rate[fr_key], enc_settings.pos_kernel, mode='same')
-            firing_rate[fr_key] = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates,
-                                                         firing_rate[fr_key])
-            firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * enc_settings.pos_bin_delta)
+            tet_hist = []
+            test_convol = []
+            tet_hist = firing_rate[fr_key]
+            tet_hist = np.insert(tet_hist, 0, tet_hist[0], axis=0)
+            tet_hist = np.insert(tet_hist, 0, tet_hist[0], axis=0)
+            tet_hist = np.append(tet_hist, tet_hist[-1])
+            tet_hist = np.append(tet_hist, tet_hist[-1])
+
+            test_convol = np.convolve(tet_hist, enc_settings.pos_kernel, mode='same')
+            test_convol = test_convol[3:145]
+            test_convol = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, test_convol)
+            test_convol = test_convol / (test_convol.sum() * enc_settings.pos_bin_delta)
+
+            firing_rate[fr_key] = test_convol
         return firing_rate
 
     @staticmethod

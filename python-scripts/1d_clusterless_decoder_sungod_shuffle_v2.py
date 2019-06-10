@@ -60,15 +60,16 @@ path_base_rawdata = '/data2/mcoulter/raw_data/'
 # Define parameters
 # for epochs we want 2 and 4 for each day
 #shifts = [0, .10, .15, .20]
-shifts = [0]
-for shift_amt in shifts:
+days = [20]
+for the_day in days:
     rat_name = 'remy'
-    print(rat_name)
-    print(rat_name, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    print(the_day)
+    print(the_day, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
     
     directory_temp = path_base_rawdata + rat_name + '/'
-    day_dictionary = {'remy':[20], 'gus':[28], 'bernard':[23], 'fievel':[19]}
-    epoch_dictionary = {'remy':[2], 'gus':[4], 'bernard':[2], 'fievel':[2]} 
+    day_dictionary = {'remy':[the_day], 'gus':[28], 'bernard':[the_day], 'fievel':[19]}
+    epoch_dictionary = {'remy':[2], 'gus':[4], 'bernard':[4], 'fievel':[4]} 
     tetrodes_dictionary = {'remy': [4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30], # 4,6,9,10,11,12,13,14,15,17,19,20,21,22,23,24,25,26,28,29,30
                            'gus': [6,7,8,9,10,11,12,17,18,19,20,21,24,25,26,27,30], # list(range(6,13)) + list(range(17,22)) + list(range(24,28)) + [30]
                            'bernard': [1,2,3,4,5,7,8,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29],
@@ -95,8 +96,8 @@ for shift_amt in shifts:
     # # np.load('marks.npy')
 
     # add print lines to show number of marks on each tetrode
-    print('Marks on tetrode 4: ', marks.xs(4,level='elec_grp_id').shape)
-    print('Marks on tetrode 4: ', marks.xs(4,level='elec_grp_id').shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    #print('Marks on tetrode 4: ', marks.xs(4,level='elec_grp_id').shape)
+    #print('Marks on tetrode 4: ', marks.xs(4,level='elec_grp_id').shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
     #print('Marks on tetrode 28: ', marks.xs(28,level='elec_grp_id').shape)
     #print('Marks on tetrode 28: ', marks.xs(28,level='elec_grp_id').shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
     #print('Marks on tetrode 30: ', marks.xs(30,level='elec_grp_id').shape)
@@ -436,7 +437,7 @@ for shift_amt in shifts:
     indices = np.arange(starttimes.shape[0])
     np.random.shuffle(indices)
 
-    #fixed random order
+    ##fixed random order
     indices = [ 17,  92,   3,  98,  11,  78, 105, 100, 103,  37,  28,  62,  85,  59,  41,  93,  29, 102, 
     6,  76,  13,  82,  18,  25,  64,  96,  20,  16,  65,  54,  12,  24,  56,   5,  74,  73, 
     79,  89,  97,  70,  68,  46,   7,  40, 101,  48,  77,  63,  69, 108,  66,  15,  91,  33, 
@@ -477,7 +478,7 @@ for shift_amt in shifts:
     print('after filtering: '+str(random_trial_spk_subset_sparse.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
     # velocity filter to define encoding and decoding times
-    velocity_filter = 2
+    velocity_filter = 4
     print('Velocity filter: ',velocity_filter)
     print('Velocity filter: ',velocity_filter, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
@@ -492,6 +493,13 @@ for shift_amt in shifts:
     linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > @velocity_filter')
 
     encode_spikes_random_trial = random_trial_spk_subset_sparse.loc[linflat_spkindex_encode_velthresh.index]
+    encode_spikes_random_trial_random = random_trial_spk_subset_sparse.loc[linflat_spkindex_encode_velthresh.index]
+
+    # re-randomize encode spikes trial order because it got un-done by get_irregular_resampled
+    #encode_spikes_random_trial_random = encode_spikes_random_trial.head(0)
+    #for i in range(len(starttimes_shuffled)):
+    #    encode_spikes_random_trial_random_part = encode_spikes_random_trial.loc[(encode_spikes_random_trial.index.get_level_values('time') <= endtimes_shuffled[i]) & (encode_spikes_random_trial.index.get_level_values('time') >= starttimes_shuffled[i])]
+    #    encode_spikes_random_trial_random = encode_spikes_random_trial_random.append(encode_spikes_random_trial_random_part)    
 
     print('encoding spikes after velocity filter: '+str(encode_spikes_random_trial.shape[0]))
     print('encoding spikes after velocity filter: '+str(encode_spikes_random_trial.shape[0]), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
@@ -509,6 +517,8 @@ for shift_amt in shifts:
 
     #filter position for velocity
     random_trial_pos_all_vel = random_trial_pos_all.loc[(random_trial_pos_all['linvel_flat']>velocity_filter)]
+    # sort random pos by time
+    random_trial_pos_all_vel_sort = random_trial_pos_all_vel.sort_index(level='time')
     #random_trial_pos_all_vel = pos_all_linear.loc[(pos_all_linear['linvel_flat']>velocity_filter)]
     
 
@@ -522,7 +532,7 @@ for shift_amt in shifts:
     min_time = marks_for_epoch_time['time'].iloc[0]
     max_time = marks_for_epoch_time['time'].iloc[-1]
     epoch_time = max_time - min_time
-    print('Total spoch time (sec): ',epoch_time)
+    print('Total epoch time (sec): ',epoch_time)
     print('Total epoch time (sec) ',epoch_time, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))  
 
     # dont use firing rate to calculate the size of the shift, instead find the index at 25% of epoch, eg
@@ -541,42 +551,51 @@ for shift_amt in shifts:
     #marks_index_shift = int(305*np.median(tetrode_x_firing_rate))
 
     # # shift by 25% of the epoch time
+    # note shift_amt is defined above in the outer loop
+    shift_amt = 0
     marks_index_target = min_time + shift_amt*epoch_time
-    encode_spikes_shift_query = encode_spikes_random_trial.reset_index()
+    encode_spikes_shift_query = encode_spikes_random_trial_random.reset_index()
     marks_index_shift = encode_spikes_shift_query.iloc[(encode_spikes_shift_query['time']-marks_index_target).abs().argsort()[:1]].index.item()
+    marks_index_shift = 0
 
-    # print('Marks index shift: ',marks_index_shift)
-    # print('Marks index shift: ',marks_index_shift, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    print('Marks index shift: ',marks_index_shift)
+    print('Marks index shift: ',marks_index_shift, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
-    # # save dataframe with both shifted and original marks
-    # encode_spikes_random_trial_save = encode_spikes_random_trial
-    # encode_spikes_random_trial_save['c00_shift'] = np.roll(encode_spikes_random_trial_save['c00'],-(marks_index_shift))
-    # encode_spikes_random_trial_save['c01_shift'] = np.roll(encode_spikes_random_trial_save['c01'],-(marks_index_shift))
-    # encode_spikes_random_trial_save['c02_shift'] = np.roll(encode_spikes_random_trial_save['c02'],-(marks_index_shift))
-    # encode_spikes_random_trial_save['c03_shift'] = np.roll(encode_spikes_random_trial_save['c03'],-(marks_index_shift)) 
+    # save dataframe with both shifted and original marks
+    encode_spikes_random_trial_save = encode_spikes_random_trial_random
+    encode_spikes_random_trial_save['c00_shift'] = np.roll(encode_spikes_random_trial_save['c00'],-(marks_index_shift))
+    encode_spikes_random_trial_save['c01_shift'] = np.roll(encode_spikes_random_trial_save['c01'],-(marks_index_shift))
+    encode_spikes_random_trial_save['c02_shift'] = np.roll(encode_spikes_random_trial_save['c02'],-(marks_index_shift))
+    encode_spikes_random_trial_save['c03_shift'] = np.roll(encode_spikes_random_trial_save['c03'],-(marks_index_shift)) 
 
-    # shifted_marks_file_name = '/data2/mcoulter/linearized_position/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_vel2_kde_old_pos_marks_shuffle_' + str(marks_index_shift) + '_marks_4_15_19.nc'
-    # marks_time_shift2 = encode_spikes_random_trial_save.reset_index()
-    # marks_time_shift3 = marks_time_shift2.to_xarray()
-    # marks_time_shift3.to_netcdf(shifted_marks_file_name)
-    # print('Saved shifted marks to: '+shifted_marks_file_name)
-    # print('Saved shifted marks to: '+shifted_marks_file_name, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    shifted_marks_file_name = '/data2/mcoulter/linearized_position/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_new_vel2_convol_new_pos_marks_shuffle_' + str(marks_index_shift) + '_marks_4_15_19.nc'
+    marks_time_shift2 = encode_spikes_random_trial_save.reset_index()
+    marks_time_shift3 = marks_time_shift2.to_xarray()
+    #marks_time_shift3.to_netcdf(shifted_marks_file_name)
+    print('Saved shifted marks to: '+shifted_marks_file_name)
+    print('Saved shifted marks to: '+shifted_marks_file_name, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
  
-    # # apply shift to tetrode channel columns in original dataframe
-    # encode_spikes_random_trial = []
-    # encode_spikes_random_trial = random_trial_spk_subset_sparse.loc[linflat_spkindex_encode_velthresh.index]
-    # encode_spikes_random_trial['c00'] = np.roll(encode_spikes_random_trial['c00'],-(marks_index_shift))
-    # encode_spikes_random_trial['c01'] = np.roll(encode_spikes_random_trial['c01'],-(marks_index_shift))
-    # encode_spikes_random_trial['c02'] = np.roll(encode_spikes_random_trial['c02'],-(marks_index_shift))
-    # encode_spikes_random_trial['c03'] = np.roll(encode_spikes_random_trial['c03'],-(marks_index_shift))  
+    # apply shift to tetrode channel columns in original dataframe
+    encode_spikes_random_trial_random = []
+    encode_spikes_random_trial_random = random_trial_spk_subset_sparse.loc[linflat_spkindex_encode_velthresh.index]
+    
+    # re-randomize encode spikes trial order because it got un-done by get_irregular_resampled
+    #encode_spikes_random_trial_random = encode_spikes_random_trial.head(0)
+    #for i in range(len(starttimes_shuffled)):
+    #    encode_spikes_random_trial_random_part = encode_spikes_random_trial.loc[(encode_spikes_random_trial.index.get_level_values('time') <= endtimes_shuffled[i]) & (encode_spikes_random_trial.index.get_level_values('time') >= starttimes_shuffled[i])]
+    #    encode_spikes_random_trial_random = encode_spikes_random_trial_random.append(encode_spikes_random_trial_random_part)    
 
-    # # shift all marks - NOPE
-    # #marks_time_shift_all_input =  marks_time_shift.drop(columns=['timestamp_original','time_original'])
+    encode_spikes_random_trial_random['c00'] = np.roll(encode_spikes_random_trial_random['c00'],-(marks_index_shift))
+    encode_spikes_random_trial_random['c01'] = np.roll(encode_spikes_random_trial_random['c01'],-(marks_index_shift))
+    encode_spikes_random_trial_random['c02'] = np.roll(encode_spikes_random_trial_random['c02'],-(marks_index_shift))
+    encode_spikes_random_trial_random['c03'] = np.roll(encode_spikes_random_trial_random['c03'],-(marks_index_shift))  
 
-    # print('Shifted marks shape: ',encode_spikes_random_trial.shape)
-    # print('Shifted marks shape: ',encode_spikes_random_trial.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    # shift all marks - NOPE
+    #marks_time_shift_all_input =  marks_time_shift.drop(columns=['timestamp_original','time_original'])
 
-    # re-order enoc
+    print('Shifted marks shape: ',encode_spikes_random_trial_random.shape)
+    print('Shifted marks shape: ',encode_spikes_random_trial_random.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
 
     #cell 9.25
     # apply velocity filter to shifted marks - nope cant do this - we want to decode the same spikes 
@@ -617,7 +636,7 @@ for shift_amt in shifts:
 
     #for whole epoch: linflat=pos_all_linear_vel
     #for subset: linflat=pos_subset
-    encoder = OfflinePPEncoder(linflat=random_trial_pos_all_vel, dec_spk_amp=decode_spikes_random_trial, encode_settings=encode_settings, 
+    encoder = OfflinePPEncoder(linflat=random_trial_pos_all_vel_sort, dec_spk_amp=decode_spikes_random_trial, encode_settings=encode_settings, 
                                decode_settings=decode_settings, enc_spk_amp=encode_spikes_random_trial, dask_worker_memory=1e9,
                                dask_chunksize = None)
 
@@ -659,6 +678,7 @@ for shift_amt in shifts:
 
     # add a small offset to observations table to prevent division by 0 when calculating likelihoods
     # this is currently hard-coded for 5cm position bins -> 147 total bins
+    # for bernard day 11: x145 instead of x146
     observ_obj.loc[:,'x000':'x146'] = observ_obj.loc[:,'x000':'x146'].values + np.spacing(1)
 
     #cell 11.1
@@ -674,10 +694,16 @@ for shift_amt in shifts:
 
     #cell 13
     # save observations
-    #observ_obj._to_hdf_store('/data2/mcoulter/fievel_19_2_observations_whole_epoch.h5','/analysis', 
-    #                         'decode/clusterless/offline/observ_obj', 'observ_obj')
-    #print('Saved observations to /data2/mcoulter/fievel_19_2_observations_whole_epoch.h5')
-    #print('Saved observations to /data2/mcoulter/fievel_19_2_observations_whole_epoch.h5', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    observ_obj._to_hdf_store('/data2/mcoulter/remy_20_2_pos_sort3_vel4_mask_convol_new_pos_yes_random_marks_shuffle_observations_4_29_19.h5','/analysis', 
+                             'decode/clusterless/offline/observ_obj', 'observ_obj')
+    print('Saved observations to /data2/mcoulter/remy_20_2_pos_sort3_vel4_mask_convol_new_pos_yes_random_marks_shuffle_observations_4_29_19.h5')
+    print('Saved observations to /data2/mcoulter/remy_20_2_pos_sort3_vel4_mask_convol_new_pos_yes_random_marks_shuffle_observations_4_29_19.h5', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+
+    # save prob_no_spike
+    np.save('/data2/mcoulter/remy_20_2_pos_sort3_vel4_mask_convol_new_pos_yes_random_marks_shuffle_prob_no_spike_4_29_19.npy',prob_no_spike)
+
+    # save transition matrix
+    np.save('/data2/mcoulter/remy_20_2_pos_sort3_vel4_mask_convol_new_pos_yes_random_marks_shuffle_trans_mat_4_29_19.npy',trans_mat)
 
     #cell 14
     # load previously generated observations
@@ -730,6 +756,8 @@ for shift_amt in shifts:
     posteriors = decoder.run_decoder()
     print('Decoder finished!')
     print('Decoder finished!', file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
+    print('Observations shape: '+ str(observ_obj.shape))
+    print('Observations shape: '+ str(observ_obj.shape), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
     print('Posteriors shape: '+ str(posteriors.shape))
     print('Posteriors shape: '+ str(posteriors.shape), file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
@@ -753,7 +781,7 @@ for shift_amt in shifts:
     # add ripple labels to posteriors and then convert posteriors to xarray then save as netcdf
     # this requires folding multiindex into posteriors dataframe first
 
-    posterior_file_name = '/data2/mcoulter/posteriors/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_vel2_kde_old_pos_yes_random_marks_shuffle_' + str(marks_index_shift) + '_posteriors_4_18_19.nc'
+    posterior_file_name = '/data2/mcoulter/posteriors/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_pos_sort3_vel4_mask_convol_new_pos_yes_random_marks_shuffle_' + str(marks_index_shift) + '_posteriors_4_29_19.nc'
 
     post1 = posteriors.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
     post2 = post1.reset_index()
@@ -766,7 +794,7 @@ for shift_amt in shifts:
 
     # to export linearized position to MatLab: again convert to xarray and then save as netcdf
 
-    position_file_name = '/data2/mcoulter/linearized_position/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_vel2_kde_old_pos_yes_random_marks_shuffle_' + str(marks_index_shift) + '_linearposition_4_18_19.nc'
+    position_file_name = '/data2/mcoulter/linearized_position/' + rat_name + '_' + str(day_dictionary[rat_name][0]) + '_' + str(epoch_dictionary[rat_name][0]) + '_pos_sort3_vel4_mask_convol_new_pos_yes_random_marks_shuffle_' + str(marks_index_shift) + '_linearposition_4_29_19.nc'
 
     linearized_pos1 = pos_all_linear.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
     linearized_pos2 = linearized_pos1.reset_index()

@@ -8,6 +8,8 @@ import enum
 import os
 import warnings
 
+#from spykshrk.franklab import print_util
+
 from spykshrk.franklab.warnings import ConstructorWarning, OverridingAttributeWarning
 from spykshrk.franklab.errors import HDFKeyExistsError
 
@@ -139,7 +141,7 @@ class DataFrameClass(pd.DataFrame):
         raise NotImplementedError
 
     @classmethod
-    @abstractclassmethod
+    @abstractmethod
     def create_default(cls, df, parent=None, **kwd):
         pass
 
@@ -236,12 +238,6 @@ class DayEpochEvent(DayDataFrame):
 
         if index is not None and not isinstance(index, pd.MultiIndex):
             raise DataFormatError("Index to be set must be MultiIndex.")
-
-    @classmethod
-    def create_default(cls, df, index, time_unit: UnitTime, parent=None, **kwds):
-        if parent is None:
-            parent = df
-        return cls(data=df, index=index, time_unit=time_unit, parent=parent, **kwds)
 
     def get_range_view(self):
         return self[['starttime', 'endtime']]
@@ -433,7 +429,7 @@ class DayEpochTimeSeries(DayDataFrame):
             return type(self).create_default(result, arm_coord=None, **self.kwds)
         else:
             return result
-
+    
     def apply_time_event(self, time_ranges: DayEpochEvent, event_mask_name='event_grp'):
         grouping = np.full(len(self), -1)
         time_index = self.index.get_level_values('time')
@@ -506,6 +502,7 @@ class EncodeSettings:
 
         self.sampling_rate = encoder_config['sampling_rate']
         self.arm_coordinates = encoder_config['position']['arm_pos']
+        self.tetrodes = realtime_config[realtime_config['datasource']]['nspike_animal_info']['tetrodes']
         
         self.pos_upper = encoder_config['position']['upper']
         self.pos_lower = encoder_config['position']['lower']
@@ -539,6 +536,15 @@ class EncodeSettings:
     def pos_column_slice(self, slice):
         raise NotImplementedError
 
+    def __str__(self):
+        new_str = '{'
+        for ind, (key, en) in enumerate(self.__dict__.items()):
+            new_str += '\'' + key + '\'' + ':' + print_util.pretty_str_list(en)
+            if ind != len(self.__dict__.items()) - 1:
+                new_str += '\n'
+        new_str += '}'
+        return new_str
+
 
 class DecodeSettings:
     """
@@ -553,6 +559,15 @@ class DecodeSettings:
         self.time_bin_size = realtime_config['pp_decoder']['bin_size']     # Decode bin size in samples (usually 30kHz)
         self.trans_smooth_std = realtime_config['pp_decoder']['trans_mat_smoother_std']
         self.trans_uniform_gain = realtime_config['pp_decoder']['trans_mat_uniform_gain']
+
+    def __str__(self):
+        new_str = '{'
+        for ind, (key, en) in enumerate(self.__dict__.items()):
+            new_str += '\'' + key + '\'' + ':' + print_util.pretty_str_list(en)
+            if ind != len(self.__dict__.items()) - 1:
+                new_str += '\n'
+        new_str += '}'
+        return new_str
 
 
 class SpikeWaves(DayEpochElecTimeChannelSeries):
@@ -805,10 +820,6 @@ class SpikeObservation(DayEpochTimeSeries):
                                                                       names=['day', 'epoch', 'timestamp', 'time'])),
                    parent=parent, enc_settings=enc_settings, **kwds)
 
-    # added new function update_vel_filter_maksing_bins to label bins of movement times
-    # so they arent decoded
-    # MEC 04-09-19
-
     def update_observations_bins(self, time_bin_size, inplace=False):
         if inplace:
             df = self
@@ -827,7 +838,6 @@ class SpikeObservation(DayEpochTimeSeries):
         df['dec_bin_start'] = dec_bins_start
 
         df.update_num_missing_future_bins(inplace=True)
-
         return df
 
     def update_parallel_bins(self, time_bin_size, inplace=True):
@@ -857,6 +867,15 @@ class SpikeObservation(DayEpochTimeSeries):
         df['num_missing_bins'] = np.concatenate([np.clip(np.diff(df['dec_bin'])-1, 0, None), [0]])
 
         return df
+
+    def get_distribution_as_np(self):
+        return self.loc[:, pos_col_format(0, self.kwds['enc_settings'].pos_num_bins):
+                        pos_col_format(self.kwds['enc_settings'].pos_num_bins-1,
+                                       self.kwds['enc_settings'].pos_num_bins)].values
+
+    def set_distribution(self, dist):
+        self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
+                 pos_col_format(self.enc_settings.pos_num_bins-1, self.enc_settings.pos_num_bins)] = dist
 
     def get_distribution_view(self):
         return self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
@@ -895,7 +914,6 @@ class Posteriors(DayEpochTimeSeries):
 
             else:
                 self.sampling_rate = data.kwds['sampling_rate']
-
 
         super().__init__(sampling_rate=sampling_rate, data=data, index=index, columns=columns,
                          dtype=dtype, copy=copy, parent=parent, history=history, enc_settings=self.enc_settings,
@@ -984,6 +1002,9 @@ class Posteriors(DayEpochTimeSeries):
                     pos_col_format(self.kwds['enc_settings'].pos_num_bins-1,
                                    self.kwds['enc_settings'].pos_num_bins)].values
 
+    def set_posterior(self, post):
+        self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
+                 pos_col_format(self.enc_settings.pos_num_bins-1, self.enc_settings.pos_num_bins)] = post
 
     def get_distribution_view(self):
         return self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):

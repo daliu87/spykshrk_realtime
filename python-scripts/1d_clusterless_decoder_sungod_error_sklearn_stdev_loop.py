@@ -514,8 +514,8 @@ for outer_loop_counter in range(len(pos_kernel_stdev)):
         print('Decoding marks amplitude filter: ',decode_trial_marks_all_sparse.shape)
         print('Decoding marks amplitude filter: ',decode_trial_marks_all_sparse.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
-        # filter for velocity
-        pos_encode_crossval = encode_trial_pos_all.loc[(encode_trial_pos_all["linvel_flat"]>2)]
+        # filter for velocity (4 cm/s)
+        pos_encode_crossval = encode_trial_pos_all.loc[(encode_trial_pos_all["linvel_flat"]>4)]
         print('Original length: ',encode_trial_pos_all.shape)
         print('Original length: ',encode_trial_pos_all.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
         print('Encoding position velocity filter: ',pos_encode_crossval.shape)
@@ -523,7 +523,7 @@ for outer_loop_counter in range(len(pos_kernel_stdev)):
 
         linflat_obj = pos.get_mapped_single_axis()
         linflat_spkindex_encode = linflat_obj.get_irregular_resampled(encode_trial_marks_all_sparse)
-        linflat_spkindex_all_velthresh_encode = linflat_spkindex_encode.query('linvel_flat > 2')
+        linflat_spkindex_all_velthresh_encode = linflat_spkindex_encode.query('linvel_flat > 4')
         spk_subset_encode_crossval = encode_trial_marks_all_sparse.loc[linflat_spkindex_all_velthresh_encode.index]
         print('Original length: ',encode_trial_marks_all_sparse.shape)
         print('Original length: ',encode_trial_marks_all_sparse.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))        
@@ -531,7 +531,7 @@ for outer_loop_counter in range(len(pos_kernel_stdev)):
         print('Encoding marks velocity filter: ',spk_subset_encode_crossval.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
         linflat_spkindex_decode = linflat_obj.get_irregular_resampled(decode_trial_marks_all_sparse)
-        linflat_spkindex_all_velthresh_decode = linflat_spkindex_decode.query('linvel_flat > 2')
+        linflat_spkindex_all_velthresh_decode = linflat_spkindex_decode.query('linvel_flat > 4')
         spk_subset_decode_crossval = decode_trial_marks_all_sparse.loc[linflat_spkindex_all_velthresh_decode.index]
         print('Original length: ',decode_trial_marks_all_sparse.shape)
         print('Original length: ',decode_trial_marks_all_sparse.shape, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))        
@@ -715,7 +715,7 @@ for outer_loop_counter in range(len(pos_kernel_stdev)):
         # to export posteriors to MatLab
         # add ripple labels to posteriors and then convert posteriors to xarray then save as netcdf
         # this requires folding multiindex into posteriors dataframe first
-        post_netcdf_filename = '/data2/mcoulter/posteriors/remy_20_2_crossval_convolution_occupancy_mark_20_' + str(crossval_counter) + '_pos_stdev_' + str(pos_kernel_stdev[outer_loop_counter]) + '_posterior.nc'
+        post_netcdf_filename = '/data2/mcoulter/posteriors/remy_20_2_crossval_convolution_occupancy_mark_20_' + str(crossval_counter) + '_pos_stdev_' + str(pos_kernel_stdev[outer_loop_counter]) + '_posterior_4_22_19.nc'
         post1 = posteriors_filtered.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
         post2 = post1.reset_index()
         post3 = post2.to_xarray()
@@ -724,7 +724,7 @@ for outer_loop_counter in range(len(pos_kernel_stdev)):
         print('Saved posteriors to ',post_netcdf_filename, file=open("/data2/mcoulter/1d_decoder_log.txt","a"))
 
         # to export linearized position to MatLab: again convert to xarray and then save as netcdf
-        position_netcdf_filename = '/data2/mcoulter/linearized_position/remy_20_2_crossval_convolution_occupancy_mark_20_' + str(crossval_counter) + '_pos_stdev_' + str(pos_kernel_stdev[outer_loop_counter]) + '_linear_position.nc'
+        position_netcdf_filename = '/data2/mcoulter/linearized_position/remy_20_2_crossval_convolution_occupancy_mark_20_' + str(crossval_counter) + '_pos_stdev_' + str(pos_kernel_stdev[outer_loop_counter]) + '_linear_position_4_22_19.nc'
         linearized_pos1 = pos_all_linear.apply_time_event(rips_vel_filtered, event_mask_name='ripple_grp')
         linearized_pos2 = linearized_pos1.reset_index()
         linearized_pos3 = linearized_pos2.to_xarray()
