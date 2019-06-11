@@ -105,6 +105,10 @@ class FrankAnimalInfo:
         return os.path.join(base_dir, anim_name, 'analysis')
 
     @staticmethod
+    def _get_processing_dir(base_dir, anim_name):
+        return os.path.join(base_dir, anim_name, 'processing')
+
+    @staticmethod
     def _get_data_path_df(data_path):
         data_path_entries = os.scandir(data_path)
         path_df = pd.DataFrame(columns=['animal', 'date', 'datatype', 'ext', 'path'])
@@ -183,6 +187,7 @@ class FrankDataInfo:
 
             if dates is not None:
                 if all([date in self.entries['date'].unique() for date in dates]):
+                    print(dates, all([date in self.entries['date'].unique() for date in dates]))
                     # split dates into appropriate file
                     data_date_grp = data.groupby('day')
                     for date, data_date in data_date_grp:
@@ -196,7 +201,8 @@ class FrankDataInfo:
                             else:
                                 data_date._to_hdf_store(file_path, base, group, label)
                 elif [None] == self.entries['date'].unique():
-                    file_path = self.datatype_paths.query('date != date').path[0]
+                    #file_path = self.datatype_paths.query('date != date').path[0]
+                    file_path = self.datatype_paths.iloc[0].path
                     data._to_hdf_store(file_path, base, group, label, overwrite=overwrite)
                 else:
                     raise FrankHDFFormatError('Date from data ({}) do not match dates '
