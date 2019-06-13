@@ -15,6 +15,23 @@ from time import sleep
 import time
 import json
 
+from spikegadgets import trodesnetwork as tnp
+
+class PythonClient(tnp.AbstractModuleClient):
+    def __init__(self, config, rank):
+        super().__init__("PythonRank"+str(rank), config['trodes_network']['address'],config['trodes_network']['port'])
+        self.rank = rank
+        self.registered = False
+    def registerTerminateCallback(self, callback):
+        self.terminate = callback
+        self.registered = True
+
+    # def recv_acquisition(self, command, timestamp):
+        # if command == tnp.acq_STOP and self.registered:
+
+    def recv_quit(self):
+        self.terminate()
+
 
 def main(argv):
     # parse the command line arguments
@@ -24,8 +41,8 @@ def main(argv):
         logging.error('Usage: ...')
         sys.exit(2)
 
-    print(argv)
-    print(opts)
+    # print(argv)
+    # print(opts)
     for opt, arg in opts:
         if opt == '--config':
             config_filename = arg
@@ -87,27 +104,55 @@ def main(argv):
     output_config = open(os.path.join(config['files']['output_dir'], config['files']['prefix'] + '.config.json'), 'w')
     json.dump(config, output_config, indent=4)
 
-    # MPI node management
 
+    # MPI node management
     if rank == config['rank']['supervisor']:
         # Supervisor node
         main_proc = main_process.MainProcess(comm=comm, rank=rank, config=config)
         main_proc.main_loop()
+        if config['datasource'] == 'trodes':
+            main_proc.networkclient.closeConnections()
+            del main_proc.networkclient
+    else:
+        time.sleep(rank/10.0)
+        if config['datasource'] == 'trodes':
+            # configure trodes network highfreqdatatypes (main supervisor process has own client)
+            network = PythonClient(config, rank)
+            if network.initialize() != 0:
+                print("Network could not successfully initialize")
+                del network
+                quit()
+            config['trodes_network']['networkobject'] = network
 
-    if rank in config['rank']['ripples']:
-        ripple_proc = ripple_process.RippleProcess(comm, rank, config=config)
-        ripple_proc.main_loop()
+        elif rank == config['rank']['simulator']:
+            simulator_proc = simulator_process.SimulatorProcess(comm, rank, config=config)
+            simulator_proc.main_loop()
 
-    if rank == config['rank']['simulator']:
-        simulator_proc = simulator_process.SimulatorProcess(comm, rank, config=config)
-        simulator_proc.main_loop()
+        if rank in config['rank']['ripples']:
+            ripple_proc = ripple_process.RippleProcess(comm, rank, config=config)
+            if config['datasource'] == 'trodes':
+                network.registerTerminateCallback(ripple_proc.trigger_termination)
+            ripple_proc.main_loop()
 
-    if rank in config['rank']['encoders']:
-        encoding_proc = encoder_process.EncoderProcess(comm, rank, config=config)
-        encoding_proc.main_loop()
 
-    if rank == config['rank']['decoder']:
-        decoding_proc = decoder_process.DecoderProcess(comm=comm, rank=rank, config=config)
-        decoding_proc.main_loop()
+        if rank in config['rank']['encoders']:
+            encoding_proc = encoder_process.EncoderProcess(comm, rank, config=config)
+            if config['datasource'] == 'trodes':
+                network.registerTerminateCallback(encoding_proc.trigger_termination)
+            encoding_proc.main_loop()
+
+        if rank == config['rank']['decoder']:
+            decoding_proc = decoder_process.DecoderProcess(comm=comm, rank=rank, config=config)
+            if config['datasource'] == 'trodes':
+                network.registerTerminateCallback(decoding_proc.trigger_termination)
+            decoding_proc.main_loop()
+
+
+        if config['datasource'] == 'trodes':
+            network.closeConnections()
+            del network
+    
+
+
 
 main(sys.argv[1:])

@@ -84,6 +84,31 @@ class LinearPosPoint(PrintableMessage):
     def packed_message_size(cls):
         return struct.calcsize(cls._byte_format)
 
+class CameraModulePoint(PrintableMessage):
+    _byte_format = '=qidii'
+
+    def __init__(self, timestamp, segment, position, x, y):
+        self.timestamp = timestamp
+        self.segment = segment
+        self.position = position
+        self.x = x
+        self.y = y
+
+    def pack(self):
+        return struct.pack(self._byte_format, self.timestamp, self.segment, self.position, self.x, self.y)
+
+    @classmethod
+    def unpack(cls, message_bytes):
+        timestamp, segment, position, x, y = struct.unpack(cls._byte_format, message_bytes)
+        message = cls(timestamp=timestamp, segment=segment, position=position, x=x, y=y)
+        return message
+
+    @classmethod
+    def packed_message_size(cls):
+        return struct.calcsize(cls._byte_format)
+
+
+
 
 class RawPosPoint(PrintableMessage):
     def __init__(self, timestamp, x1, y1, x2, y2, camera_id):

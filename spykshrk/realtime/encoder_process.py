@@ -74,8 +74,8 @@ class EncoderMPISendInterface(realtime_base.RealtimeMPIClass):
 class RStarEncoderManager(realtime_base.BinaryRecordBaseWithTiming):
 
     def __init__(self, rank, config, local_rec_manager, send_interface: EncoderMPISendInterface,
-                 spike_interface: simulator_process.SimulatorRemoteReceiver,
-                 pos_interface: simulator_process.SimulatorRemoteReceiver):
+                 spike_interface: realtime_base.DataSourceReceiver,
+                 pos_interface: realtime_base.DataSourceReceiver):
 
         super(RStarEncoderManager, self).__init__(rank=rank,
                                                   local_rec_manager=local_rec_manager,
@@ -290,6 +290,16 @@ class EncoderProcess(realtime_base.RealtimeProcess):
                                                                       rank=self.rank,
                                                                       config=self.config,
                                                                       datatype=datatypes.Datatypes.LINEAR_POSITION)
+        elif self.config['datasource'] == 'trodes':
+            spike_interface = simulator_process.TrodesDataReceiver(comm=self.comm,
+                                                                        rank=self.rank,
+                                                                        config=self.config,
+                                                                        datatype=datatypes.Datatypes.SPIKES)
+
+            pos_interface = simulator_process.TrodesDataReceiver(comm=self.comm,
+                                                                      rank=self.rank,
+                                                                      config=self.config,
+                                                                      datatype=datatypes.Datatypes.LINEAR_POSITION)
 
         self.enc_man = RStarEncoderManager(rank=rank,
                                            config=config,
@@ -301,6 +311,8 @@ class EncoderProcess(realtime_base.RealtimeProcess):
         self.mpi_recv = EncoderMPIRecvInterface(comm=comm, rank=rank, config=config, encoder_manager=self.enc_man)
 
         self.terminate = False
+
+        # config['trodes_network']['networkobject'].registerTerminateCallback(self.trigger_termination)
 
         # First Barrier to finish setting up nodes
         self.class_log.debug("First Barrier")

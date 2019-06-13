@@ -1,0 +1,105 @@
+{
+    "datasource": "trodes",
+
+
+    "rank": {
+        "supervisor": 0,
+        "decoder": 1,
+        "ripples": [2],
+        "encoders": [3,4,5]
+    }, 
+
+    "rank_settings": {
+        "enable_rec": [0, 1, 2, 3, 4, 5],
+        "enable_profiler": [0, 1, 2, 3, 4, 5]
+    },
+
+    "files": {
+        "output_dir": "/home/kevin/spikegadgets/dansproject/test/output/",
+        "prefix": "test",
+        "rec_postfix": "bin_rec",
+        "profile_postfix": "pstats",
+        "timing_postfix": "timing",
+        "backup_dir": "/home/kevin/spikegadgets/dansproject/test/databackup"
+    },
+
+    "ripple": {
+        "RippleParameterMessage": {
+            "rip_coeff1": 1.2,
+            "rip_coeff2": 0.2,
+            "ripple_threshold": 4,
+            "samp_divisor": 10000,
+            "n_above_thresh": 2,
+            "lockout_time": 7500,
+            "detect_no_ripples": false,
+            "detect_no_ripple_time": 60000,
+            "dio_gate": false,
+            "dio_gate_port": -1,
+            "enabled": true,
+            "use_custom_baseline": true,
+            "update_custom_baseline": false
+        },
+        "CustomRippleBaselineMeanMessage": {
+            "5":  12.769,
+            "11": 13.067,
+            "12": 10.125,
+            "13": 10.767,
+            "14": 13.015,
+            "17": 10.619,
+            "19": 12.997,
+            "29": 12.712
+        },
+        "CustomRippleBaselineStdMessage": {
+            "5":  8.034,
+            "11": 8.143,
+            "12": 6.396,
+            "13": 6.809,
+            "14": 8.315,
+            "17": 6.506,
+            "19": 8.057,
+            "29": 8.050
+        }
+    }, 
+
+    "encoder": {
+        "sampling_rate": 30000,
+        "mark_kernel": {
+            "mean": 0,
+            "std": 5,
+            "lower": -1024,
+            "upper": 1024,
+            "interval": 1
+        },
+
+        "position": {
+            "lower": 0,
+            "upper": 450,
+            "bins": 450,
+            "arm_pos": [[0, 69], [150, 252], [300, 404]]
+        },
+        "position_kernel": {
+            "std": 3
+        },
+        "vel": 0,
+        "spk_amp": 60
+    },
+
+    "decoder": "pp_decoder",
+
+    "bayesian_decoder": {
+        "bin_size": 30000
+    },
+
+    "pp_decoder": {
+        "bin_size": 300,
+        "trans_mat_uniform_gain": 0.001,
+        "trans_mat_smoother_std": 3
+
+    },
+
+    "trodes_network": {
+        "address" : "tcp://127.0.0.1",
+        "port": 49152,
+        "tetrodes": [5,11,12]
+    }
+}

@@ -1,0 +1,26 @@
+setup actions by kevin
+
+- modified test_single.json
+    - changed paths for the simulated data
+    - changed number of tetrodes to 4 tetrodes, 1 ripple process, and 4 encoder processes
+- edit supercell_hostfile.mpi, replace supercell with my computer's hostname
+- downloaded openmpi-* packages
+- downloaded anaconda3, avoided last PATH modification in install script
+- edited run_script.sh
+    - replaced all instances of python3 with path/to/anaconda3/python
+    - replaced -bind-to core to -bind-to hwthread, because my laptop has 4 physical cores only
+    - replaced mpiexec with mpiexec.openmpi
+- env MPICC=/usr/bin/mpicc.openmpi ENV=/path/to/anaconda3/pip install mpi4py
+
+- ran with "./run_script.sh 8 config/supercell_hostfile.mpi config/test_single_modified.json"
+
+
+Integrating:
+
+- comment out/remove all simulator process related code
+- each rank has a PythonClient object
+- MainProcess has its own MainprocessClient object
+    - on Play, call handle_ntrode_list()
+    - on Stop, or Quit, call trigger_termination()
+- BinaryRecordTypeMessage and TimeSyncReport messages still not recognized and fixed
+- 
