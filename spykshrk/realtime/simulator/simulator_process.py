@@ -140,7 +140,7 @@ class TrodesDataReceiver(realtime_base.DataSourceReceiver):
                 # Reshape data to look like what spykshrk expects
                 d = self.buf[0][3][:,1]
                 newshape = (int(len(d)/40), 40)
-                return datatypes.SpikePoint(self.timestamp.trodes_timestamp, self.channels, np.reshape(d, newshape)), None
+                return datatypes.SpikePoint(self.timestamp.trodes_timestamp, self.buf[0][0], np.reshape(d, newshape)), None
                 
             elif self.datatype is datatypes.Datatypes.LINEAR_POSITION:
                 byteswritten = self.datastream.readData(self.buf) #Data is [(timestamp, linear segment, position, x location, y location)]
