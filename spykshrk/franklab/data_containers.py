@@ -189,7 +189,7 @@ class DataFrameClass(pd.DataFrame):
 
             main_storer.attrs.user_key = self.user_key
 
-            main_storer.attrs.classtype = type(self)
+            main_storer.attrs.classtype = type(self._parent_class)
 
     @classmethod
     def _from_hdf_store(cls, file_path, hdf_base, hdf_grps, hdf_label):
