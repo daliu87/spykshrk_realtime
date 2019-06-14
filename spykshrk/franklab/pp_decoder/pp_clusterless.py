@@ -185,20 +185,29 @@ class OfflinePPEncoder(object):
         #return occupancy
 
         # KDE method to get around boundary problem at 0 bin
-        from scipy import stats
+        # don't use this because with std = 1, home and rip/wait get smashed together
+        #from scipy import stats
 
-        bandwidth = enc_settings.pos_kernel_std
-        support = enc_settings.pos_bin_edges[0:-1]
-        kernels = []
-        for x_i in lin_obj['linpos_flat']:
-            kernel = stats.norm(x_i, bandwidth).pdf(support)
-            kernels.append(kernel)
-        from scipy.integrate import trapz
-        density = np.sum(kernels, axis=0)
-        density /= trapz(density, support)
-        density += 1e-10
-        occupancy = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, density, np.nan)
-        return occupancy
+        #bandwidth = enc_settings.pos_kernel_std
+        #support = enc_settings.pos_bin_edges[0:-1]
+        #kernels = []
+        #for x_i in lin_obj['linpos_flat']:
+        #    kernel = stats.norm(x_i, bandwidth).pdf(support)
+        #    kernels.append(kernel)
+        #from scipy.integrate import trapz
+        #density = np.sum(kernels, axis=0)
+        #density /= trapz(density, support)
+        #density += 1e-10
+        #occupancy = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, density, np.nan)
+        #return occupancy
+
+        # just use a histogram of position for the occupancy
+        # now need to make sure pos_bin_edges has exactly the correct number of bins - dont want any empty bins at end
+        occupancy, occ_bin_edges = np.histogram(lin_obj['linpos_flat'], bins=enc_settings.pos_bin_edges,
+                                                normed=True)
+        occupancy = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, occupancy, np.nan)
+        occupancy += 1e-10
+        return occupancy        
 
     @staticmethod
     def _calc_firing_rate_tet(observ: SpikeObservation, lin_obj: FlatLinearPosition, enc_settings: EncodeSettings):
