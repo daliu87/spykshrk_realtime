@@ -541,7 +541,7 @@ class OfflinePPDecoder(object):
         linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > @self.velocity_filter')
         self.velocity_mask = linflat_spkindex_encode_velthresh
         #self.likelihoods.fillna(0, inplace=True)
-        self.likelihoods.loc[self.velocity_mask.index,'x050'] = np.NaN
+        self.likelihoods.loc[self.velocity_mask.index] = np.nan
 
         print("Beginning posterior calculation")
         self.recalc_posterior()
@@ -756,15 +756,27 @@ class OfflinePPDecoder(object):
         posteriors = np.zeros(likelihoods.shape)
 
         for like_ii, like in enumerate(likelihoods):
-             if np.isnan(like).any():
-                 posteriors[like_ii, :] = np.NaN
+            #posteriors[like+ii, :] = like*np.matmul(transition_mat, last_posterior)
+            posteriors[like_ii, :] = like * np.matmul(transition_mat, np.nan_to_num(last_posterior))
+            posteriors[like_ii, :] = posteriors[like_ii, :] / (np.nansum(posteriors[like_ii, :]) * pos_delta)
 
-                 last_posterior = np.ones(pos_num_bins)
-             else:
-                 posteriors[like_ii, :] = like * np.matmul(transition_mat, np.nan_to_num(last_posterior))
-                 posteriors[like_ii, :] = posteriors[like_ii, :] / (np.nansum(posteriors[like_ii, :]) * pos_delta)
+            if np.isnan(like).all():
+                last_posterior = np.ones(pos_num_bins)
 
-                 last_posterior = posteriors[like_ii, :]
+            #this should be: posteriors[like_ii, :]
+            else:
+                last_posterior = posteriors[like_ii, :]
+
+            #last_posterior = posteriors[like_ii, :]            
+             #if np.isnan(like).any():
+             #    posteriors[like_ii, :] = np.NaN
+
+             #    last_posterior = np.ones(pos_num_bins)
+             #else:
+             #    posteriors[like_ii, :] = like * np.matmul(transition_mat, np.nan_to_num(last_posterior))
+             #    posteriors[like_ii, :] = posteriors[like_ii, :] / (np.nansum(posteriors[like_ii, :]) * pos_delta)
+
+             #    last_posterior = posteriors[like_ii, :]
         # copy observ DataFrame and replace with likelihoods, preserving other columns
 
         return posteriors
