@@ -323,7 +323,7 @@ class DayEpochTimeSeries(DayDataFrame):
 
     @classmethod
     @abstractclassmethod
-    def create_default(cls, df, sampling_rate, parent=None, **kwds):
+    def create_default(cls, df, sampling_rate, arm_coord=None, parent=None, **kwds):
         pass
 
     def get_time(self):
