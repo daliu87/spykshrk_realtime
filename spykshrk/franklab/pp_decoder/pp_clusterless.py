@@ -59,7 +59,7 @@ class OfflinePPEncoder(object):
         self.calc_firing_rate()
         self.calc_prob_no_spike()
 
-        self.trans_mat = dict.fromkeys(['learned', 'simple', 'uniform'])
+        self.trans_mat = dict.fromkeys(['learned', 'simple', 'uniform','flat_powered'])
         self.trans_mat['learned'] = self.calc_learned_state_trans_mat(self.linflat,self.encode_settings, self.decode_settings)
         self.trans_mat['simple'] = self.calc_simple_trans_mat(self.encode_settings)
         self.trans_mat['uniform'] = self.calc_uniform_trans_mat(self.encode_settings)
@@ -179,11 +179,51 @@ class OfflinePPEncoder(object):
         # occupancy
         occupancy = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, occupancy, np.nan)
         occupancy += 1e-10
-        return occupancy
+        return occupancy        
 
     @staticmethod
     def _calc_firing_rate_tet(observ: SpikeObservation, lin_obj: FlatLinearPosition, enc_settings: EncodeSettings):
         # initialize conditional intensity function
+        #firing_rate = {}
+        #enc_tet_lin_pos = (lin_obj.get_irregular_resampled(observ))
+        ##enc_tet_lin_pos['elec_grp_id'] = observ.index.get_level_values(level='elec_grp_id')
+        #tet_pos_groups = enc_tet_lin_pos.loc[:, 'linpos_flat'].groupby('elec_grp_id')
+        #for tet_id, tet_spikes in tet_pos_groups:
+        #    tet_pos_hist, _ = np.histogram(tet_spikes, bins=enc_settings.pos_bin_edges)
+        #    firing_rate[tet_id] = tet_pos_hist
+        #for fr_key in firing_rate.keys():
+        #    firing_rate[fr_key] = np.convolve(firing_rate[fr_key], enc_settings.pos_kernel, mode='same')
+        #    firing_rate[fr_key] = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates,
+        #                                                 firing_rate[fr_key])
+        #    firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * enc_settings.pos_bin_delta)
+        #return firing_rate
+
+        #replace with convolution with shift to avoid firing rate = 0 at 0 position bin
+        #firing_rate = {}
+        #enc_tet_lin_pos = (lin_obj.get_irregular_resampled(observ))
+        ##enc_tet_lin_pos['elec_grp_id'] = observ.index.get_level_values(level='elec_grp_id')
+        #tet_pos_groups = enc_tet_lin_pos.loc[:, 'linpos_flat'].groupby('elec_grp_id')
+        #for tet_id, tet_spikes in tet_pos_groups:
+        #    tet_pos_hist, _ = np.histogram(tet_spikes, bins=enc_settings.pos_bin_edges)
+        #    firing_rate[tet_id] = tet_pos_hist
+        #for fr_key in firing_rate.keys():
+        #    tet_hist = []
+        #    test_convol = []
+        #    tet_hist = firing_rate[fr_key]
+        #    tet_hist = np.insert(tet_hist, 0, tet_hist[0], axis=0)
+        #    tet_hist = np.insert(tet_hist, 0, tet_hist[0], axis=0)
+        #    tet_hist = np.append(tet_hist, tet_hist[-1])
+        #    tet_hist = np.append(tet_hist, tet_hist[-1])
+
+        #    test_convol = np.convolve(tet_hist, enc_settings.pos_kernel, mode='same')
+        #    test_convol = test_convol[3:145]
+        #    test_convol = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, test_convol)
+        #    test_convol = test_convol / (test_convol.sum() * enc_settings.pos_bin_delta)
+
+        #    firing_rate[fr_key] = test_convol
+        #return firing_rate
+
+        #try using firing rate histogram instead of convolution
         firing_rate = {}
         enc_tet_lin_pos = (lin_obj.get_irregular_resampled(observ))
         #enc_tet_lin_pos['elec_grp_id'] = observ.index.get_level_values(level='elec_grp_id')
@@ -191,12 +231,12 @@ class OfflinePPEncoder(object):
         for tet_id, tet_spikes in tet_pos_groups:
             tet_pos_hist, _ = np.histogram(tet_spikes, bins=enc_settings.pos_bin_edges)
             firing_rate[tet_id] = tet_pos_hist
-        for fr_key in firing_rate.keys():
-            firing_rate[fr_key] = np.convolve(firing_rate[fr_key], enc_settings.pos_kernel, mode='same')
-            firing_rate[fr_key] = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates,
-                                                         firing_rate[fr_key])
-            firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * enc_settings.pos_bin_delta)
-        return firing_rate
+        #for fr_key in firing_rate.keys():
+        #    firing_rate[fr_key] = np.convolve(firing_rate[fr_key], enc_settings.pos_kernel, mode='same')
+            firing_rate[tet_id] = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates,
+                                                         firing_rate[tet_id])
+            firing_rate[tet_id] = firing_rate[tet_id] / (firing_rate[tet_id].sum() * enc_settings.pos_bin_delta)
+        return firing_rate        
 
     @staticmethod
     def _calc_prob_no_spike(firing_rate: dict, occupancy, enc_settings: EncodeSettings, dec_settings: DecodeSettings):
@@ -214,6 +254,8 @@ class OfflinePPEncoder(object):
         prob_no_spike = {}
         for tet_id, tet_fr in firing_rate.items():
             prob_no_spike[tet_id] = np.exp(-dec_settings.time_bin_size/enc_settings.sampling_rate * tet_fr / occupancy)
+            #MEC 6-6-19
+            prob_no_spike[tet_id] = np.nan_to_num(prob_no_spike[tet_id], copy=False)
         return prob_no_spike
 
     
@@ -343,6 +385,59 @@ class OfflinePPEncoder(object):
         transition_mat = np.nan_to_num(transition_mat)
 
         return transition_mat
+
+    @staticmethod
+    def calc_flat_powered_trans_mat(enc_settings, dec_settings):
+        """
+        Calculate a transition matrix where all transition are equally likely.
+        Raise this matrix to a power (multiply it by itself) for smoothing.
+        Currently this is for 5cm position bins and no power smoothing is necessary (power = 1).
+        MEC 2-15-19
+
+        """
+
+        from scipy.sparse import diags
+        n = len(enc_settings.pos_bins)
+        transition_mat = np.zeros([n,n])
+        k = np.array([(1/3)*np.ones(n-1),(1/3)*np.ones(n),(1/3)*np.ones(n-1)])
+        offset = [-1,0,1]
+        transition_mat = diags(k,offset).toarray()
+        for x in enc_settings.arm_coordinates[:,0]:
+            transition_mat[int(x),int(x)] = (5/9)
+            transition_mat[8,int(x)] = (1/9)
+            transition_mat[int(x),8] = (1/9)
+        for y in enc_settings.arm_coordinates[:,1]:
+            transition_mat[int(y),int(y)] = (2/3)
+        transition_mat[8,0] = 0
+        transition_mat[0,8] = 0
+        transition_mat[8,8] = 0
+        transition_mat[0,0] = (2/3)
+        transition_mat[7,7] = (5/9)
+        transition_mat[7,8] = (1/9)
+        transition_mat[8,7] = (1/9)
+
+        # uniform offset (gain, currently 0.0001)
+        # needs to be set before running the encoder cell
+        uniform_gain = dec_settings.trans_uniform_gain
+        uniform_dist = np.ones(transition_mat.shape)*uniform_gain
+
+        # apply uniform offset
+        transition_mat = transition_mat + uniform_dist
+
+        # apply no animal boundary - make gaps between arms
+        transition_mat = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, transition_mat)
+
+        # to smooth: take the transition matrix to a power
+        transition_mat = np.linalg.matrix_power(transition_mat,1)
+
+        # apply no animal boundary - make gaps between arms
+        transition_mat = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, transition_mat)
+
+        # normalize transition matrix
+        transition_mat = transition_mat/(transition_mat.sum(axis=0)[None, :])
+        transition_mat[np.isnan(transition_mat)] = 0
+
+        return transition_mat
     
 
 
@@ -355,6 +450,7 @@ class OfflinePPDecoder(object):
     and decoding settings (spykshrk.franklab.pp_decoder.DecodeSettings).
     
     """
+    # added new argument called 'all_linear_position' that will be used by the velocity filter
     def __init__(self, observ_obj: SpikeObservation, encode_settings: EncodeSettings,
                  decode_settings: DecodeSettings, time_bin_size=30, 
                  all_linear_position=None, velocity_filter=None, 
@@ -487,6 +583,8 @@ class OfflinePPDecoder(object):
 
         dec_agg_results = observ_task.compute()
         dec_agg_results.sort_values('timestamp', inplace=True)
+        #convert timestamps to int in order to run get_irregular_resample
+        dec_agg_results = dec_agg_results.astype({'timestamp': int})
 
         #encoding mask: convert timestamps to int in order to run get_irregular_resample
         dec_agg_results = dec_agg_results.astype({'timestamp': int})
@@ -503,6 +601,8 @@ class OfflinePPDecoder(object):
         dec_new_ind = pd.MultiIndex(levels=lev, labels=lab, names=['day', 'epoch', 'timestamp', 'time'])
 
         dec_agg_results.set_index(dec_new_ind, inplace=True)
+
+        dec_agg_results.drop(columns=['timestamp'], inplace=True)
 
         binned_observ = dec_agg_results
 
