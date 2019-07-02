@@ -46,7 +46,6 @@ class SimTrodeListMessage(rt_logging.PrintableMessage):
         self.trode_list = trode_list
 
 class TrodesDataReceiver(realtime_base.DataSourceReceiver):
-# class SimulatorRemoteReceiver(realtime_base.DataSourceReceiver):
     """Class that receives data from trodes using its network api
     """
     def __init__(self, comm: MPI.Comm, rank, config, datatype):
