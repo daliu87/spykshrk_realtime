@@ -1,24 +1,23 @@
 import functools
 import logging
 
-import dask
-import dask.dataframe as dd
 import numpy as np
 import pandas as pd
 import scipy as sp
 import scipy.signal
 import warnings
 
+import torch
+
 from spykshrk.franklab.data_containers import LinearPosition, FlatLinearPosition, SpikeObservation, EncodeSettings, DecodeSettings, Posteriors, pos_col_format
 from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary, normal_pdf_int_lookup
 from spykshrk.util import Groupby
 
-logger = logging.getLogger(__name__)
+#logger = logging.getLogger(__name__)
 
 class OfflinePPEncoder(object):
 
-    def __init__(self, linflat, enc_spk_amp, dec_spk_amp, encode_settings: EncodeSettings, decode_settings: DecodeSettings,
-                 dask_worker_memory=None, dask_memory_utilization=0.5, dask_chunksize=None):
+    def __init__(self, linflat, enc_spk_amp, dec_spk_amp, encode_settings: EncodeSettings, decode_settings: DecodeSettings, chunk_size=1000):
         """
         Constructor for OfflinePPEncoder.
         
@@ -30,30 +29,12 @@ class OfflinePPEncoder(object):
             decode_settings (DecodeSettings): Realtime decoder settings.
 
         """
-        if dask_worker_memory is None and dask_chunksize is None:
-            raise TypeError('OfflinePPEncoder requires either dask_memory or dask_chunksize to be set.')
-        if dask_worker_memory is not None and dask_chunksize is not None:
-            raise TypeError('OfflinePPEncoder only allows one to be set, dask_memory or dask_chunksize.')
-        if dask_chunksize is not None:
-            memory_per_dec = (len(enc_spk_amp) * np.sum([np.dtype(dtype).itemsize for dtype in enc_spk_amp.dtypes]))
-            self.dask_chunksize = dask_chunksize
-            logger.info('Manual Dask chunksize: {}'.format(self.dask_chunksize))
-            logger.info('Expected worker peak memory usage: {:0.2f} MB'.format(self.dask_chunksize * memory_per_dec / 2**20))
-            logger.info('Worker total memory: UNKNOWN')
-
-        if dask_worker_memory is not None:
-            memory_per_dec = (len(enc_spk_amp) * np.sum([np.dtype(dtype).itemsize for dtype in enc_spk_amp.dtypes]))
-            self.dask_chunksize = np.int(dask_memory_utilization * dask_worker_memory / memory_per_dec)
-            logger.info('Dask chunksize: {}'.format(self.dask_chunksize))
-            logger.info('Memory utilization at: {:0.1f}%'.format(dask_memory_utilization * 100))
-            logger.info('Expected worker peak memory usage: {:0.2f} MB'.
-                        format(self.dask_chunksize * memory_per_dec / 2**20))
-
         self.linflat = linflat
         self.enc_spk_amp = enc_spk_amp
         self.dec_spk_amp = dec_spk_amp
         self.encode_settings = encode_settings
         self.decode_settings = decode_settings
+        self.chunk_size = chunk_size
 
         self.calc_occupancy()
         self.calc_firing_rate()
@@ -65,16 +46,14 @@ class OfflinePPEncoder(object):
         self.trans_mat['uniform'] = self.calc_uniform_trans_mat(self.encode_settings)
 
     def run_encoder(self):
-        logging.info("Setting up encoder dask task.")
-        task = self.setup_encoder_dask()
-        logging.info("Running compute tasks on dask workers.")
-        self.results = dask.compute(*task)
+
+        self.results = self._run_loop()
 
         tet_ids = np.unique(self.enc_spk_amp.index.get_level_values('elec_grp_id'))
         observ_tet_list = []
         grp = self.dec_spk_amp.groupby('elec_grp_id')
         for tet_ii, (tet_id, grp_spk) in enumerate(grp):
-            tet_result = self.results[tet_ii]
+            tet_result = self.results[tet_id]
             tet_result.set_index(grp_spk.index, inplace=True)
             observ_tet_list.append(tet_result)
 
@@ -93,14 +72,19 @@ class OfflinePPEncoder(object):
 
         return self.observ_obj
 
-    def setup_encoder_dask(self):
+    def _run_loop(self):
         # grp = self.spk_amp.groupby('elec_grp_id')
         dec_grp = self.dec_spk_amp.groupby('elec_grp_id')
         observations = {}
         task = []
 
         for dec_tet_id, dec_spk_tet in dec_grp:
+            observations.setdefault(dec_tet_id, pd.DataFrame())
             enc_spk_tet = self.enc_spk_amp.query('elec_grp_id==@dec_tet_id')
+            
+            dtype = torch.float
+            device = torch.device('cuda')
+
             if len(enc_spk_tet) == 0 | len(dec_spk_tet) == 0:
                 continue
             enc_tet_lin_pos = self.linflat.get_irregular_resampled(enc_spk_tet)
@@ -109,20 +93,32 @@ class OfflinePPEncoder(object):
             # maintain elec_grp_id info. get mark and index column names to reindex dask arrays
             mark_columns = dec_spk_tet.columns
             index_columns = dec_spk_tet.index.names
-            dask_dec_spk_tet = dd.from_pandas(dec_spk_tet.reset_index(), chunksize=self.dask_chunksize)
+            #dask_dec_spk_tet = dd.from_pandas(dec_spk_tet.reset_index(), chunksize=self.dask_chunksize)
 
-            df_meta = pd.DataFrame([], columns=[pos_col_format(ii, self.encode_settings.pos_num_bins)
-                                                for ii in range(self.encode_settings.pos_num_bins)])
+            chunk_start_ii = -self.chunk_size
+            for chunk_start_ii in list(range(0, len(dec_spk_tet), self.chunk_size))[:-1]:
+                dec_spk_tet_chunk = dec_spk_tet.iloc[chunk_start_ii:chunk_start_ii + self.chunk_size].reset_index()
+                
 
+            #df_meta = pd.DataFrame([], columns=[pos_col_format(ii, self.encode_settings.pos_num_bins)
+            #                                    for ii in range(self.encode_settings.pos_num_bins)])
+
+                observ = self.compute_observ_tet(dec_spk=dec_spk_tet_chunk, enc_spk=enc_spk_tet, 
+                                                 tet_lin_pos=enc_tet_lin_pos, occupancy=self.occupancy, 
+                                                 encode_settings=self.encode_settings,
+                                                 mark_columns=mark_columns, index_columns=index_columns)
+                observations[dec_tet_id] = observations[dec_tet_id].append(observ)
+
+            chunk_start_ii = chunk_start_ii + self.chunk_size
+            dec_spk_tet_chunk = dec_spk_tet.iloc[chunk_start_ii:].reset_index()
+
+            observ = self.compute_observ_tet(dec_spk=dec_spk_tet_chunk, enc_spk=enc_spk_tet, 
+                                             tet_lin_pos=enc_tet_lin_pos, occupancy=self.occupancy, 
+                                             encode_settings=self.encode_settings,
+                                             mark_columns=mark_columns, index_columns=index_columns)
+            observations[dec_tet_id] = observations[dec_tet_id].append(observ)
             # setup decode of decode spikes from encoding of encoding spikes
-            task.append(dask_dec_spk_tet.map_partitions(functools.partial(self.compute_observ_tet, enc_spk=enc_spk_tet,
-                                                                          tet_lin_pos=enc_tet_lin_pos,
-                                                                          occupancy=self.occupancy,
-                                                                          encode_settings=self.encode_settings),
-                                                        meta=df_meta,
-                                                        mark_columns=mark_columns,
-                                                        index_columns=index_columns))
-        return task
+        return observations
 
     def compute_observ_tet(self, dec_spk, enc_spk, tet_lin_pos, occupancy, encode_settings, mark_columns, index_columns):
         import sys
