@@ -1,7 +1,8 @@
 import json
 import os
 import datajoint as dj
-
+from . import nspike_schema
+from . import exceptions
 
 root_path = os.path.abspath(os.path.join(globals()['__path__'][0], '../../../'))
 
