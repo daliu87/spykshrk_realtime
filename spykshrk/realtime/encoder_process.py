@@ -2,6 +2,8 @@ import os
 import struct
 import numpy as np
 from mpi4py import MPI
+
+import spykshrk.realtime.trodes
 from spykshrk.realtime import realtime_base, realtime_logging, binary_record, datatypes
 from spykshrk.realtime.simulator import simulator_process
 
@@ -291,15 +293,15 @@ class EncoderProcess(realtime_base.RealtimeProcess):
                                                                       config=self.config,
                                                                       datatype=datatypes.Datatypes.LINEAR_POSITION)
         elif self.config['datasource'] == 'trodes':
-            spike_interface = simulator_process.TrodesDataReceiver(comm=self.comm,
+            spike_interface = spykshrk.realtime.trodes.TrodesDataReceiver(comm=self.comm,
+                                                                          rank=self.rank,
+                                                                          config=self.config,
+                                                                          datatype=datatypes.Datatypes.SPIKES)
+
+            pos_interface = spykshrk.realtime.trodes.TrodesDataReceiver(comm=self.comm,
                                                                         rank=self.rank,
                                                                         config=self.config,
-                                                                        datatype=datatypes.Datatypes.SPIKES)
-
-            pos_interface = simulator_process.TrodesDataReceiver(comm=self.comm,
-                                                                      rank=self.rank,
-                                                                      config=self.config,
-                                                                      datatype=datatypes.Datatypes.LINEAR_POSITION)
+                                                                        datatype=datatypes.Datatypes.LINEAR_POSITION)
 
         self.enc_man = RStarEncoderManager(rank=rank,
                                            config=config,
