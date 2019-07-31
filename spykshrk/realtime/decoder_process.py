@@ -1,6 +1,8 @@
 from mpi4py import MPI
 import math
 import numpy as np
+
+import spykshrk.realtime.trodes
 from spykshrk.realtime import realtime_base, realtime_logging, binary_record, datatypes, encoder_process
 from spykshrk.realtime.simulator import simulator_process
 
@@ -476,10 +478,10 @@ class DecoderProcess(realtime_base.RealtimeProcess):
                                                                        config=self.config,
                                                                        datatype=datatypes.Datatypes.LINEAR_POSITION)
         elif config['datasource'] == 'trodes':
-            self.pos_interface = simulator_process.TrodesDataReceiver(comm=self.comm,
-                                                                       rank=self.rank,
-                                                                       config=self.config,
-                                                                       datatype=datatypes.Datatypes.LINEAR_POSITION)
+            self.pos_interface = spykshrk.realtime.trodes.TrodesDataReceiver(comm=self.comm,
+                                                                             rank=self.rank,
+                                                                             config=self.config,
+                                                                             datatype=datatypes.Datatypes.LINEAR_POSITION)
 
         if config['decoder'] == 'bayesian_decoder':
             self.dec_man = BayesianDecodeManager(rank=rank, config=config,
