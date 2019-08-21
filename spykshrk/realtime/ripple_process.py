@@ -10,6 +10,7 @@ import spykshrk.realtime.realtime_base as realtime_base
 import spykshrk.realtime.realtime_logging as rt_logging
 import spykshrk.realtime.simulator.simulator_process as simulator_process
 import spykshrk.realtime.timing_system as timing_system
+import spykshrk.realtime.trodes
 from spykshrk.realtime.datatypes import LFPPoint
 from spykshrk.realtime.realtime_base import ChannelSelection, TurnOnDataStream
 
@@ -557,10 +558,10 @@ class RippleProcess(realtime_base.RealtimeProcess):
                                                                     config=self.config,
                                                                     datatype=datatypes.Datatypes.LFP)
         elif self.config['datasource'] == 'trodes':
-            data_interface = simulator_process.TrodesDataReceiver(comm=self.comm,
-                                                                                rank=self.rank,
-                                                                                config=self.config,
-                                                                                datatype=datatypes.Datatypes.LFP)
+            data_interface = spykshrk.realtime.trodes.TrodesDataReceiver(comm=self.comm,
+                                                                         rank=self.rank,
+                                                                         config=self.config,
+                                                                         datatype=datatypes.Datatypes.LFP)
         else:
             raise realtime_base.DataSourceError("No valid data source selected")
 

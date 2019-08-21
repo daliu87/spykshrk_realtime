@@ -471,14 +471,14 @@ class OfflinePPDecoder(object):
 
         dec_new_ind = pd.MultiIndex.from_product([[day], [epoch], dec_agg_results['timestamp']])
         lev = list(dec_new_ind.levels)
-        lab = list(dec_new_ind.labels)
+        lab = list(dec_new_ind.codes)
 
         lev.append(dec_agg_results['timestamp']/float(enc_settings.sampling_rate))
         dec_agg_results.drop(columns='timestamp', inplace=True)
 
         lab.append(range(len(dec_agg_results)))
 
-        dec_new_ind = pd.MultiIndex(levels=lev, labels=lab, names=['day', 'epoch', 'timestamp', 'time'])
+        dec_new_ind = pd.MultiIndex(levels=lev, codes=lab, names=['day', 'epoch', 'timestamp', 'time'])
 
         dec_agg_results.set_index(dec_new_ind, inplace=True)
 
