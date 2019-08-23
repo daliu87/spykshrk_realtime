@@ -155,7 +155,7 @@ class RippleFilter(rt_logging.LoggingClass):
 
     @property
     def custom_baseline_std(self):
-        return self._custom_baseline_mean
+        return self._custom_baseline_std
 
     @custom_baseline_std.setter
     def custom_baseline_std(self, value):
