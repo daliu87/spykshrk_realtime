@@ -449,8 +449,8 @@ class OfflinePPDecoder(object):
 
         observ.update_num_missing_future_bins(inplace=True)
 
-        observ_dask = dd.from_pandas(observ.get_no_multi_index(), chunksize=30000)
-        observ_grp = observ_dask.groupby('parallel_bin')
+        #observ_dask = dd.from_pandas(observ.get_no_multi_index(), chunksize=30000)
+        observ_grp = observ.groupby('parallel_bin')
 
         observ_meta = [(key, 'f8') for key in [pos_col_format(ii, enc_settings.pos_num_bins)
                                                for ii in range(enc_settings.pos_num_bins)]]
@@ -459,6 +459,18 @@ class OfflinePPDecoder(object):
         observ_meta.append(('dec_bin', 'f8'))
 
         elec_grp_list = observ['elec_grp_id'].unique()
+
+        dec_agg_results = pd.DataFrame()
+        for parallel_bin_ind, observ_par in observ_grp:
+
+            bin_observed_par = OfflinePPDecoder._calc_observation_single_bin(observ_par,
+                                                                             elec_grp_list=elec_grp_list,
+                                                                             prob_no_spike=prob_no_spike,
+                                                                             time_bin_size=time_bin_size,
+                                                                             enc_settings=enc_settings),
+            dec_agg_results = dec_agg_results.append(bin_observed_par[0])
+
+        '''    
         observ_task = observ_grp.apply(functools.partial(OfflinePPDecoder._calc_observation_single_bin,
                                                          elec_grp_list=elec_grp_list,
                                                          prob_no_spike=prob_no_spike,
@@ -467,6 +479,8 @@ class OfflinePPDecoder(object):
                                        meta=observ_meta)
 
         dec_agg_results = observ_task.compute()
+        '''
+
         dec_agg_results.sort_values('timestamp', inplace=True)
 
         dec_new_ind = pd.MultiIndex.from_product([[day], [epoch], dec_agg_results['timestamp']])
