@@ -105,7 +105,7 @@ def run_alg():
     spk_data = SpikeWaves.from_df(spk.data, encode_settings)
 
     # spk threshold
-    encode_settings.spk_amp = 55
+    encode_settings.spk_amp = 60
 
     # Encapsulate linear position
     lin_obj = LinearPosition.from_nspike_posmat(pos_data, encode_settings)
