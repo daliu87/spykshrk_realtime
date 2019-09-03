@@ -319,7 +319,7 @@ class DayEpochTimeSeries(DayDataFrame):
 
     @classmethod
     @abstractclassmethod
-    def create_default(cls, df, sampling_rate, parent=None, **kwds):
+    def create_default(cls, df, sampling_rate, arm_coord=None, parent=None, **kwds):
         pass
 
     def get_time(self):
@@ -442,7 +442,7 @@ class DayEpochTimeSeries(DayDataFrame):
                                     by=common_index_names[:-1],
                                     direction='nearest').set_index(source_index_names, drop=True))
             result = result.set_index(exclude_index_names, append=True).loc[:, self.columns]
-            return type(self).create_default(result, **self.kwds)
+            return type(self).create_default(result, arm_coord=None, **self.kwds)
         else:
             return result
 

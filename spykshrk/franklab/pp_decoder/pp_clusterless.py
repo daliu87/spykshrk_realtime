@@ -352,7 +352,9 @@ class OfflinePPDecoder(object):
     
     """
     def __init__(self, observ_obj: SpikeObservation, encode_settings: EncodeSettings,
-                 decode_settings: DecodeSettings, time_bin_size=30, parallel=True, trans_mat=None,
+                 decode_settings: DecodeSettings, time_bin_size=30, 
+                 all_linear_position=None, velocity_filter=None, 
+                 parallel=True, trans_mat=None,
                  prob_no_spike=None):
         """
         Constructor for OfflinePPDecoder.
@@ -381,6 +383,10 @@ class OfflinePPDecoder(object):
         self.posteriors = None
         self.posteriors_obj = None
 
+
+        self.all_linear_position = all_linear_position
+        self.velocity_filter = velocity_filter
+
     def __del__(self):
         print('decoder deleting')
 
@@ -395,6 +401,15 @@ class OfflinePPDecoder(object):
 
         print("Beginning likelihood calculation")
         self.recalc_likelihood()
+
+        # MEC 04-09-19 - mask for encoding times
+        # use get_irregular_resample to find all timebins in likelihoods when vel > 4, then set position columns to NaN
+        vel_filter_obj = self.all_linear_position.get_mapped_single_axis()
+        linflat_spkindex = vel_filter_obj.get_irregular_resampled(self.likelihoods)
+        linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > @self.velocity_filter')
+        self.velocity_mask = linflat_spkindex_encode_velthresh
+        self.likelihoods.loc[self.velocity_mask.index] = np.nan
+
         print("Beginning posterior calculation")
         self.recalc_posterior()
 
@@ -482,6 +497,9 @@ class OfflinePPDecoder(object):
         '''
 
         dec_agg_results.sort_values('timestamp', inplace=True)
+
+        #encoding mask: convert timestamps to int in order to run get_irregular_resample
+        dec_agg_results = dec_agg_results.astype({'timestamp': int})
 
         dec_new_ind = pd.MultiIndex.from_product([[day], [epoch], dec_agg_results['timestamp']])
         lev = list(dec_new_ind.levels)
@@ -624,7 +642,14 @@ class OfflinePPDecoder(object):
             posteriors[like_ii, :] = like * np.matmul(transition_mat, np.nan_to_num(last_posterior))
             posteriors[like_ii, :] = posteriors[like_ii, :] / (np.nansum(posteriors[like_ii, :]) *
                                                                pos_delta)
-            last_posterior = posteriors[like_ii, :]
+            #last_posterior = posteriors[like_ii, :]
+
+            # velocity mask - reset posterior after masked encoding bins 
+            if np.isnan(like).all():
+                last_posterior = np.ones(pos_num_bins)
+
+            else:
+                last_posterior = posteriors[like_ii, :]
 
         # copy observ DataFrame and replace with likelihoods, preserving other columns
 
