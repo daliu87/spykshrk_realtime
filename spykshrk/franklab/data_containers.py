@@ -442,7 +442,7 @@ class DayEpochTimeSeries(DayDataFrame):
                                     by=common_index_names[:-1],
                                     direction='nearest').set_index(source_index_names, drop=True))
             result = result.set_index(exclude_index_names, append=True).loc[:, self.columns]
-            return type(self).create_default(result, arm_coord=None, **self.kwds)
+            return type(self).create_default(result, **self.kwds)
         else:
             return result
 
