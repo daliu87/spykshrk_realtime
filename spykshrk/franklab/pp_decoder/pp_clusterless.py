@@ -10,14 +10,14 @@ import warnings
 import torch
 
 from spykshrk.franklab.data_containers import LinearPosition, FlatLinearPosition, SpikeObservation, EncodeSettings, DecodeSettings, Posteriors, pos_col_format
-from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary, normal_pdf_int_lookup
+from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary, normal_pdf_int_lookup, normal_pdf_int_lookup_torch
 from spykshrk.util import Groupby
 
 #logger = logging.getLogger(__name__)
 
 class OfflinePPEncoder(object):
 
-    def __init__(self, linflat, enc_spk_amp, dec_spk_amp, encode_settings: EncodeSettings, decode_settings: DecodeSettings, chunk_size=1000):
+    def __init__(self, linflat, enc_spk_amp, dec_spk_amp, encode_settings: EncodeSettings, decode_settings: DecodeSettings, chunk_size=1000, cuda=False):
         """
         Constructor for OfflinePPEncoder.
         
@@ -35,6 +35,12 @@ class OfflinePPEncoder(object):
         self.encode_settings = encode_settings
         self.decode_settings = decode_settings
         self.chunk_size = chunk_size
+        if cuda:
+            self.device_name = 'cuda'
+        else:
+            self.device_name = 'cpu'
+        self.dtype = torch.float
+        self.device = torch.device(self.device_name)
 
         self.calc_occupancy()
         self.calc_firing_rate()
@@ -82,9 +88,6 @@ class OfflinePPEncoder(object):
             observations.setdefault(dec_tet_id, pd.DataFrame())
             enc_spk_tet = self.enc_spk_amp.query('elec_grp_id==@dec_tet_id')
             
-            dtype = torch.float
-            device = torch.device('cuda')
-
             if len(enc_spk_tet) == 0 | len(dec_spk_tet) == 0:
                 continue
             enc_tet_lin_pos = self.linflat.get_irregular_resampled(enc_spk_tet)
@@ -106,7 +109,8 @@ class OfflinePPEncoder(object):
                 observ = self.compute_observ_tet(dec_spk=dec_spk_tet_chunk, enc_spk=enc_spk_tet, 
                                                  tet_lin_pos=enc_tet_lin_pos, occupancy=self.occupancy, 
                                                  encode_settings=self.encode_settings,
-                                                 mark_columns=mark_columns, index_columns=index_columns)
+                                                 mark_columns=mark_columns, index_columns=index_columns,
+                                                 device=self.device, dtype=self.dtype)
                 observations[dec_tet_id] = observations[dec_tet_id].append(observ)
 
             chunk_start_ii = chunk_start_ii + self.chunk_size
@@ -115,23 +119,39 @@ class OfflinePPEncoder(object):
             observ = self.compute_observ_tet(dec_spk=dec_spk_tet_chunk, enc_spk=enc_spk_tet, 
                                              tet_lin_pos=enc_tet_lin_pos, occupancy=self.occupancy, 
                                              encode_settings=self.encode_settings,
-                                             mark_columns=mark_columns, index_columns=index_columns)
+                                             mark_columns=mark_columns, index_columns=index_columns,
+                                             device=self.device, dtype=self.dtype)
             observations[dec_tet_id] = observations[dec_tet_id].append(observ)
             # setup decode of decode spikes from encoding of encoding spikes
         return observations
 
-    def compute_observ_tet(self, dec_spk, enc_spk, tet_lin_pos, occupancy, encode_settings, mark_columns, index_columns):
+    def compute_observ_tet(self, dec_spk, enc_spk, tet_lin_pos, occupancy, encode_settings, mark_columns, index_columns, device, dtype):
         import sys
         pos_distrib_tet = sp.stats.norm.pdf(np.expand_dims(encode_settings.pos_bins, 0),
                                             np.expand_dims(tet_lin_pos['linpos_flat'], 1),
                                             encode_settings.pos_kernel_std)
-        mark_contrib = normal_pdf_int_lookup(np.expand_dims(dec_spk[mark_columns], 1),
-                                             np.expand_dims(enc_spk, 0),
-                                             encode_settings.mark_kernel_std)
-        all_contrib = np.prod(mark_contrib, axis=2)
-        del mark_contrib
-        observ = np.matmul(all_contrib, pos_distrib_tet)
-        del all_contrib
+
+        if device.type == 'cuda':
+            pos_distrib_tet_torch = torch.from_numpy(pos_distrib_tet).to(device=device, dtype=dtype)
+            mark_contrib = normal_pdf_int_lookup_torch(np.expand_dims(dec_spk[mark_columns], 1),
+                                                       np.expand_dims(enc_spk, 0),
+                                                       encode_settings.mark_kernel_std, 
+                                                       device=device, dtype=dtype)
+            all_contrib = torch.prod(mark_contrib, dim=2)
+            del mark_contrib
+            observ_torch = torch.matmul(all_contrib, pos_distrib_tet_torch)
+            del all_contrib
+            observ = observ_torch.to(device='cpu').numpy()
+            del observ_torch
+
+        else: 
+            mark_contrib = normal_pdf_int_lookup(np.expand_dims(dec_spk[mark_columns], 1),
+                                                 np.expand_dims(enc_spk, 0),
+                                                 encode_settings.mark_kernel_std)
+            all_contrib = np.prod(mark_contrib, axis=2)
+            del mark_contrib
+            observ = np.matmul(all_contrib, pos_distrib_tet)
+            del all_contrib
 
         # occupancy normalize 
         observ = observ / (occupancy)

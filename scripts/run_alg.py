@@ -29,6 +29,7 @@ import json
 import os
 import scipy.signal
 import functools
+import time
 
 from spykshrk.util import AttrDict
 import spykshrk.franklab.filterframework_util as ff_util
@@ -137,7 +138,7 @@ def run_alg():
 
     encoder = OfflinePPEncoder(linflat=linflat_obj, enc_spk_amp=spk_amp_thresh_encode, 
                                dec_spk_amp=spk_amp_thresh_decode, encode_settings=encode_settings, 
-                               decode_settings=decode_settings, chunk_size=10000)
+                               decode_settings=decode_settings, chunk_size=5000, cuda=True)
 
     observ_obj = encoder.run_encoder()
 
@@ -158,3 +159,8 @@ def run_alg():
     #                         'decode_sim'+str(sim_num), overwrite=True)
 
     return observ_obj
+
+time_start = time.time()
+run_alg()
+time_end = time.time()
+print('Run time:', time_end - time_start)
