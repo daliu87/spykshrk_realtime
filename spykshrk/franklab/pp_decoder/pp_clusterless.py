@@ -373,7 +373,7 @@ class OfflinePPDecoder(object):
     """
     def __init__(self, observ_obj: SpikeObservation, encode_settings: EncodeSettings,
                  decode_settings: DecodeSettings, time_bin_size=30, 
-                 all_linear_position=None, velocity_filter=None, 
+                 velocity_filter=None, 
                  parallel=True, trans_mat=None,
                  prob_no_spike=None):
         """
@@ -404,9 +404,6 @@ class OfflinePPDecoder(object):
         self.posteriors_obj = None
 
 
-        self.all_linear_position = all_linear_position
-        self.velocity_filter = velocity_filter
-
     def __del__(self):
         print('decoder deleting')
 
@@ -421,14 +418,6 @@ class OfflinePPDecoder(object):
 
         print("Beginning likelihood calculation")
         self.recalc_likelihood()
-
-        # MEC 04-09-19 - mask for encoding times
-        # use get_irregular_resample to find all timebins in likelihoods when vel > 4, then set position columns to NaN
-        vel_filter_obj = self.all_linear_position.get_mapped_single_axis()
-        linflat_spkindex = vel_filter_obj.get_irregular_resampled(self.likelihoods)
-        linflat_spkindex_encode_velthresh = linflat_spkindex.query('linvel_flat > @self.velocity_filter')
-        self.velocity_mask = linflat_spkindex_encode_velthresh
-        self.likelihoods.loc[self.velocity_mask.index] = np.nan
 
         print("Beginning posterior calculation")
         self.recalc_posterior()
