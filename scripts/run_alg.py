@@ -64,13 +64,9 @@ pd.set_option('display.max_columns', 15)
 idx = pd.IndexSlice
 
 
-def run_alg():
+def config_alg(config_file):
     # Load merged rec HDF store based on config
 
-    #config_file = '/opt/data36/daliu/realtime/spykshrk/ripple_dec/bond.config.json'
-    #config_file = '/opt/data36/daliu/realtime/spykshrk/dec_60uv/bond.config.json'
-    #config_file = '/home/daliu/Src/spykshrk_realtime/config/bond_single.json'
-    config_file = '/g/g20/liu67/Src/spykshrk_realtime/config/bond_hpc.json'
     config = json.load(open(config_file, 'r'))
 
     out_dir = config['files']['output_dir']
@@ -97,8 +93,11 @@ def run_alg():
     encode_settings = EncodeSettings(config)
     decode_settings = DecodeSettings(config)
 
+    return encode_settings, decode_settings
+
+def run_encoder(encode_settings):
     # Grab animal linearized real position
-    nspike_anim = nspike_data.AnimalInfo(**config['simulator']['nspike_animal_info'])
+    nspike_anim = nspike_data.AnimalInfo(**encode_settings.nspike_animal_info)
     pos = nspike_data.PosMatDataStream(nspike_anim)
     pos_data = pos.data
 
@@ -142,25 +141,40 @@ def run_alg():
 
     observ_obj = encoder.run_encoder()
 
+    return observ_obj, encoder
 
-
+def run_decoder(obvserv_obj, encoder, encode_settings, decode_settings):
     # Run PP decoding algorithm
     time_bin_size = 30
-    #decoder = OfflinePPDecoder(observ_obj=observ_obj, trans_mat=encoder.trans_mat['simple'], 
-    #                           prob_no_spike=encoder.prob_no_spike,
-    #                           encode_settings=encode_settings, decode_settings=decode_settings, 
-    #                           time_bin_size=time_bin_size)
+    decoder = OfflinePPDecoder(observ_obj=observ_obj, trans_mat=encoder.trans_mat['simple'], 
+                               prob_no_spike=encoder.prob_no_spike,
+                               encode_settings=encode_settings, decode_settings=decode_settings, 
+                               time_bin_size=time_bin_size)
 
-    #posteriors = decoder.run_decoder()
+    posteriors = decoder.run_decoder()
 
 
     #posteriors._to_hdf_store('/opt/data36/daliu/pyBond/analysis/bond_decode_example.h5','/analysis', 
     #                         'example01/bond/decode/clusterless/offline/day04/epoch01/', 
     #                         'decode_sim'+str(sim_num), overwrite=True)
 
-    return observ_obj
+    return posteriors
 
-time_start = time.time()
-run_alg()
-time_end = time.time()
-print('Run time:', time_end - time_start)
+#config_file = '/opt/data36/daliu/realtime/spykshrk/ripple_dec/bond.config.json'
+#config_file = '/opt/data36/daliu/realtime/spykshrk/dec_60uv/bond.config.json'
+#config_file = '/home/daliu/Src/spykshrk_realtime/config/bond_single.json'
+config_file = '/g/g20/liu67/Src/spykshrk_realtime/config/bond_hpc.json'
+
+time_point = []
+time_point.append(time.time())
+encode_settings, decode_settings = config_alg(config_file)
+
+observ_obj, encoder = run_encoder(encode_settings)
+time_point.append(time.time())
+
+posteriors = run_decoder(observ_obj, encoder, encode_settings, decode_settings)
+time_point.append(time.time())
+
+for first_time, second_time in zip(time_point[0:-1], time_point[1:]):
+    print('time:', second_time - first_time)
+print('total time:', time_point[-1] - time_point[0])

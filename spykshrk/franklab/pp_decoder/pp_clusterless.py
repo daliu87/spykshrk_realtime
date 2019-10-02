@@ -373,9 +373,8 @@ class OfflinePPDecoder(object):
     """
     def __init__(self, observ_obj: SpikeObservation, encode_settings: EncodeSettings,
                  decode_settings: DecodeSettings, time_bin_size=30, 
-                 velocity_filter=None, 
-                 parallel=True, trans_mat=None,
-                 prob_no_spike=None):
+                 velocity_filter=None, trans_mat=None, prob_no_spike=None,
+                 cuda=False):
         """
         Constructor for OfflinePPDecoder.
         
@@ -397,7 +396,13 @@ class OfflinePPDecoder(object):
         # self.which_trans_mat = which_trans_mat
         self.time_bin_size = time_bin_size
 
-        self.parallel = parallel
+        self.cuda = cuda
+        if self.cuda:
+            self.device_name = 'cuda'
+        else:
+            self.device_name = 'cpu'
+        self.dtype = torch.float
+        self.device = torch.device(self.device_name)
 
         self.likelihoods = None
         self.posteriors = None
@@ -446,7 +451,8 @@ class OfflinePPDecoder(object):
                                    prob_no_spike,
                                    enc_settings: EncodeSettings,
                                    dec_settings: DecodeSettings,
-                                   time_bin_size=None):
+                                   time_bin_size=None,
+                                   device=):
         """
         
         Args:
