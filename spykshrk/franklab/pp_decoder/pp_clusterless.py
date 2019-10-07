@@ -451,8 +451,7 @@ class OfflinePPDecoder(object):
                                    prob_no_spike,
                                    enc_settings: EncodeSettings,
                                    dec_settings: DecodeSettings,
-                                   time_bin_size=None,
-                                   device=):
+                                   time_bin_size=None):
         """
         
         Args:
