@@ -87,7 +87,7 @@ class UnitNormalGenerator:
 
 class TetrodeUniformUnitNormalGenerator:
 
-    def __init__(self, sampling_rate=1000, num_units=1, num_marks=4, mark_mean_range=(40, 100),
+    def __init__(self, sampling_rate=1000, num_marks=4, num_units=1, mark_mean_range=(40, 100),
                  mark_cov_range=(10, 20), firing_rate_range=(5, 20), pos_field_range=(0, 100),
                  pos_field_var_range=(5, 10)):
 
