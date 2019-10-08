@@ -62,7 +62,7 @@ class DecodeVisualizer:
         self.post_img.extents = (x_range[0], 0, x_range[1], self.enc_settings.pos_bins[-1])
         self.post_img.relabel('posteriors')
         rgb = shade(regrid(self.post_img, aggregator='mean', dynamic=False,
-                           x_range=x_range, y_range=y_range), cmap=plt.get_cmap('hot'),
+                           x_range=x_range, y_range=y_range, precompute=True), cmap=plt.get_cmap('hot'),
                     normalization='linear', dynamic=False)
 
         rgb.extents = (x_range[0], 0, x_range[1], self.enc_settings.pos_bins[-1])
