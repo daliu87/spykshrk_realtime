@@ -517,6 +517,8 @@ class EncodeSettings:
         """
         encoder_config = realtime_config['encoder']
 
+        self.nspike_animal_info = realtime_config['simulator']['nspike_animal_info']
+
         self.sampling_rate = encoder_config['sampling_rate']
         self.arm_coordinates = encoder_config['position']['arm_pos']
         self.tetrodes = realtime_config[realtime_config['datasource']]['nspike_animal_info']['tetrodes']
