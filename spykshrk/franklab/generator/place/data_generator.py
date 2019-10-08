@@ -130,4 +130,4 @@ class TetrodeUniformUnitNormalGenerator:
 
         spk_amps = spk_amps[~spk_amps.index.duplicated(keep='first')]
 
-        return spk_amps
+        return spk_amps, unit_spks
