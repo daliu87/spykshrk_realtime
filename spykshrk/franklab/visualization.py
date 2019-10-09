@@ -27,8 +27,8 @@ class TetrodeVisualizer:
     def mark_color_3d_plot(self, elevation, azimuth, col1='c00', col2='c01', col3='c02'):
         scatter = [hv.Scatter3D(mark_pos.loc[:, [col1, col2, col3]]).opts(dict(Scatter3D=dict(bgcolor='black', s=3)))
                    for elec_id, mark_pos in self.unit_spks.items()]
-        overlay = hv.Overlay(scatter, label='Plot of spikes and their features in linpos_flat' +
-                                            ' and amplitude channels c01 and c02')
+        overlay = hv.Overlay(scatter, label='Plot of spikes and their features ' +
+                             col1 + ', ' + col2 + ', and ' + col3)
         overlay = overlay.opts({'Scatter3D': {'plot': {'fig_size': 400, 'azimuth': int(azimuth),
                                                        'elevation': int(elevation)},
                                               'norm': {'framewise': True}}})
