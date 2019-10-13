@@ -90,8 +90,8 @@ class OfflinePPEncoder(object):
             
             if len(enc_spk_tet) == 0 | len(dec_spk_tet) == 0:
                 continue
-            enc_tet_lin_pos = self.linflat.get_irregular_resampled(enc_spk_tet)
-            if len(enc_tet_lin_pos) == 0:
+            enc_tet_linpos_resamp = self.linflat.get_irregular_resampled(enc_spk_tet)
+            if len(enc_tet_linpos_resamp) == 0:
                 continue
             # maintain elec_grp_id info. get mark and index column names to reindex dask arrays
             mark_columns = dec_spk_tet.columns
@@ -106,8 +106,8 @@ class OfflinePPEncoder(object):
             #df_meta = pd.DataFrame([], columns=[pos_col_format(ii, self.encode_settings.pos_num_bins)
             #                                    for ii in range(self.encode_settings.pos_num_bins)])
 
-                observ = self.compute_observ_tet(dec_spk=dec_spk_tet_chunk, enc_spk=enc_spk_tet, 
-                                                 tet_lin_pos=enc_tet_lin_pos, occupancy=self.occupancy, 
+                observ = self.compute_observ_tet(dec_spk=dec_spk_tet_chunk, enc_spk=enc_spk_tet,
+                                                 tet_linpos_resamp=enc_tet_linpos_resamp, occupancy=self.occupancy,
                                                  encode_settings=self.encode_settings,
                                                  mark_columns=mark_columns, index_columns=index_columns,
                                                  device=self.device, dtype=self.dtype)
@@ -116,8 +116,8 @@ class OfflinePPEncoder(object):
             chunk_start_ii = chunk_start_ii + self.chunk_size
             dec_spk_tet_chunk = dec_spk_tet.iloc[chunk_start_ii:].reset_index()
 
-            observ = self.compute_observ_tet(dec_spk=dec_spk_tet_chunk, enc_spk=enc_spk_tet, 
-                                             tet_lin_pos=enc_tet_lin_pos, occupancy=self.occupancy, 
+            observ = self.compute_observ_tet(dec_spk=dec_spk_tet_chunk, enc_spk=enc_spk_tet,
+                                             tet_linpos_resamp=enc_tet_linpos_resamp, occupancy=self.occupancy,
                                              encode_settings=self.encode_settings,
                                              mark_columns=mark_columns, index_columns=index_columns,
                                              device=self.device, dtype=self.dtype)
@@ -125,10 +125,11 @@ class OfflinePPEncoder(object):
             # setup decode of decode spikes from encoding of encoding spikes
         return observations
 
-    def compute_observ_tet(self, dec_spk, enc_spk, tet_lin_pos, occupancy, encode_settings, mark_columns, index_columns, device, dtype):
+    def compute_observ_tet(self, dec_spk, enc_spk, tet_linpos_resamp, occupancy, encode_settings,
+                           mark_columns, index_columns, device, dtype):
         import sys
         pos_distrib_tet = sp.stats.norm.pdf(np.expand_dims(encode_settings.pos_bins, 0),
-                                            np.expand_dims(tet_lin_pos['linpos_flat'], 1),
+                                            np.expand_dims(tet_linpos_resamp['linpos_flat'], 1),
                                             encode_settings.pos_kernel_std)
 
         if device.type == 'cuda':
