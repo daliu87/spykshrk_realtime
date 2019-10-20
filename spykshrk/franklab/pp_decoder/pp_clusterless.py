@@ -17,7 +17,8 @@ from spykshrk.util import Groupby
 
 class OfflinePPEncoder(object):
 
-    def __init__(self, linflat, enc_spk_amp, dec_spk_amp, encode_settings: EncodeSettings, decode_settings: DecodeSettings, chunk_size=1000, cuda=False):
+    def __init__(self, linflat, enc_spk_amp, dec_spk_amp, encode_settings: EncodeSettings,
+                 decode_settings: DecodeSettings, linflat_col_name='linpos_flat', chunk_size=1000, cuda=False):
         """
         Constructor for OfflinePPEncoder.
         
@@ -30,6 +31,7 @@ class OfflinePPEncoder(object):
 
         """
         self.linflat = linflat
+        self.linflat_col_name = linflat_col_name
         self.enc_spk_amp = enc_spk_amp
         self.dec_spk_amp = dec_spk_amp
         self.encode_settings = encode_settings
@@ -47,7 +49,9 @@ class OfflinePPEncoder(object):
         self.calc_prob_no_spike()
 
         self.trans_mat = dict.fromkeys(['learned', 'simple', 'uniform'])
-        self.trans_mat['learned'] = self.calc_learned_state_trans_mat(self.linflat,self.encode_settings, self.decode_settings)
+        self.trans_mat['learned'] = self.calc_learned_state_trans_mat(self.linflat, self.encode_settings,
+                                                                      self.decode_settings,
+                                                                      linflat_col_name=self.linflat_col_name)
         self.trans_mat['simple'] = self.calc_simple_trans_mat(self.encode_settings)
         self.trans_mat['uniform'] = self.calc_uniform_trans_mat(self.encode_settings)
 
@@ -65,14 +69,14 @@ class OfflinePPEncoder(object):
 
         observ = pd.concat(observ_tet_list)
         self.observ_obj = SpikeObservation.create_default(observ.sort_index(level=['day', 'epoch',
-                                                                              'timestamp', 'elec_grp_id']),
-                                                     self.encode_settings)
+                                                                            'timestamp', 'elec_grp_id']),
+                                                          self.encode_settings)
 
         self.observ_obj['elec_grp_id'] = self.observ_obj.index.get_level_values('elec_grp_id')
         self.observ_obj.index = self.observ_obj.index.droplevel('elec_grp_id')
 
         self.observ_obj['position'] = (self.linflat.get_irregular_resampled(self.observ_obj).
-                                  get_mapped_single_axis()['linpos_flat'])
+                                  get_mapped_single_axis()[self.linflat_col_name])
 
         self.observ_obj.set_distribution(self.observ_obj.get_distribution_as_np() + np.finfo(float).eps)
 
@@ -129,9 +133,8 @@ class OfflinePPEncoder(object):
                            mark_columns, index_columns, device, dtype):
         import sys
         pos_distrib_tet = sp.stats.norm.pdf(np.expand_dims(encode_settings.pos_bins, 0),
-                                            np.expand_dims(tet_linpos_resamp['linpos_flat'], 1),
+                                            np.expand_dims(tet_linpos_resamp[self.linflat_col_name], 1),
                                             encode_settings.pos_kernel_std)
-
         if device.type == 'cuda':
             pos_distrib_tet_torch = torch.from_numpy(pos_distrib_tet).to(device=device, dtype=dtype)
             mark_contrib = normal_pdf_int_lookup_torch(np.expand_dims(dec_spk[mark_columns], 1),
@@ -173,24 +176,27 @@ class OfflinePPEncoder(object):
         return ret_df
 
     def calc_occupancy(self):
-        self.occupancy = self._calc_occupancy(self.linflat, self.encode_settings)
+        self.occupancy = self._calc_occupancy(self.linflat, self.encode_settings,
+                                              linflat_col_name=self.linflat_col_name)
 
     def calc_firing_rate(self):
-        self.firing_rate = self._calc_firing_rate_tet(self.enc_spk_amp, self.linflat, self.encode_settings)
+        self.firing_rate = self._calc_firing_rate_tet(self.enc_spk_amp, self.linflat, self.encode_settings,
+                                                      linflat_col_name=self.linflat_col_name)
 
     def calc_prob_no_spike(self):
-        self.prob_no_spike = self._calc_prob_no_spike(self.firing_rate, self.occupancy, self.encode_settings, self.decode_settings)
+        self.prob_no_spike = self._calc_prob_no_spike(self.firing_rate, self.occupancy,
+                                                      self.encode_settings, self.decode_settings)
 
     @staticmethod
-    def _calc_occupancy(lin_obj: FlatLinearPosition, enc_settings: EncodeSettings):
+    def _calc_occupancy(lin_obj: FlatLinearPosition, enc_settings: EncodeSettings, linflat_col_name='linpos_flat'):
         """
         Args:
             lin_obj (LinearPositionContainer): Linear position of the animal.
             enc_settings (EncodeSettings): Realtime encoding settings.
         Returns (np.array): The occupancy of the animal
         """
-        occupancy, occ_bin_edges = np.histogram(lin_obj['linpos_flat'], bins=enc_settings.pos_bin_edges,
-                                                normed=True)
+        occupancy, occ_bin_edges = np.histogram(lin_obj[linflat_col_name], bins=enc_settings.pos_bin_edges,
+                                                density=True)
         occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
 
         # occupancy
@@ -199,12 +205,13 @@ class OfflinePPEncoder(object):
         return occupancy
 
     @staticmethod
-    def _calc_firing_rate_tet(observ: SpikeObservation, lin_obj: FlatLinearPosition, enc_settings: EncodeSettings):
+    def _calc_firing_rate_tet(observ: SpikeObservation, lin_obj: FlatLinearPosition, enc_settings: EncodeSettings,
+                              linflat_col_name='linpos_flat'):
         # initialize conditional intensity function
         firing_rate = {}
         enc_tet_lin_pos = (lin_obj.get_irregular_resampled(observ))
         #enc_tet_lin_pos['elec_grp_id'] = observ.index.get_level_values(level='elec_grp_id')
-        tet_pos_groups = enc_tet_lin_pos.loc[:, 'linpos_flat'].groupby('elec_grp_id')
+        tet_pos_groups = enc_tet_lin_pos.loc[:, linflat_col_name].groupby('elec_grp_id')
         for tet_id, tet_spikes in tet_pos_groups:
             tet_pos_hist, _ = np.histogram(tet_spikes, bins=enc_settings.pos_bin_edges)
             firing_rate[tet_id] = tet_pos_hist
@@ -235,7 +242,7 @@ class OfflinePPEncoder(object):
 
     
     @staticmethod
-    def calc_learned_state_trans_mat(linpos_simple, enc_settings, dec_settings):
+    def calc_learned_state_trans_mat(linpos_simple, enc_settings, dec_settings, linflat_col_name='linpos_flat'):
         """
         Calculate the point process transition matrix using the real behavior of the animal.
         This is the 2D matrix that defines the possible range of transitions in the position
@@ -259,7 +266,7 @@ class OfflinePPEncoder(object):
         kernel = normal2D(xv, yv, dec_settings.trans_smooth_std)
         kernel /= kernel.sum()
 
-        linpos_state = linpos_simple
+        linpos_state = linpos_simple[linflat_col_name]
         linpos_ind = np.searchsorted(enc_settings.pos_bins, linpos_state, side='right') - 1
 
         # Create learned pos transition matrix
