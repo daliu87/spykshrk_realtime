@@ -145,7 +145,7 @@ class OfflinePPEncoder(object):
             observ = observ_torch.to(device='cpu').numpy()
             del observ_torch
 
-        else: 
+        else:
             mark_contrib = normal_pdf_int_lookup(np.expand_dims(dec_spk[mark_columns], 1),
                                                  np.expand_dims(enc_spk, 0),
                                                  encode_settings.mark_kernel_std)

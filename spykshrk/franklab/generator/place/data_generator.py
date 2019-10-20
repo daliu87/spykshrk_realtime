@@ -37,7 +37,7 @@ class UnitNormalGenerator:
         self.peak_fr = peak_fr
         self.sampling_rate = sampling_rate
 
-    def simulate_spikes_over_pos(self, linpos_flat: FlatLinearPosition):
+    def simulate_spikes_over_pos(self, linpos_flat: FlatLinearPosition, col_name='linpos_flat'):
         """Simulate spikes given a list of uniformly sampled position data.
 
         :param linpos_flat: a Pandas Dataframe of uniformly sampled position data. Index should be time
@@ -48,7 +48,7 @@ class UnitNormalGenerator:
 
         # Generate the probability of a spike occurring at each position depending on the
         # firing rate - position map of the unit.
-        prob_field = self.rv_pos.pdf(linpos_flat['linpos_flat'].values)/self.rv_pos.pdf(self.pos_mean)
+        prob_field = self.rv_pos.pdf(linpos_flat[col_name].values)/self.rv_pos.pdf(self.pos_mean)
 
         # Simulates spike train by treating each time point as a bernoulli trial
         spike_train = sp.stats.bernoulli(p=self.peak_fr/self.sampling_rate * prob_field).rvs()
@@ -80,7 +80,7 @@ class UnitNormalGenerator:
         mark_linpos = linpos_flat.iloc[sample_num].copy()
         mark_linpos['elec_grp_id'] = self.elec_grp_id
         mark_linpos.set_index('elec_grp_id', append=True, inplace=True)
-        mark_linpos = mark_linpos.reorder_levels(['day','epoch','elec_grp_id','timestamp','time'])
+        mark_linpos = mark_linpos.reorder_levels(['day', 'epoch', 'elec_grp_id', 'timestamp', 'time'])
 
         return spk_amp, mark_linpos, prob_field
 
@@ -89,7 +89,7 @@ class TetrodeUniformUnitNormalGenerator:
 
     def __init__(self, sampling_rate=1000, num_marks=4, num_units=1, mark_mean_range=(40, 100),
                  mark_cov_range=(10, 20), firing_rate_range=(5, 20), pos_field_range=(0, 100),
-                 pos_field_var_range=(5, 10)):
+                 pos_field_bins=range(100), pos_field_var_range=(5, 10)):
 
         self.sampling_rate = sampling_rate
         self.num_units = num_units
@@ -97,12 +97,13 @@ class TetrodeUniformUnitNormalGenerator:
         self.mark_mean_range = mark_mean_range
         self.mark_cov_range = mark_cov_range
         self.firing_rate_range = firing_rate_range
+        self.pos_field_bins = pos_field_bins
         self.pos_field_range = pos_field_range
         self.pos_field_var_range = pos_field_var_range
 
         self.unit_mean = np.random.randint(*self.mark_mean_range, size=[self.num_units, self.num_marks])
         self.unit_cov = np.random.randint(*self.mark_cov_range, size=[self.num_units, self.num_marks])
-        self.unit_pos_mean = np.random.uniform(*self.pos_field_range, size=self.num_units)
+        self.unit_pos_mean = np.random.choice(self.pos_field_bins, size=self.num_units)
         self.unit_pos_var = np.random.uniform(*self.pos_field_var_range, size=self.num_units)
         self.unit_fr = np.random.randint(*self.firing_rate_range, size=self.num_units)
 
@@ -116,12 +117,12 @@ class TetrodeUniformUnitNormalGenerator:
                                                       peak_fr=self.unit_fr[unit_ii],
                                                       sampling_rate=self.sampling_rate)
 
-    def simulate_tetrode_over_pos(self, linpos_flat: FlatLinearPosition):
+    def simulate_tetrode_over_pos(self, linpos_flat: FlatLinearPosition, col_name='linpos_flat'):
         unit_spks = {}
         spk_amps = pd.DataFrame()
 
         for unit_ii in range(self.num_units):
-            unit_marks, mark_pos, field = self.units[unit_ii].simulate_spikes_over_pos(linpos_flat)
+            unit_marks, mark_pos, field = self.units[unit_ii].simulate_spikes_over_pos(linpos_flat, col_name)
             unit_spks[unit_ii] = unit_marks.merge(mark_pos, how='outer', left_index=True, right_index=True)
 
             spk_amps = spk_amps.append(unit_marks)
