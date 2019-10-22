@@ -9,6 +9,7 @@ import os
 import warnings
 import traceback
 import pickle
+import numbers
 
 from spykshrk.franklab import print_util
 
@@ -48,7 +49,11 @@ class DataFormatError(RuntimeError):
 
 
 def pos_col_format(ind, num_bins):
-    return 'x{:0{dig}d}'.format(ind, dig=len(str(num_bins)))
+    format_col = lambda x: 'x{:0{dig}d}'.format(x, dig=len(str(num_bins)))
+    if isinstance(ind, (list, set, np.ndarray, pd.Series)):
+        return list(map(format_col, ind))
+    else:
+        return format_col(ind)
 
 
 class SeriesClass(pd.Series):
@@ -895,18 +900,23 @@ class SpikeObservation(DayEpochTimeSeries):
         return df
 
     def get_distribution_as_np(self):
-        return self.loc[:, pos_col_format(0, self.kwds['enc_settings'].pos_num_bins):
-                           pos_col_format(self.kwds['enc_settings'].pos_num_bins - 1,
-                                          self.kwds['enc_settings'].pos_num_bins)].values
+        return self.loc[:, self.kwds['enc_settings'].pos_col_names].values
+        #return self.loc[:, pos_col_format(0, self.kwds['enc_settings'].pos_num_bins):
+        #                   pos_col_format(self.kwds['enc_settings'].pos_num_bins - 1,
+        #                                  self.kwds['enc_settings'].pos_num_bins)].values
 
     def set_distribution(self, dist):
-        self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
-                    pos_col_format(self.enc_settings.pos_num_bins - 1, self.enc_settings.pos_num_bins)] = dist
+        self.loc[:, self.kwds['enc_settings'].pos_col_names] = dist
+        #self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
+        #            pos_col_format(self.enc_settings.pos_num_bins - 1, self.enc_settings.pos_num_bins)] = dist
 
     def get_distribution_view(self):
-        return self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
-                           pos_col_format(self.enc_settings.pos_num_bins - 1, self.enc_settings.pos_num_bins)]
+        return self.loc[:, self.kwds['enc_settings'].pos_col_names]
+        #return self.loc[:, pos_col_format(0, self.enc_settings.pos_num_bins):
+        #                   pos_col_format(self.enc_settings.pos_num_bins - 1, self.enc_settings.pos_num_bins)]
 
+    def get_other_view(self):
+        return self.loc[:, ~self.columns.isin(self.kwds['enc_settings'].pos_col_names)]
 
 class Posteriors(DayEpochTimeSeries):
     _metadata = DayEpochTimeSeries._metadata + ['enc_settings', 'dec_settings']
