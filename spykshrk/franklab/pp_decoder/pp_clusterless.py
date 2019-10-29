@@ -298,7 +298,11 @@ class OfflinePPEncoder(object):
         learned_trans_mat = learned_trans_mat * (1 - uniform_gain) + uniform_dist * uniform_gain
 
         # renormalize
-        learned_trans_mat = learned_trans_mat / (learned_trans_mat.sum(axis=0)[None, :])
+        #learned_trans_mat = learned_trans_mat / (learned_trans_mat.sum(axis=0)[None, :])
+        #learned_trans_mat[np.isnan(learned_trans_mat)] = 0
+
+        # 2D normalization at end
+        learned_trans_mat = learned_trans_mat / learned_trans_mat.sum()
         learned_trans_mat[np.isnan(learned_trans_mat)] = 0
 
         return learned_trans_mat
