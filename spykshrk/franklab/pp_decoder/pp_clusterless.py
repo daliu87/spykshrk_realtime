@@ -171,8 +171,7 @@ class OfflinePPEncoder(object):
         # apply normalization factor
         observ = observ / observ_sum[:, np.newaxis]
         ret_df = pd.DataFrame(observ, index=dec_spk.set_index(index_columns).index,
-                              columns=[pos_col_format(pos_ii, observ.shape[1])
-                                       for pos_ii in range(observ.shape[1])])
+                              columns=pos_col_format(range(observ.shape[1]), observ.shape[1]))
         return ret_df
 
     def calc_occupancy(self):

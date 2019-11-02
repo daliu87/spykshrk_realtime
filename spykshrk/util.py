@@ -1,11 +1,18 @@
 import numpy as np
 import enum
+import collections
 
-class AttrDict(dict):
+
+class AttrDict(collections.OrderedDict):
     def __init__(self, *args, **kwargs):
-        super(AttrDict, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.__dict__ = self
 
+    def __str__(self):
+        return dict.__str__(self)
+
+    def __repr__(self):
+        return dict.__repr__(self)
 
 class Groupby:
     def __init__(self, data, keys):

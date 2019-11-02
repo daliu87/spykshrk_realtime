@@ -50,11 +50,20 @@ class DataFormatError(RuntimeError):
 
 def pos_col_format(ind, num_bins):
     format_col = lambda x: 'x{:0{dig}d}'.format(x, dig=len(str(num_bins)))
+    ind_str = []
+    try:
+        for ind_inner in ind:
+            ind_str.append(pos_col_format(ind_inner, num_bins))
+    except TypeError:
+        ind_str = format_col(ind)
+    '''if isinstance(ind, np.ndarray):
+        
     if isinstance(ind, (list, set, np.ndarray, pd.Series)):
         return list(map(format_col, ind))
     else:
         return format_col(ind)
-
+    '''
+    return ind_str
 
 class SeriesClass(pd.Series):
     _metadata = pd.Series._metadata + ['history', 'kwds']
