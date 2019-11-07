@@ -2,6 +2,9 @@ import numpy as np
 import scipy as sp
 import scipy.stats
 import torch
+import cupy
+from torch.utils.dlpack import to_dlpack, from_dlpack
+from spykshrk.franklab.warnings import DatatypeInconsistentWarning
 
 def gaussian(x, mu, sig):
     return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
@@ -20,16 +23,19 @@ def normal_pdf_int_lookup(x, mean, std):
 
 def normal_pdf_int_lookup_torch(x, mean, std, device=torch.device('cpu'), dtype=torch.float):
     max_amp = 3000
-    max_amp_torch = torch.tensor([3000], device=device, dtype=dtype)
+    #max_amp_torch = torch.tensor([max_amp], device=device, dtype=dtype)
     norm_dist = sp.stats.norm.pdf(x=np.arange(-max_amp,max_amp), loc=0, scale=std)
     norm_dist_torch = torch.from_numpy(norm_dist).to(device=device, dtype=dtype) 
-    x_torch = torch.from_numpy(x).to(device=device, dtype=dtype)
-    mean_torch = torch.from_numpy(mean).to(device=device, dtype=dtype)
+    x_torch = torch.from_numpy(x).to(device=device)
+    mean_torch = torch.from_numpy(mean).to(device=device)
     distance_torch = x_torch - mean_torch
     del x_torch, mean_torch
-    distribution_index_torch = distance_torch + max_amp_torch.expand(distance_torch.size())
+    distribution_index_torch = distance_torch + max_amp
     del distance_torch
-    return norm_dist_torch[distribution_index_torch.long()]
+    norm_dist_cu = cupy.fromDlpack(to_dlpack(norm_dist_torch))
+    distribution_index_cu = cupy.fromDlpack(to_dlpack(distribution_index_torch))
+    #return norm_dist_torch[distribution_index_torch.long()]
+    return from_dlpack(norm_dist_cu[distribution_index_cu].toDlpack())
 
 
 def apply_no_anim_boundary(x_bins, arm_coor, image, fill=0):

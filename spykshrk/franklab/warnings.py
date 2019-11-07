@@ -22,3 +22,6 @@ class ConstructorWarning(UserWarning):
 class OverridingAttributeWarning(UserWarning):
     pass
 
+
+class DatatypeInconsistentWarning(UserWarning):
+    pass

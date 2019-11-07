@@ -76,7 +76,7 @@ class UnitNormalGenerator:
 
         # Packages Pandas data into a SpikeFeatures dataframe
         spk_amp = SpikeFeatures(marks, columns=['c00', 'c01', 'c02', 'c03'],
-                                index=new_ind)
+                                index=new_ind, dtype=np.dtype('int16'))
         mark_linpos = linpos_flat.iloc[sample_num].copy()
         mark_linpos['elec_grp_id'] = self.elec_grp_id
         mark_linpos.set_index('elec_grp_id', append=True, inplace=True)

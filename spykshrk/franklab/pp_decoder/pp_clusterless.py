@@ -143,13 +143,10 @@ class OfflinePPEncoder(object):
                                                        device=device, dtype=dtype)
             all_contrib = torch.prod(mark_contrib, dim=2)
             del mark_contrib
-            torch.cuda.empty_cache()
             observ_torch = torch.matmul(all_contrib, pos_distrib_tet_torch)
             del all_contrib
-            torch.cuda.empty_cache()
             observ = observ_torch.to(device='cpu').numpy()
             del observ_torch
-            torch.cuda.empty_cache()
 
         else:
             mark_contrib = normal_pdf_int_lookup(np.expand_dims(dec_spk[mark_columns], 1),
