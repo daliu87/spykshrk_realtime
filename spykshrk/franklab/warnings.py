@@ -23,5 +23,9 @@ class OverridingAttributeWarning(UserWarning):
     pass
 
 
+class DataInconsistentWarning(UserWarning):
+    pass
+
+
 class DatatypeInconsistentWarning(UserWarning):
     pass
