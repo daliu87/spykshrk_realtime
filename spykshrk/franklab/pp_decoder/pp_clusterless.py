@@ -141,8 +141,13 @@ class OfflinePPEncoder(object):
                                                        np.expand_dims(enc_spk, 0),
                                                        encode_settings.mark_kernel_std, 
                                                        device=device, dtype=dtype)
-            all_contrib = torch.prod(mark_contrib, dim=2)
+            torch.cuda.empty_cache()
+            print(mark_contrib, mark_contrib.shape, torch.cuda.memory_allocated()/(2**30), torch.cuda.memory_cached()/(2**30))
+            all_contrib = torch.prod(mark_contrib, dim=2, dtype=torch.float)
+            print(all_contrib, all_contrib.shape, torch.cuda.memory_allocated()/(2**30), torch.cuda.memory_cached()/(2**30))
             del mark_contrib
+            torch.cuda.empty_cache()
+            print(torch.cuda.memory_allocated()/(2**30), torch.cuda.memory_cached()/(2**30))
             observ_torch = torch.matmul(all_contrib, pos_distrib_tet_torch)
             del all_contrib
             observ = observ_torch.to(device='cpu').numpy()
@@ -153,6 +158,8 @@ class OfflinePPEncoder(object):
                                                  np.expand_dims(enc_spk, 0),
                                                  encode_settings.mark_kernel_std)
             all_contrib = np.prod(mark_contrib, axis=2)
+            print(mark_contrib)
+            print(all_contrib)
             del mark_contrib
             observ = np.matmul(all_contrib, pos_distrib_tet)
             del all_contrib

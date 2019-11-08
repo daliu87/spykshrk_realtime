@@ -34,8 +34,9 @@ def normal_pdf_int_lookup_torch(x, mean, std, device=torch.device('cpu'), dtype=
     del distance_torch
     norm_dist_cu = cupy.fromDlpack(to_dlpack(norm_dist_torch))
     distribution_index_cu = cupy.fromDlpack(to_dlpack(distribution_index_torch))
+    lookup_results = from_dlpack(norm_dist_cu[distribution_index_cu].toDlpack())
     #return norm_dist_torch[distribution_index_torch.long()]
-    return from_dlpack(norm_dist_cu[distribution_index_cu].toDlpack())
+    return lookup_results
 
 
 def apply_no_anim_boundary(x_bins, arm_coor, image, fill=0):
