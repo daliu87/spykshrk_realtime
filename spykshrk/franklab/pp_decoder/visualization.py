@@ -305,3 +305,92 @@ class DecodeErrorVisualizer:
                                                                   slide_interval))])
 
         return dmap
+
+
+class WtrackLinposVisualizer:
+
+    arm_colormap = dict(center='darkorange', left='pink', right='cyan')
+
+    direction_hatchmap = dict(forward='right_diagonal_line', reverse='left_diagonal_line')
+    mpl_direction_hatchmap = dict(forward='/', reverse='\\')
+
+    def __init__(self, linpos_flat, encode_settings):
+        w_coor = encode_settings.wtrack_arm_coordinates
+        pos_time = linpos_flat.index.get_level_values('time')
+        pos = linpos_flat['linpos_flat']
+        self.plot = WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='center', direction='forward',
+                                                                       pos_time=pos_time, w_coor=w_coor) * \
+                WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='left', direction='forward',
+                                                                   pos_time=pos_time, w_coor=w_coor) * \
+                WtrackLinposVisualizer.wtrack_linear_plot_polygons( arm='left', direction='reverse',
+                                                                    pos_time=pos_time, w_coor=w_coor) * \
+                WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='center', direction='reverse',
+                                                                   pos_time=pos_time, w_coor=w_coor) * \
+                WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='right', direction='forward',
+                                                                   pos_time=pos_time, w_coor=w_coor) * \
+                WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='right', direction='reverse',
+                                                                   pos_time=pos_time, w_coor=w_coor) * \
+                WtrackLinposVisualizer.plot_position(pos_time, pos)
+
+    @staticmethod
+    def wtrack_linear_plot_hook(plot, element, arm, direction):
+        if hv.Store.current_backend == 'bokeh':
+            plot.handles['glyph'].fill_color = WtrackLinposVisualizer.arm_colormap[arm]
+            plot.handles['glyph'].hatch_pattern = WtrackLinposVisualizer.direction_hatchmap[direction]
+            plot.handles['glyph'].line_color = None
+            plot.handles['glyph'].hatch_color = 'grey'
+        elif hv.Store.current_backend == 'matplotlib':
+            element.opts(hatch=WtrackLinposVisualizer.mpl_direction_hatchmap[direction],
+                         facecolor=WtrackLinposVisualizer.arm_colormap[arm], clone=False)
+
+    @staticmethod
+    def wtrack_linear_plot_init_hook(plot, element, arm, direction):
+        if hv.Store.current_backend == 'bokeh':
+            pass
+        elif hv.Store.current_backend == 'matplotlib':
+            plot_kwargs = plot.style.kwargs
+            plot_kwargs['facecolor'] = color=WtrackLinposVisualizer.arm_colormap[arm]
+            plot.style = hv.opts.Polygons(**plot_kwargs, hatch=WtrackLinposVisualizer.mpl_direction_hatchmap[direction])
+
+    @staticmethod
+    def pos_hook(plot, element):
+        if hv.Store.current_backend == 'bokeh':
+            pass
+        elif hv.Store.current_backend == 'matplotlib':
+            pass
+
+    @staticmethod
+    def pos_init_hook(plot, element):
+        if hv.Store.current_backend == 'bokeh':
+            pass
+        elif hv.Store.current_backend == 'matplotlib':
+            pass
+
+    @staticmethod
+    def wtrack_linear_plot_polygons(arm, direction, pos_time, w_coor):
+        time_range = (pos_time[0], pos_time[-1])
+        y_range = (w_coor[arm][direction].x1, w_coor[arm][direction].x2)
+        time_total = time_range[1] - time_range[0]
+        time_center = time_total/2 + time_range[0]
+        y_total = y_range[1] - y_range[0]
+        y_center = y_total/2 + y_range[0]
+
+        box = hv.Box(time_center, y_center, (time_total, y_total))
+
+        init_hooks = [functools.partial(WtrackLinposVisualizer.wtrack_linear_plot_init_hook,
+                                        arm=arm, direction=direction)]
+
+        hooks = [functools.partial(WtrackLinposVisualizer.wtrack_linear_plot_hook, arm=arm, direction=direction)]
+
+        if hv.Store.current_backend == 'bokeh':
+            poly = hv.Polygons(box).opts(hooks=hooks)
+        elif hv.Store.current_backend == 'matplotlib':
+            poly = hv.Polygons(box).opts(initial_hooks=init_hooks)
+        return poly
+
+    @staticmethod
+    def plot_position(time, pos, color='royalblue', fig_size=400, frame_width=800, aspect=3):
+        if hv.Store.current_backend == 'bokeh':
+            return hv.Scatter((time, pos)).opts(color=color, frame_width=frame_width, aspect=aspect)
+        elif hv.Store.current_backend == 'matplotlib':
+            return hv.Scatter((time, pos)).opts(color=color, fig_size=fig_size, aspect=aspect)
