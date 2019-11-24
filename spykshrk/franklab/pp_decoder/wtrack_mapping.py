@@ -2,15 +2,18 @@ import numpy as np
 import pandas as pd
 import warnings
 import itertools
+import enum
 
-from spykshrk.util import AttrDict
+from spykshrk.util import AttrDict, AttrDictEnum
 from spykshrk.franklab.warnings import DataInconsistentWarning
 from spykshrk.franklab.data_containers import pos_col_format, SpikeObservation
+from spykshrk.franklab.wtrack import WtrackArm, Direction, Rotation, Order
 
 
 class WtrackLinposDecomposer(AttrDict):
-    rotations = ['cw', 'ccw']
-    orders = ['prev', 'next']
+    rotations = list(Rotation)
+    orders = list(Order)
+    prev_next = [Order.prev, Order.next]
 
     def __init__(self, linpos_flat, encode_settings, bin_size=1):
         super().__init__()
@@ -20,18 +23,21 @@ class WtrackLinposDecomposer(AttrDict):
         self.wtrack_armcoord = self.encode_settings.wtrack_arm_coordinates
 
         self.bin_size = bin_size
-        self.segment_order_cw = [('center', 'forward'),
-                                 ('left', 'forward'),
-                                 ('left', 'reverse'),
-                                 ('right', 'forward'),
-                                 ('right', 'reverse'),
-                                 ('center', 'reverse')]
-        self.segment_order_ccw = [('center', 'forward'),
-                                  ('right', 'forward'),
-                                  ('right', 'reverse'),
-                                  ('left', 'forward'),
-                                  ('left', 'reverse'),
-                                  ('center', 'reverse')]
+        self.segment_order_cw = [('center', 'outbound'),
+                                 ('left', 'outbound'),
+                                 ('left', 'inbound'),
+                                 ('right', 'outbound'),
+                                 ('right', 'inbound'),
+                                 ('center', 'inbound')]
+        self.segment_order_ccw = [('center', 'outbound'),
+                                  ('right', 'outbound'),
+                                  ('right', 'inbound'),
+                                  ('left', 'outbound'),
+                                  ('left', 'inbound'),
+                                  ('center', 'inbound')]
+
+        self.segment_order_cw = list(itertools.product(WtrackArm, Direction))
+        self.segment_order_ccw = list(itertools.product(WtrackArm, Direction))
         self.armcoord_cw = self._segment_decomposed_with_buffer(self.segment_order_cw, self.wtrack_armcoord)
         self.armcoord_ccw = self._segment_decomposed_with_buffer(self.segment_order_ccw, self.wtrack_armcoord)
         self.armcoord_cw_num_bins = max([max((buffer.x1, buffer.x2)) for arm in self.armcoord_cw.values()
@@ -40,30 +46,34 @@ class WtrackLinposDecomposer(AttrDict):
         self.armcoord_ccw_num_bins = max([max((buffer.x1, buffer.x2)) for arm in self.armcoord_ccw.values()
                                           for direct in arm.values()
                                           for buffer in [direct.prev, direct.main, direct.next]])
-        self.wtrack_armcoord_cw = AttrDict({arm: AttrDict({direct: AttrDict(x1=min(direct_v.prev.x1,
+        self.wtrack_armcoord_cw = AttrDictEnum({arm:
+                                                AttrDictEnum({direct:
+                                                              AttrDictEnum(x1=min(direct_v.prev.x1,
+                                                                                  direct_v.main.x1, direct_v.next.x1),
+                                                                           x2=max(direct_v.prev.x2,
+                                                                                  direct_v.main.x2, direct_v.next.x2))
+                                                              for direct, direct_v in arm_v.items()})
+                                                for arm, arm_v in self.armcoord_cw.items()})
+        self.wtrack_armcoord_ccw = AttrDictEnum({arm:
+                                                 AttrDictEnum({direct:
+                                                               AttrDictEnum(x1=min(direct_v.prev.x1,
                                                                                    direct_v.main.x1, direct_v.next.x1),
                                                                             x2=max(direct_v.prev.x2,
                                                                                    direct_v.main.x2, direct_v.next.x2))
-                                                           for direct, direct_v in arm_v.items()})
-                                            for arm, arm_v in self.armcoord_cw.items()})
-        self.wtrack_armcoord_ccw = AttrDict({arm: AttrDict({direct: AttrDict(x1=min(direct_v.prev.x1,
-                                                                                    direct_v.main.x1, direct_v.next.x1),
-                                                                             x2=max(direct_v.prev.x2,
-                                                                                    direct_v.main.x2, direct_v.next.x2))
-                                                            for direct, direct_v in arm_v.items()})
-                                             for arm, arm_v in self.armcoord_ccw.items()})
+                                                               for direct, direct_v in arm_v.items()})
+                                                 for arm, arm_v in self.armcoord_ccw.items()})
         self.cw_bin_range = [min([direct.x1 for arm in self.wtrack_armcoord_cw.values() for direct in arm.values()]),
                              max([direct.x2 for arm in self.wtrack_armcoord_cw.values() for direct in arm.values()])]
         self.cw_num_bins = self.cw_bin_range[1] - self.cw_bin_range[0]
         self.ccw_bin_range = [min([direct.x1 for arm in self.wtrack_armcoord_ccw.values() for direct in arm.values()]),
                               max([direct.x2 for arm in self.wtrack_armcoord_ccw.values() for direct in arm.values()])]
         self.ccw_num_bins = self.ccw_bin_range[1] - self.ccw_bin_range[0]
-        self.wtrack_armcoord_main_cw = AttrDict({arm: AttrDict({direct: direct_v.main
-                                                                for direct, direct_v in arm_v.items()})
-                                                 for arm, arm_v in self.armcoord_cw.items()})
-        self.wtrack_armcoord_main_ccw = AttrDict({arm: AttrDict({direct: direct_v.main
-                                                                 for direct, direct_v in arm_v.items()})
-                                                  for arm, arm_v in self.armcoord_ccw.items()})
+        self.wtrack_armcoord_main_cw = AttrDictEnum({arm: AttrDictEnum({direct: direct_v.main
+                                                                        for direct, direct_v in arm_v.items()})
+                                                     for arm, arm_v in self.armcoord_cw.items()})
+        self.wtrack_armcoord_main_ccw = AttrDictEnum({arm: AttrDictEnum({direct: direct_v.main
+                                                                         for direct, direct_v in arm_v.items()})
+                                                      for arm, arm_v in self.armcoord_ccw.items()})
         self.simple_armcoord_cw, self.simple_armcoord_bins_cw = \
                 self._create_wtrack_decomposed_simple_armcoord(self.armcoord_cw, self.bin_size)
         self.simple_armcoord_ccw, self.simple_armcoord_bins_ccw = \
@@ -73,14 +83,16 @@ class WtrackLinposDecomposer(AttrDict):
         self.simple_main_armcoord_ccw, self.simple_main_armcoord_bins_ccw = \
                 self._create_wtrack_decomposed_simple_main_armcoord(self.armcoord_ccw, self.bin_size)
 
-        self.sel_data = AttrDict()
+        self.sel_data = AttrDictEnum()
         for rot_k in WtrackLinposDecomposer.rotations:
-            self.sel_data[rot_k] = AttrDict(main=self._sel_main(eval('self.armcoord_'+rot_k), self.wtrack_armcoord,
-                                                                eval('self.'+rot_k+'_num_bins'), self.encode_settings))
-            for ord_k in WtrackLinposDecomposer.orders:
-                self.sel_data[rot_k][ord_k] = self._sel_prev_next(ord_k, eval('self.armcoord_'+rot_k),
+            self.sel_data[rot_k] = AttrDictEnum(main=self._sel_main(eval('self.armcoord_'+rot_k.name),
+                                                                    self.wtrack_armcoord,
+                                                                    eval('self.'+rot_k.name+'_num_bins'),
+                                                                    self.encode_settings))
+            for ord_k in WtrackLinposDecomposer.prev_next:
+                self.sel_data[rot_k][ord_k] = self._sel_prev_next(ord_k, eval('self.armcoord_'+rot_k.name),
                                                                   self.wtrack_armcoord,
-                                                                  eval('self.'+rot_k+'_num_bins'),
+                                                                  eval('self.'+rot_k.name+'_num_bins'),
                                                                   self.encode_settings)
 
         self.decomp_linpos = self.wtrack_pos_remap_to_decomposed(self.linpos_flat,
@@ -89,7 +101,7 @@ class WtrackLinposDecomposer(AttrDict):
 
     @staticmethod
     def _segment_decomposed_with_buffer(segment_order, wtrack_arm_coord):
-        seg_decomposed = AttrDict()
+        seg_decomposed = AttrDictEnum()
         seg_offset = 0
         for ii, seg in enumerate(segment_order):
             prev_seg = segment_order[ii-1]
@@ -106,15 +118,21 @@ class WtrackLinposDecomposer(AttrDict):
             seg_total_len = prev_seg_len + main_seg_len + next_seg_len
             seg_offset += seg_total_len
 
-            arm_dict = seg_decomposed.setdefault(seg[0], AttrDict())
-            dir_dict = arm_dict.setdefault(seg[1], AttrDict(prev=AttrDict(x1=prev_seg_start, x2=main_seg_start,
-                                                                          len=prev_seg_len),
-                                                            main=AttrDict(x1=main_seg_start, x2=next_seg_start,
-                                                                          len=main_seg_len),
-                                                            next=AttrDict(x1=next_seg_start, x2=next_seg_end,
-                                                                          len=next_seg_len),
-                                                            prev_seg=prev_seg,
-                                                            next_seg=next_seg))
+            arm_dict = seg_decomposed.setdefault(seg[0], AttrDictEnum())
+            dir_dict = arm_dict.setdefault(seg[1],
+                                           AttrDictEnum({Order.prev: AttrDictEnum(x1=prev_seg_start,
+                                                                                  x2=main_seg_start,
+                                                                                  len=prev_seg_len,
+                                                                                  seg=prev_seg),
+                                                         Order.main: AttrDictEnum(x1=main_seg_start,
+                                                                                  x2=next_seg_start,
+                                                                                  len=main_seg_len),
+                                                         Order.next: AttrDictEnum(x1=next_seg_start,
+                                                                                  x2=next_seg_end,
+                                                                                  len=next_seg_len,
+                                                                                  seg=next_seg),
+                                                         "prev_seg": prev_seg,
+                                                         "next_seg": next_seg}))
 
         return seg_decomposed
 
@@ -141,7 +159,7 @@ class WtrackLinposDecomposer(AttrDict):
 
     @staticmethod
     def _sel_main(decomp_armcoord, wtrack_armcoord, decomp_num_bins, encode_settings):
-        main_sel = AttrDict(decomposed=AttrDict(), wtrack=AttrDict())
+        main_sel = AttrDictEnum(decomposed=AttrDictEnum(), wtrack=AttrDictEnum())
         main_sel.decomposed['ind'] = np.concatenate([np.arange(direct_v.main.x1, direct_v.main.x2,
                                                                encode_settings.pos_bin_delta)
                                                      for arm_v in decomp_armcoord.values()
@@ -158,18 +176,18 @@ class WtrackLinposDecomposer(AttrDict):
 
     @staticmethod
     def _sel_prev_next(prev_next, decomp_armcoord, wtrack_armcoord, decomp_num_bins, encode_settings):
-        sel = AttrDict(decomposed=AttrDict(), wtrack=AttrDict())
+        sel = AttrDictEnum(decomposed=AttrDictEnum(), wtrack=AttrDictEnum())
         sel.decomposed['ind'] = np.concatenate([np.arange(direct_v[prev_next].x1, direct_v[prev_next].x2,
                                                           encode_settings.pos_bin_delta)
                                                 for arm_v in decomp_armcoord.values() for direct_v in arm_v.values()])
         sel.decomposed['col'] = pos_col_format(sel.decomposed['ind'], decomp_num_bins)
-        sel.wtrack['ind'] =  np.concatenate([np.arange(wtrack_armcoord[direct_v[prev_next+'_seg'][0]]
-                                                       [direct_v[prev_next+'_seg'][1]].x1,
-                                                       wtrack_armcoord[direct_v[prev_next+'_seg'][0]]
-                                                       [direct_v[prev_next+'_seg'][1]].x2,
-                                                       encode_settings.pos_bin_delta)
-                                             for arm, arm_v in decomp_armcoord.items()
-                                             for direct, direct_v in arm_v.items()])
+        sel.wtrack['ind'] = np.concatenate([np.arange(wtrack_armcoord[direct_v[prev_next.name+'_seg'][0]]
+                                                      [direct_v[prev_next.name+'_seg'][1]].x1,
+                                                      wtrack_armcoord[direct_v[prev_next.name+'_seg'][0]]
+                                                      [direct_v[prev_next.name+'_seg'][1]].x2,
+                                                      encode_settings.pos_bin_delta)
+                                            for arm, arm_v in decomp_armcoord.items()
+                                            for direct, direct_v in arm_v.items()])
         sel.wtrack['col'] = pos_col_format(sel.wtrack['ind'], decomp_num_bins)
 
         return sel

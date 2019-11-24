@@ -311,26 +311,26 @@ class WtrackLinposVisualizer:
 
     arm_colormap = dict(center='darkorange', left='pink', right='cyan')
 
-    direction_hatchmap = dict(forward='right_diagonal_line', reverse='left_diagonal_line')
-    mpl_direction_hatchmap = dict(forward='/', reverse='\\')
+    direction_hatchmap = dict(outbound='right_diagonal_line', inbound='left_diagonal_line')
+    mpl_direction_hatchmap = dict(outbound='/', inbound='\\')
 
     def __init__(self, linpos_flat, encode_settings):
         w_coor = encode_settings.wtrack_arm_coordinates
         pos_time = linpos_flat.index.get_level_values('time')
         pos = linpos_flat['linpos_flat']
-        self.plot = WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='center', direction='forward',
+        self.plot = WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='center', direction='outbound',
                                                                        pos_time=pos_time, w_coor=w_coor) * \
-                WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='left', direction='forward',
+            WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='left', direction='outbound',
                                                                    pos_time=pos_time, w_coor=w_coor) * \
-                WtrackLinposVisualizer.wtrack_linear_plot_polygons( arm='left', direction='reverse',
+            WtrackLinposVisualizer.wtrack_linear_plot_polygons( arm='left', direction='inbound',
                                                                     pos_time=pos_time, w_coor=w_coor) * \
-                WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='center', direction='reverse',
+            WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='center', direction='inbound',
                                                                    pos_time=pos_time, w_coor=w_coor) * \
-                WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='right', direction='forward',
+            WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='right', direction='outbound',
                                                                    pos_time=pos_time, w_coor=w_coor) * \
-                WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='right', direction='reverse',
+            WtrackLinposVisualizer.wtrack_linear_plot_polygons(arm='right', direction='inbound',
                                                                    pos_time=pos_time, w_coor=w_coor) * \
-                WtrackLinposVisualizer.plot_position(pos_time, pos)
+            WtrackLinposVisualizer.plot_position(pos_time, pos)
 
     @staticmethod
     def wtrack_linear_plot_hook(plot, element, arm, direction):

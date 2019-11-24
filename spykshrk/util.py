@@ -14,6 +14,47 @@ class AttrDict(collections.OrderedDict):
     def __repr__(self):
         return dict.__repr__(self)
 
+
+class AttrDictEnum(collections.UserDict):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        #self.__dict__ = self.data
+
+    def __getitem__(self, item):
+        try:
+            return super().__getitem__(item)
+        except KeyError:
+            retval = []
+            keylist = []
+            for key, val in self.__dict__['data'].items():
+                try:
+                    if item == key.name:
+                        keylist = [key]
+                        retval.append(val)
+                except AttributeError:
+                    if item == key:
+                        keylist = [key]
+                        retval.append(val)
+            if len(retval) > 1:
+                raise KeyError('Found multiple keys, possible overlapping enums: ' + keylist)
+            elif len(retval) == 0:
+                raise KeyError(item)
+            return retval[0]
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+
+    def __getattribute__(self, item):
+        try:
+            return super().__getattribute__(item)
+        except AttributeError:
+            return self.__getitem__(item)
+
+    def __repr__(self):
+        return f"{type(self).__name__}({self.data})"
+
+
 class Groupby:
     def __init__(self, data, keys):
         self.data = data

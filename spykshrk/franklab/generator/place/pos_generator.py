@@ -2,22 +2,9 @@ import numpy as np
 import scipy as sp
 import scipy.stats
 import pandas as pd
-import enum
 
 from spykshrk.franklab.data_containers import FlatLinearPosition
-
-
-@enum.unique
-class WtrackArm(enum.Enum):
-    center = 1
-    left = 2
-    right = 3
-
-
-@enum.unique
-class Direction(enum.Enum):
-    forward = 1
-    reverse = 2
+from spykshrk.franklab.wtrack import WtrackArm, Direction
 
 
 class WtrackPosConstSimulator:
@@ -89,20 +76,20 @@ class WtrackPosConstSimulator:
         pos_run_dir_enum = np.array([])
 
         pos_trial, pos_trial_enum = \
-                WtrackPosConstSimulator.simulate_trial_const_speed(arm1_dir.forward, arm1_enum,
-                                                                   arm2_dir.forward, arm2_enum,
+                WtrackPosConstSimulator.simulate_trial_const_speed(arm1_dir.outbound, arm1_enum,
+                                                                   arm2_dir.outbound, arm2_enum,
                                                                    trial_time, sampling_rate)
         pos_run = np.append(pos_run, pos_trial)
         pos_run_enum = np.append(pos_run_enum, pos_trial_enum)
-        pos_run_dir_enum = np.append(pos_run_dir_enum, np.tile(Direction.forward, len(pos_trial)))
+        pos_run_dir_enum = np.append(pos_run_dir_enum, np.tile(Direction.outbound, len(pos_trial)))
 
         pos_trial, pos_trial_enum = \
-                WtrackPosConstSimulator.simulate_trial_const_speed(arm2_dir.reverse, arm2_enum,
-                                                                   arm1_dir.reverse, arm1_enum,
+                WtrackPosConstSimulator.simulate_trial_const_speed(arm2_dir.inbound, arm2_enum,
+                                                                   arm1_dir.inbound, arm1_enum,
                                                                    trial_time, sampling_rate)
         pos_run = np.append(pos_run, pos_trial)
         pos_run_enum = np.append(pos_run_enum, pos_trial_enum)
-        pos_run_dir_enum = np.append(pos_run_dir_enum, np.tile(Direction.reverse, len(pos_trial)))
+        pos_run_dir_enum = np.append(pos_run_dir_enum, np.tile(Direction.inbound, len(pos_trial)))
 
         return pos_run, pos_run_enum, pos_run_dir_enum
 
