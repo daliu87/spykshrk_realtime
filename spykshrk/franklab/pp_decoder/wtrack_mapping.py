@@ -2,7 +2,10 @@ import numpy as np
 import pandas as pd
 import warnings
 import itertools
-import enum
+import copy
+
+import scipy as sp
+import scipy.stats
 
 from spykshrk.util import AttrDict, AttrDictEnum
 from spykshrk.franklab.warnings import DataInconsistentWarning
@@ -75,13 +78,13 @@ class WtrackLinposDecomposer(AttrDict):
                                                                          for direct, direct_v in arm_v.items()})
                                                       for arm, arm_v in self.armcoord_ccw.items()})
         self.simple_armcoord_cw, self.simple_armcoord_bins_cw = \
-                self._create_wtrack_decomposed_simple_armcoord(self.armcoord_cw, self.bin_size)
+            self._create_wtrack_decomposed_simple_armcoord(self.armcoord_cw, self.bin_size)
         self.simple_armcoord_ccw, self.simple_armcoord_bins_ccw = \
-                self._create_wtrack_decomposed_simple_armcoord(self.armcoord_ccw, self.bin_size)
+            self._create_wtrack_decomposed_simple_armcoord(self.armcoord_ccw, self.bin_size)
         self.simple_main_armcoord_cw, self.simple_main_armcoord_bins_cw = \
-                self._create_wtrack_decomposed_simple_main_armcoord(self.armcoord_cw, self.bin_size)
+            self._create_wtrack_decomposed_simple_main_armcoord(self.armcoord_cw, self.bin_size)
         self.simple_main_armcoord_ccw, self.simple_main_armcoord_bins_ccw = \
-                self._create_wtrack_decomposed_simple_main_armcoord(self.armcoord_ccw, self.bin_size)
+            self._create_wtrack_decomposed_simple_main_armcoord(self.armcoord_ccw, self.bin_size)
 
         self.sel_data = AttrDictEnum()
         for rot_k in WtrackLinposDecomposer.rotations:
@@ -98,6 +101,26 @@ class WtrackLinposDecomposer(AttrDict):
         self.decomp_linpos = self.wtrack_pos_remap_to_decomposed(self.linpos_flat,
                                                                  encode_settings.wtrack_arm_coordinates,
                                                                  self.armcoord_cw, self.armcoord_ccw)
+
+        self.encode_settings_decomp = self._create_decomposed_encode_settings(self.armcoord_cw_num_bins,
+                                                                              self.simple_armcoord_cw,
+                                                                              self.wtrack_armcoord_cw,
+                                                                              self.encode_settings)
+
+    @staticmethod
+    def _create_decomposed_encode_settings(decomp_num_bins, simple_armcoord, wtrack_armcoord, encode_settings):
+        encode_settings_decomp = copy.deepcopy(encode_settings)
+        encode_settings_decomp.pos_num_bins = decomp_num_bins
+        encode_settings_decomp.pos_col_names = pos_col_format(range(decomp_num_bins), decomp_num_bins)
+        encode_settings_decomp.pos_bins = np.arange(0, decomp_num_bins)
+        encode_settings_decomp.pos_bin_edges = np.arange(0, decomp_num_bins + 0.0001, 1)
+        encode_settings_decomp.pos_kernel = sp.stats.norm.pdf(np.arange(0, decomp_num_bins, 1), decomp_num_bins/2,
+                                                                   encode_settings_decomp.pos_kernel_std)
+        encode_settings_decomp.pos_col_names = pos_col_format(range(decomp_num_bins), decomp_num_bins)
+        encode_settings_decomp.arm_coordinates = simple_armcoord
+        encode_settings_decomp.wtrack_decomp_arm_coordinates = wtrack_armcoord
+
+        return encode_settings_decomp
 
     @staticmethod
     def _segment_decomposed_with_buffer(segment_order, wtrack_arm_coord):

@@ -3,28 +3,39 @@ import enum
 import collections
 
 
-class AttrDict(collections.OrderedDict):
+class AttrDict(collections.UserDict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__dict__ = self
 
-    def __str__(self):
-        return dict.__str__(self)
+    def __getattribute__(self, item):
+        try:
+            return super().__getattribute__(item)
+        except AttributeError:
+            try:
+                return self.__getitem__(item)
+            except KeyError:
+                raise AttributeError(item)
+
+
+    def __getstate__(self):
+        return self.data
+
+    def __setstate__(self, state):
+        self.data = state
 
     def __repr__(self):
-        return dict.__repr__(self)
+        return f"{type(self).__name__}({self.data})"
 
 
 class AttrDictEnum(collections.UserDict):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        #self.__dict__ = self.data
 
     def __getitem__(self, item):
         try:
             return super().__getitem__(item)
-        except KeyError:
+        except KeyError as kerr:
             retval = []
             keylist = []
             for key, val in self.__dict__['data'].items():
@@ -48,8 +59,17 @@ class AttrDictEnum(collections.UserDict):
     def __getattribute__(self, item):
         try:
             return super().__getattribute__(item)
-        except AttributeError:
-            return self.__getitem__(item)
+        except AttributeError as attr_err:
+            try:
+                return self.__getitem__(item)
+            except KeyError as kerr:
+                raise AttributeError(*kerr.args)
+
+    def __getstate__(self):
+        return self.data
+
+    def __setstate__(self, state):
+        self.data = state
 
     def __repr__(self):
         return f"{type(self).__name__}({self.data})"
