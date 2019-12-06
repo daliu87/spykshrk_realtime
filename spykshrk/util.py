@@ -7,15 +7,24 @@ class AttrDict(collections.UserDict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def __setattr__(self, key, value):
+        super().__setattr__(key, value)
+        if hasattr(self, 'data') and (key is not 'data'):
+
+            self.data[key] = value
+
     def __getattribute__(self, item):
         try:
             return super().__getattribute__(item)
         except AttributeError:
             try:
-                return self.__getitem__(item)
+                return self[item]
             except KeyError:
                 raise AttributeError(item)
 
+    def __getitem__(self, key):
+        if hasattr(self, 'data'):
+            return super().__getitem__(key)
 
     def __getstate__(self):
         return self.data
@@ -27,7 +36,7 @@ class AttrDict(collections.UserDict):
         return f"{type(self).__name__}({self.data})"
 
 
-class AttrDictEnum(collections.UserDict):
+class AttrDictEnum(AttrDict):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -52,27 +61,6 @@ class AttrDictEnum(collections.UserDict):
             elif len(retval) == 0:
                 raise KeyError(item)
             return retval[0]
-
-    def __setitem__(self, key, value):
-        super().__setitem__(key, value)
-
-    def __getattribute__(self, item):
-        try:
-            return super().__getattribute__(item)
-        except AttributeError as attr_err:
-            try:
-                return self.__getitem__(item)
-            except KeyError as kerr:
-                raise AttributeError(*kerr.args)
-
-    def __getstate__(self):
-        return self.data
-
-    def __setstate__(self, state):
-        self.data = state
-
-    def __repr__(self):
-        return f"{type(self).__name__}({self.data})"
 
 
 class Groupby:

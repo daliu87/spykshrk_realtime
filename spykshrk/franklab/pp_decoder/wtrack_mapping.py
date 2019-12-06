@@ -242,8 +242,9 @@ class WtrackLinposDecomposer(AttrDict):
 class WtrackLinposRecomposer(AttrDict):
     rotations = ['cw', 'ccw']
     orders = ['prev', 'next']
-    def __init__(self, encoder_cw, encoder_ccw, wtrack_decomposed, encode_settings):
 
+    def __init__(self, encoder_cw, encoder_ccw, wtrack_decomposed, encode_settings):
+        super().__init__()
         self.encoder_cw = encoder_cw
         self.encoder_ccw = encoder_ccw
         self.wtrack_decomposed = wtrack_decomposed
