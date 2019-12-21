@@ -1,6 +1,8 @@
 import numpy as np
 import enum
 import collections
+import pprint
+import IPython.core.display
 
 
 class AttrDict(collections.UserDict):
@@ -31,6 +33,42 @@ class AttrDict(collections.UserDict):
 
     def __setstate__(self, state):
         self.data = state
+
+    def _repr_pretty_(self, pp, cycle):
+        if cycle:
+            pp.text(f'{type(self).__name__}(...)')
+        else:
+            with pp.group(len(type(self).__name__)+2, f'{type(self).__name__}({{', '})'):
+                for idx, (key, val) in enumerate(self.data.items()):
+                    if idx is not 0:
+                        pp.text(',')
+                        pp.breakable()
+                    pp.text(str(key) + ': ')
+                    with pp.indent(len(str(key))+2):
+                        if isinstance(val, collections.abc.Sequence):
+                            with pp.group(1, '[',']'):
+                                for ent_ii, ent in enumerate(val):
+                                    if isinstance(ent, collections.abc.Collection) and not isinstance(ent, (str, bytes, bytearray, memoryview)):
+                                        if ent_ii is not 0:
+                                            pp.text(',')
+                                            pp.breakable()
+                                        pp.pretty(ent)
+                                        was_last_coll = True
+                                    else:
+                                        if ent_ii is not 0:
+                                            pp.text(', ')
+                                            if pp.output_width + len(str(ent)) > pp.max_width:
+                                                pp.breakable()
+                                            elif was_last_coll:
+                                                pp.breakable()
+                                        was_last_coll = False
+                                        pp.pretty(ent)
+                        elif isinstance(val, (np.ndarray, np.generic)):
+                            pp.output_width += np.get_printoptions()['linewidth']
+                            pp.pretty(val)
+                        else:
+                            pp.pretty(val)
+                pp.breakable()
 
     def __repr__(self):
         return f"{type(self).__name__}({self.data})"
