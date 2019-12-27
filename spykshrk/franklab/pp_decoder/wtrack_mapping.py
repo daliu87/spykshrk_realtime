@@ -228,10 +228,18 @@ class WtrackLinposDecomposer(AttrDict):
             decomposed_range_cw = wtrack_decomposed_cw[key[0].name][key[1].name]
             decomposed_range_ccw = wtrack_decomposed_ccw[key[0].name][key[1].name]
             decomposed_table = table.copy()
-            decomposed_table.loc[:,'linpos_cw'] = (decomposed_table.loc[:, 'linpos_flat'] - arm_coord_range.x1 +
-                                                   decomposed_range_cw.main.x1)
-            decomposed_table.loc[:,'linpos_ccw'] = (decomposed_table.loc[:, 'linpos_flat'] - arm_coord_range.x1 +
-                                                    decomposed_range_ccw.main.x1)
+            decomposed_table.loc[:, 'linpos_cw'] = (decomposed_table.loc[:, 'linpos_flat'] - arm_coord_range.x1 +
+                                                    decomposed_range_cw.main.x1)
+            decomposed_table.loc[:, 'linpos_cw_next'] = (decomposed_table.loc[:, 'linpos_flat'] - arm_coord_range.x1 +
+                                                         decomposed_range_cw.next.x1)
+            decomposed_table.loc[:, 'linpos_cw_prev'] = (decomposed_table.loc[:, 'linpos_flat'] - arm_coord_range.x1 +
+                                                         decomposed_range_cw.prev.x1)
+            decomposed_table.loc[:, 'linpos_ccw'] = (decomposed_table.loc[:, 'linpos_flat'] - arm_coord_range.x1 +
+                                                     decomposed_range_ccw.main.x1)
+            decomposed_table.loc[:, 'linpos_ccw_next'] = (decomposed_table.loc[:, 'linpos_flat'] - arm_coord_range.x1 +
+                                                          decomposed_range_ccw.next.x1)
+            decomposed_table.loc[:, 'linpos_ccw_prev'] = (decomposed_table.loc[:, 'linpos_flat'] - arm_coord_range.x1 +
+                                                          decomposed_range_ccw.prev.x1)
 
             decomposed_linpos = decomposed_linpos.append(decomposed_table)
 

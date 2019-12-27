@@ -38,17 +38,29 @@ class AttrDict(collections.UserDict):
         if cycle:
             pp.text(f'{type(self).__name__}(...)')
         else:
-            with pp.group(len(type(self).__name__)+2, f'{type(self).__name__}({{', '})'):
+            with pp.group(1, '{', '}'):
+            #with pp.group(len(type(self).__name__)+2, f'{type(self).__name__}({{', '})'):
                 for idx, (key, val) in enumerate(self.data.items()):
                     if idx is not 0:
                         pp.text(',')
                         pp.breakable()
                     pp.text(str(key) + ': ')
-                    with pp.indent(len(str(key))+2):
-                        if isinstance(val, collections.abc.Sequence):
-                            with pp.group(1, '[',']'):
-                                for ent_ii, ent in enumerate(val):
-                                    if isinstance(ent, collections.abc.Collection) and not isinstance(ent, (str, bytes, bytearray, memoryview)):
+                    with pp.indent(len(str(key)) + 2):
+                        if isinstance(val, collections.abc.Sequence) and not \
+                                isinstance(val, (str, bytes, bytearray, memoryview)):
+                            with pp.group(1, '[', ']'):
+                                if len(val) > pp.max_seq_length:
+                                    short_val = val[0:int(pp.max_seq_length/2)] + val[-int(pp.max_seq_length/2):]
+                                else:
+                                    short_val = val
+                                for ent_ii, ent in enumerate(short_val):
+                                    if (len(val) > pp.max_seq_length) and (ent_ii == int(pp.max_seq_length/2)):
+                                        if pp.output_width + 6 > pp.max_width:
+                                            pp.breakable()
+                                        pp.text(', ... ')
+
+                                    if isinstance(ent, collections.abc.Collection) and not \
+                                            isinstance(ent, (str, bytes, bytearray, memoryview)):
                                         if ent_ii is not 0:
                                             pp.text(',')
                                             pp.breakable()
@@ -63,12 +75,13 @@ class AttrDict(collections.UserDict):
                                                 pp.breakable()
                                         was_last_coll = False
                                         pp.pretty(ent)
+                        elif isinstance(val, (str, bytes, bytearray, memoryview)):
+                            pp.pretty(val)
                         elif isinstance(val, (np.ndarray, np.generic)):
-                            pp.output_width += np.get_printoptions()['linewidth']
+                            #pp.output_width += np.get_printoptions()['linewidth']
                             pp.pretty(val)
                         else:
                             pp.pretty(val)
-                pp.breakable()
 
     def __repr__(self):
         return f"{type(self).__name__}({self.data})"
