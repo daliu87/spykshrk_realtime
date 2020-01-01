@@ -124,8 +124,9 @@ class DecodeVisualizer:
 
         linflat_sel_data = self.linflat['linpos_flat'].values
         linflat_sel_time = self.linflat.index.get_level_values('time')
-        pos = hv.Points((linflat_sel_time, linflat_sel_data), kdims=[self.time_dim_name, self.pos_dim_name],
-                        extents=(x_range[0], None, x_range[1], None), label=('linpos', 'Linear Position'))
+        pos = (hv.Points((linflat_sel_time, linflat_sel_data), kdims=[self.time_dim_name, self.pos_dim_name],
+                         extents=(x_range[0], None, x_range[1], None), label=('linpos', 'Linear Position')).
+               opts(muted_alpha=0))
 
         return pos
 

@@ -249,7 +249,7 @@ class WtrackLinposDecomposer(AttrDict):
 
 class WtrackLinposRecomposer(AttrDict):
     rotations = ['cw', 'ccw']
-    orders = ['prev', 'next']
+    orders = ['prev', 'main', 'next']
 
     def __init__(self, encoder_cw, encoder_ccw, wtrack_decomposed, encode_settings):
         super().__init__()
@@ -298,14 +298,13 @@ class WtrackLinposRecomposer(AttrDict):
         #trans_mat += WtrackRecomposer._wtrack_recompose_trans_mat_part('cw', 'main', 'main', trans_mat_cw,
         #                                                               wtrack_decomposed, encode_settings)
         for rot_k in WtrackLinposRecomposer.rotations:
-            trans_mat += WtrackLinposRecomposer._wtrack_recompose_trans_mat_part(rot_k, 'main', 'main',
-                                                                                 eval('trans_mat_'+rot_k),
-                                                                           wtrack_decomposed, encode_settings)
-            for ord_k in WtrackLinposRecomposer.orders:
-                for order1, order2 in itertools.permutations([ord_k, 'main']):
-                    trans_mat += WtrackLinposRecomposer._wtrack_recompose_trans_mat_part(rot_k, order1, order2,
-                                                                                   eval('trans_mat_'+rot_k),
-                                                                                   wtrack_decomposed, encode_settings)
+            #trans_mat += WtrackLinposRecomposer._wtrack_recompose_trans_mat_part(rot_k, 'main', 'main',
+            #                                                                     eval('trans_mat_'+rot_k),
+            #                                                               wtrack_decomposed, encode_settings)
+            for ord1, ord2 in itertools.product(*[WtrackLinposRecomposer.orders]*2):
+                trans_mat += WtrackLinposRecomposer._wtrack_recompose_trans_mat_part(rot_k, ord1, ord2,
+                                                                                     eval('trans_mat_'+rot_k),
+                                                                                     wtrack_decomposed, encode_settings)
         return trans_mat
 
     @staticmethod
@@ -329,8 +328,8 @@ class WtrackLinposRecomposer(AttrDict):
                                         len(wtrack_decomposed.sel_data['cw']['main']['wtrack']['ind']))),
                               columns=encode_settings.pos_col_names, index=observ_cw.index)
 
-        observ.iloc[:, wtrack_decomposed.sel_data['cw']['main']['wtrack']['ind']] = \
-                observ_cw.loc[:, wtrack_decomposed.sel_data['cw']['main']['decomposed']['col']].values
+        #observ.iloc[:, wtrack_decomposed.sel_data['cw']['main']['wtrack']['ind']] = \
+        #        observ_cw.loc[:, wtrack_decomposed.sel_data['cw']['main']['decomposed']['col']].values
 
         for rot_k in WtrackLinposRecomposer.rotations:
             for ord_k in WtrackLinposRecomposer.orders:

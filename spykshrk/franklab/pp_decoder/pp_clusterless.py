@@ -18,7 +18,8 @@ from spykshrk.util import Groupby
 class OfflinePPEncoder(object):
 
     def __init__(self, linflat, enc_spk_amp, dec_spk_amp, encode_settings: EncodeSettings,
-                 decode_settings: DecodeSettings, linflat_col_name='linpos_flat', chunk_size=1000, cuda=False):
+                 decode_settings: DecodeSettings, linflat_col_name='linpos_flat', chunk_size=1000,
+                 cuda=False, norm=True):
         """
         Constructor for OfflinePPEncoder.
         
@@ -43,6 +44,7 @@ class OfflinePPEncoder(object):
             self.device_name = 'cpu'
         self.dtype = torch.float
         self.device = torch.device(self.device_name)
+        self.norm = norm
 
         self.calc_occupancy()
         self.calc_firing_rate()
@@ -114,7 +116,7 @@ class OfflinePPEncoder(object):
                                                  tet_linpos_resamp=enc_tet_linpos_resamp, occupancy=self.occupancy,
                                                  encode_settings=self.encode_settings,
                                                  mark_columns=mark_columns, index_columns=index_columns,
-                                                 device=self.device, dtype=self.dtype)
+                                                 device=self.device, dtype=self.dtype, norm=self.norm)
                 observations[dec_tet_id] = observations[dec_tet_id].append(observ)
 
             chunk_start_ii = chunk_start_ii + self.chunk_size
@@ -124,13 +126,13 @@ class OfflinePPEncoder(object):
                                              tet_linpos_resamp=enc_tet_linpos_resamp, occupancy=self.occupancy,
                                              encode_settings=self.encode_settings,
                                              mark_columns=mark_columns, index_columns=index_columns,
-                                             device=self.device, dtype=self.dtype)
+                                             device=self.device, dtype=self.dtype, norm=self.norm)
             observations[dec_tet_id] = observations[dec_tet_id].append(observ)
             # setup decode of decode spikes from encoding of encoding spikes
         return observations
 
     def compute_observ_tet(self, dec_spk, enc_spk, tet_linpos_resamp, occupancy, encode_settings,
-                           mark_columns, index_columns, device, dtype):
+                           mark_columns, index_columns, device, dtype, norm):
         pos_distrib_tet = sp.stats.norm.pdf(np.expand_dims(encode_settings.pos_bins, 0),
                                             np.expand_dims(tet_linpos_resamp[self.linflat_col_name], 1),
                                             encode_settings.pos_kernel_std)
@@ -159,16 +161,20 @@ class OfflinePPEncoder(object):
         # occupancy normalize 
         observ = observ / (occupancy)
 
-        # normalize factor for each row (#dec spks x #pos_bins)
-        observ_sum = np.nansum(observ, axis=1)
+        if norm:
+            # normalize factor for each row (#dec spks x #pos_bins)
+            observ_sum = np.nansum(observ, axis=1)
 
-        # replace all rows that are all zeros with uniform distribution
-        observ_sum_zero = observ_sum == 0
-        observ[observ_sum_zero, :] = 1/(self.encode_settings.pos_bins[-1] - self.encode_settings.pos_bins[0])
-        observ_sum[observ_sum_zero] = 1
+            # replace all rows that are all zeros with uniform distribution
+            observ_sum_zero = observ_sum == 0
+            observ[observ_sum_zero, :] = 1/(self.encode_settings.pos_bins[-1] - self.encode_settings.pos_bins[0])
+            observ_sum[observ_sum_zero] = 1
 
-        # apply normalization factor
-        observ = observ / observ_sum[:, np.newaxis]
+            # apply normalization factor
+            observ = observ / observ_sum[:, np.newaxis]
+        else:
+            pass
+
         ret_df = pd.DataFrame(observ, index=dec_spk.set_index(index_columns).index,
                               columns=pos_col_format(range(observ.shape[1]), observ.shape[1]))
         return ret_df
@@ -384,7 +390,7 @@ class OfflinePPDecoder(object):
     def __init__(self, observ_obj: SpikeObservation, encode_settings: EncodeSettings,
                  decode_settings: DecodeSettings, time_bin_size=30, 
                  velocity_filter=None, trans_mat=None, prob_no_spike=None,
-                 cuda=False):
+                 cuda=False, dtype=np.float32):
         """
         Constructor for OfflinePPDecoder.
         
@@ -413,6 +419,8 @@ class OfflinePPDecoder(object):
             self.device_name = 'cpu'
         self.dtype = torch.float
         self.device = torch.device(self.device_name)
+
+        self.dtype = dtype
 
         self.likelihoods = None
         self.posteriors = None
@@ -444,7 +452,8 @@ class OfflinePPDecoder(object):
                                                            self.prob_no_spike,
                                                            self.encode_settings,
                                                            self.decode_settings,
-                                                           time_bin_size=self.time_bin_size)
+                                                           time_bin_size=self.time_bin_size,
+                                                           dtype=self.dtype)
 
     def recalc_posterior(self):
         self.posteriors = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
@@ -461,7 +470,8 @@ class OfflinePPDecoder(object):
                                    prob_no_spike,
                                    enc_settings: EncodeSettings,
                                    dec_settings: DecodeSettings,
-                                   time_bin_size=None):
+                                   time_bin_size=None,
+                                   dtype=np.float32):
         """
         
         Args:
@@ -506,7 +516,8 @@ class OfflinePPDecoder(object):
                                                                              elec_grp_list=elec_grp_list,
                                                                              prob_no_spike=prob_no_spike,
                                                                              time_bin_size=time_bin_size,
-                                                                             enc_settings=enc_settings),
+                                                                             enc_settings=enc_settings,
+                                                                             dtype=dtype),
             dec_agg_results = dec_agg_results.append(bin_observed_par[0])
 
         '''    
@@ -551,7 +562,7 @@ class OfflinePPDecoder(object):
 
     @staticmethod
     def _calc_observation_single_bin(spikes_in_parallel, elec_grp_list,
-                                     prob_no_spike, time_bin_size, enc_settings):
+                                     prob_no_spike, time_bin_size, enc_settings, dtype=np.float32):
 
         global_prob_no_spike = np.prod(list(prob_no_spike.values()), axis=0)
 
@@ -596,9 +607,11 @@ class OfflinePPDecoder(object):
                 elec_set.add(elec_grp_id)
                 missing_bins_list.append(num_missing_bins)
 
-                obv_in_bin = obv_in_bin * obv
+                obv_in_bin = obv_in_bin * (obv + np.finfo(dtype).eps)
                 obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
-                obv_in_bin = obv_in_bin / (np.nansum(obv_in_bin) * enc_settings.pos_bin_delta)
+                obv_in_bin += np.finfo(dtype).eps
+
+                #obv_in_bin = obv_in_bin / (np.nansum(obv_in_bin) * enc_settings.pos_bin_delta)
 
             # Contribution for electrodes that no spikes in this bin
             for elec_grp_id in elec_set.symmetric_difference(elec_grp_list):
