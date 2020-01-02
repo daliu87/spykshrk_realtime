@@ -199,13 +199,13 @@ class OfflinePPEncoder(object):
             enc_settings (EncodeSettings): Realtime encoding settings.
         Returns (np.array): The occupancy of the animal
         """
-        occupancy, occ_bin_edges = np.histogram(lin_obj[linflat_col_name], bins=enc_settings.pos_bin_edges,
-                                                density=True)
+        occupancy, occ_bin_edges = np.histogram(lin_obj[linflat_col_name], bins=enc_settings.pos_bin_edges)
         occupancy = np.convolve(occupancy, enc_settings.pos_kernel, mode='same')
 
         # occupancy
         occupancy = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates, occupancy, np.nan)
-        occupancy += 1e-10
+        occupancy += 0.1
+        occupancy /= enc_settings.pos_sampling_rate
         return occupancy
 
     @staticmethod
@@ -223,7 +223,8 @@ class OfflinePPEncoder(object):
             firing_rate[fr_key] = np.convolve(firing_rate[fr_key], enc_settings.pos_kernel, mode='same')
             firing_rate[fr_key] = apply_no_anim_boundary(enc_settings.pos_bins, enc_settings.arm_coordinates,
                                                          firing_rate[fr_key])
-            firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * enc_settings.pos_bin_delta)
+            #firing_rate[fr_key] = firing_rate[fr_key] / (firing_rate[fr_key].sum() * enc_settings.pos_bin_delta)
+            #firing_rate[fr_key] += 1
         return firing_rate
 
     @staticmethod

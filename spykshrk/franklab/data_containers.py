@@ -416,7 +416,7 @@ class DayEpochTimeSeries(DayDataFrame):
             epoch = df.index.get_level_values('epoch')[0]
 
             new_timestamps = np.arange(df.index.get_level_values('timestamp')[0] +
-                                       (bin_size - df.index.get_level_values('timestamp')[0] % bin_size),
+                                       (df.index.get_level_values('timestamp')[0] % bin_size),
                                        df.index.get_level_values('timestamp')[-1] + 1, bin_size)
             new_times = new_timestamps / float(self.sampling_rate)
 
@@ -426,7 +426,7 @@ class DayEpochTimeSeries(DayDataFrame):
             # df.set_index(df.index.get_level_values('timestamp'), inplace=True)
             pos_data_bin_ids = np.arange(0, len(new_timestamps), 1)
 
-            pos_data_binned = df.loc[day, epoch].reindex(new_indices, method='ffill')
+            pos_data_binned = df.loc[day, epoch].reindex(new_indices).fillna(method='ffill')
             # pos_data_binned.set_index(new_timestamps)
             pos_data_binned['bin'] = pos_data_bin_ids
 
@@ -537,6 +537,7 @@ class EncodeSettings:
         self.arm_coordinates = encoder_config['position']['arm_pos']
         self.tetrodes = realtime_config[realtime_config['datasource']]['nspike_animal_info']['tetrodes']
 
+        self.pos_sampling_rate = encoder_config['position']['sampling_rate']
         self.pos_upper = encoder_config['position']['upper']
         self.pos_lower = encoder_config['position']['lower']
         self.pos_num_bins = encoder_config['position']['bins']

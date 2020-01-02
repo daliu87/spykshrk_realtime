@@ -288,7 +288,7 @@ class WtrackLinposRecomposer(AttrDict):
             for tet_id, prob_no_spike_tet in prob_no_spike_cw.items():
                 prob_no_spike.setdefault(tet_id, np.zeros(encoding_settings.pos_num_bins))
                 prob_no_spike[tet_id][wtrack_decomposed.sel_data[rot_k]['main']['wtrack']['ind']] += \
-                         prob_no_spike_tet[wtrack_decomposed.sel_data[rot_k]['main']['decomposed']['ind']]
+                         prob_no_spike_tet[wtrack_decomposed.sel_data[rot_k]['main']['decomposed']['ind']] / 2
         return prob_no_spike
 
     @staticmethod
@@ -305,6 +305,7 @@ class WtrackLinposRecomposer(AttrDict):
                 trans_mat += WtrackLinposRecomposer._wtrack_recompose_trans_mat_part(rot_k, ord1, ord2,
                                                                                      eval('trans_mat_'+rot_k),
                                                                                      wtrack_decomposed, encode_settings)
+        trans_mat /= trans_mat.sum()
         return trans_mat
 
     @staticmethod

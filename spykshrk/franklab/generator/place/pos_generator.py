@@ -13,37 +13,45 @@ class WtrackPosConstSimulator:
         self.trial_time = trial_time
         self.num_series = num_series
 
-        pos_epoch = np.array([])
-
         pos_series, pos_series_enum, pos_series_dir_enum = \
-                WtrackPosConstSimulator.simulate_series_const_speed(encode_settings.wtrack_arm_coordinates,
-                                                                    trial_time, encode_settings.sampling_rate)
+            WtrackPosConstSimulator.simulate_series_const_speed(encode_settings.wtrack_arm_coordinates,
+                                                                trial_time, encode_settings.pos_sampling_rate)
 
-        pos_epoch = np.append(pos_epoch, pos_series)
+        pos_series_timestamp = np.linspace(0, 4 * trial_time * encode_settings.sampling_rate,
+                                           4 * trial_time * encode_settings.pos_sampling_rate,
+                                           endpoint=False).astype('int')
 
-        pos_timestamp = np.arange(0, len(pos_epoch), 1)
+        pos_series_time = np.arange(0, pos_series.size / encode_settings.sampling_rate,
+                                    encode_settings.pos_sampling_rate / encode_settings.sampling_rate)
 
-        pos_time = np.arange(0, pos_epoch.size/encode_settings.sampling_rate, 1/encode_settings.sampling_rate)
+        pos_series_vel = np.ones(len(pos_series)) * ((pos_series[1] - pos_series[0]) /
+                                                     (pos_series_time[1] - pos_series_time[0]))
 
-        pos_vel = np.ones(len(pos_epoch)) * (pos_epoch[1] - pos_epoch[0]) / (pos_time[1] - pos_time[0])
+        pos_epoch = np.array([])
+        pos_timestamp = np.array([])
+        pos_time = np.array([])
+        pos_vel = np.array([])
+        pos_enum = np.array([])
+        pos_dir_enum = np.array([])
 
         # Duplicate
         num_dup = num_series - 1
-        for ii in range(num_dup):
-            pos_epoch = np.append(pos_epoch, pos_epoch)
-            pos_timestamp = np.arange(0, len(pos_epoch), 1)
-            pos_time = np.arange(0, pos_epoch.size/encode_settings.sampling_rate, 1/encode_settings.sampling_rate)
-            pos_vel = np.append(pos_vel, pos_vel)
-            pos_series_enum = np.append(pos_series_enum, pos_series_enum)
-            pos_series_dir_enum = np.append(pos_series_dir_enum, pos_series_dir_enum)
+        for ii in range(num_series):
+            pos_epoch = np.append(pos_epoch, pos_series)
+            pos_timestamp = np.append(pos_timestamp, pos_series_timestamp + ii * 4 * trial_time *
+                                      encode_settings.sampling_rate)
+            #pos_time = np.append(pos_time, pos_series_time + ii * trial_time)
+            pos_vel = np.append(pos_vel, pos_series_vel)
+            pos_enum = np.append(pos_enum, pos_series_enum)
+            pos_dir_enum = np.append(pos_dir_enum, pos_series_dir_enum)
 
         self.linpos_flat = FlatLinearPosition.from_numpy_single_epoch(1, 1, pos_timestamp, pos_epoch, pos_vel,
                                                                       encode_settings.sampling_rate,
                                                                       encode_settings.wtrack_arm_coordinates)
 
-        self.linpos_flat['arm'] = pd.Series(index=self.linpos_flat.index, data=pos_series_enum, dtype='category')
+        self.linpos_flat['arm'] = pd.Series(index=self.linpos_flat.index, data=pos_enum, dtype='category')
         self.linpos_flat['direction'] = pd.Series(index=self.linpos_flat.index,
-                                                  data=pos_series_dir_enum, dtype='category')
+                                                  data=pos_dir_enum, dtype='category')
 
     @staticmethod
     def simulate_arm_const_speed(arm_range, trial_time, trial_len, sampling_rate):
