@@ -11,14 +11,14 @@ import torch
 
 from spykshrk.franklab.data_containers import LinearPosition, FlatLinearPosition, SpikeObservation, EncodeSettings, DecodeSettings, Posteriors, pos_col_format
 from spykshrk.franklab.pp_decoder.util import gaussian, normal2D, apply_no_anim_boundary, normal_pdf_int_lookup, normal_pdf_int_lookup_torch
-from spykshrk.util import Groupby
+from spykshrk.util import Groupby, AttrDict
 
 #logger = logging.getLogger(__name__)
 
 class OfflinePPEncoder(object):
 
-    def __init__(self, linflat, enc_spk_amp, dec_spk_amp, encode_settings: EncodeSettings,
-                 decode_settings: DecodeSettings, linflat_col_name='linpos_flat', chunk_size=1000,
+    def __init__(self, linpos, enc_spk_amp, dec_spk_amp, encode_settings: EncodeSettings,
+                 decode_settings: DecodeSettings, linpos_col_name='linpos_flat', chunk_size=1000,
                  cuda=False, norm=True):
         """
         Constructor for OfflinePPEncoder.
@@ -31,8 +31,8 @@ class OfflinePPEncoder(object):
             decode_settings (DecodeSettings): Realtime decoder settings.
 
         """
-        self.linflat = linflat
-        self.linflat_col_name = linflat_col_name
+        self.linpos = linpos
+        self.linpos_col_name = linpos_col_name
         self.enc_spk_amp = enc_spk_amp
         self.dec_spk_amp = dec_spk_amp
         self.encode_settings = encode_settings
@@ -51,9 +51,9 @@ class OfflinePPEncoder(object):
         self.calc_prob_no_spike()
 
         self.trans_mat = dict.fromkeys(['learned', 'simple', 'uniform'])
-        self.trans_mat['learned'] = self.calc_learned_state_trans_mat(self.linflat, self.encode_settings,
+        self.trans_mat['learned'] = self.calc_learned_state_trans_mat(self.linpos, self.encode_settings,
                                                                       self.decode_settings,
-                                                                      linflat_col_name=self.linflat_col_name)
+                                                                      linflat_col_name=self.linpos_col_name)
         self.trans_mat['simple'] = self.calc_simple_trans_mat(self.encode_settings)
         self.trans_mat['uniform'] = self.calc_uniform_trans_mat(self.encode_settings)
 
@@ -77,8 +77,8 @@ class OfflinePPEncoder(object):
         self.observ_obj['elec_grp_id'] = self.observ_obj.index.get_level_values('elec_grp_id')
         self.observ_obj.index = self.observ_obj.index.droplevel('elec_grp_id')
 
-        self.observ_obj['position'] = (self.linflat.get_irregular_resampled(self.observ_obj).
-                                  get_mapped_single_axis()[self.linflat_col_name])
+        self.observ_obj['position'] = (self.linpos.get_irregular_resampled(self.observ_obj).
+            get_mapped_single_axis()[self.linpos_col_name])
 
         self.observ_obj.set_distribution(self.observ_obj.get_distribution_as_np() + np.finfo(float).eps)
 
@@ -96,7 +96,7 @@ class OfflinePPEncoder(object):
             
             if len(enc_spk_tet) == 0 | len(dec_spk_tet) == 0:
                 continue
-            enc_tet_linpos_resamp = self.linflat.get_irregular_resampled(enc_spk_tet)
+            enc_tet_linpos_resamp = self.linpos.get_irregular_resampled(enc_spk_tet)
             if len(enc_tet_linpos_resamp) == 0:
                 continue
             # maintain elec_grp_id info. get mark and index column names to reindex dask arrays
@@ -134,7 +134,7 @@ class OfflinePPEncoder(object):
     def compute_observ_tet(self, dec_spk, enc_spk, tet_linpos_resamp, occupancy, encode_settings,
                            mark_columns, index_columns, device, dtype, norm):
         pos_distrib_tet = sp.stats.norm.pdf(np.expand_dims(encode_settings.pos_bins, 0),
-                                            np.expand_dims(tet_linpos_resamp[self.linflat_col_name], 1),
+                                            np.expand_dims(tet_linpos_resamp[self.linpos_col_name], 1),
                                             encode_settings.pos_kernel_std)
         if device.type == 'cuda':
             pos_distrib_tet_torch = torch.from_numpy(pos_distrib_tet).to(device=device, dtype=dtype)
@@ -180,12 +180,12 @@ class OfflinePPEncoder(object):
         return ret_df
 
     def calc_occupancy(self):
-        self.occupancy = self._calc_occupancy(self.linflat, self.encode_settings,
-                                              linflat_col_name=self.linflat_col_name)
+        self.occupancy = self._calc_occupancy(self.linpos, self.encode_settings,
+                                              linflat_col_name=self.linpos_col_name)
 
     def calc_firing_rate(self):
-        self.firing_rate = self._calc_firing_rate_tet(self.enc_spk_amp, self.linflat, self.encode_settings,
-                                                      linflat_col_name=self.linflat_col_name)
+        self.firing_rate = self._calc_firing_rate_tet(self.enc_spk_amp, self.linpos, self.encode_settings,
+                                                      linflat_col_name=self.linpos_col_name)
 
     def calc_prob_no_spike(self):
         self.prob_no_spike = self._calc_prob_no_spike(self.firing_rate, self.occupancy,
@@ -378,6 +378,411 @@ class OfflinePPEncoder(object):
         return transition_mat
     
 
+class OfflinePPLikelihood:
+    def __init__(self, observ: SpikeObservation, encode_settings: EncodeSettings,
+                 decode_settings: DecodeSettings, time_bin_size=30,
+                 trans_mat=None, prob_no_spike=None,
+                 cuda=False, dtype=np.float32):
+
+        if prob_no_spike:
+            self.prob_no_spike = prob_no_spike
+        else:
+            self.prob_no_spike = {tet_id: np.ones(encode_settings.pos_num_bins) for tet_id in encode_settings.tetrodes}
+        self.trans_mat = trans_mat
+        self.observ = observ
+        self.encode_settings = encode_settings
+        self.decode_settings = decode_settings
+        # self.which_trans_mat = which_trans_mat
+        self.time_bin_size = time_bin_size
+
+        self.cuda = cuda
+        if self.cuda:
+            self.device_name = 'cuda'
+        else:
+            self.device_name = 'cpu'
+        self.dtype = torch.float
+        self.device = torch.device(self.device_name)
+
+        self.dtype = dtype
+
+        self.likelihoods = None
+
+    def calc(self):
+        print("Beginning likelihood calculation")
+        self.recalc_likelihood()
+
+        return self.likelihoods
+
+    def recalc_likelihood(self):
+        self.likelihoods = self.calc_observation_intensity(self.observ,
+                                                           self.prob_no_spike,
+                                                           self.encode_settings,
+                                                           self.decode_settings,
+                                                           time_bin_size=self.time_bin_size,
+                                                           dtype=self.dtype)
+
+    @staticmethod
+    def calc_observation_intensity(observ: SpikeObservation,
+                                   prob_no_spike,
+                                   enc_settings: EncodeSettings,
+                                   dec_settings: DecodeSettings,
+                                   time_bin_size=None,
+                                   dtype=np.float32):
+        """
+
+        Args:
+            observ (SpikeObservation): Object containing observation data frame, one row per spike observed.
+            enc_settings (EncodeSettings): Encoder settings from realtime config.
+            dec_settings (DecodeSettings): Decoder settings from realtime config.
+            time_bin_size (float): Delta time per bin.
+
+        Returns: (pd.DataFrame, dict[int, np.array]) DataFrame of observation per time bin in each row.
+            Dictionary of numpy arrays, one per tetrode, containing occupancy firing rate.
+
+        """
+
+        day = observ.index.get_level_values('day')[0]
+        epoch = observ.index.get_level_values('epoch')[0]
+
+        if time_bin_size is not None:
+            observ.update_observations_bins(time_bin_size=time_bin_size, inplace=True)
+        else:
+            time_bin_size = dec_settings.time_bin_size
+            observ.update_observations_bins(time_bin_size=time_bin_size, inplace=True)
+
+        observ.update_parallel_bins(60000, inplace=True)
+
+        observ.update_num_missing_future_bins(inplace=True)
+
+        #observ_dask = dd.from_pandas(observ.get_no_multi_index(), chunksize=30000)
+        observ_grp = observ.groupby('parallel_bin')
+
+        observ_meta = [(key, 'f8') for key in [pos_col_format(ii, enc_settings.pos_num_bins)
+                                               for ii in range(enc_settings.pos_num_bins)]]
+        observ_meta.append(('timestamp', 'f8'))
+        observ_meta.append(('num_spikes', 'f8'))
+        observ_meta.append(('dec_bin', 'f8'))
+
+        elec_grp_list = observ['elec_grp_id'].unique()
+
+        dec_agg_results = pd.DataFrame()
+        for parallel_bin_ind, observ_par in observ_grp:
+
+            bin_observed_par = OfflinePPLikelihood._calc_observation_single_bin(observ_par,
+                                                                                elec_grp_list=elec_grp_list,
+                                                                                prob_no_spike=prob_no_spike,
+                                                                                time_bin_size=time_bin_size,
+                                                                                enc_settings=enc_settings,
+                                                                                dtype=dtype),
+            dec_agg_results = dec_agg_results.append(bin_observed_par[0])
+
+        dec_agg_results.sort_values('timestamp', inplace=True)
+
+        #encoding mask: convert timestamps to int in order to run get_irregular_resample
+        dec_agg_results = dec_agg_results.astype({'timestamp': int})
+
+        dec_new_ind = pd.MultiIndex.from_product([[day], [epoch], dec_agg_results['timestamp']])
+        lev = list(dec_new_ind.levels)
+        lab = list(dec_new_ind.codes)
+
+        lev.append(dec_agg_results['timestamp']/float(enc_settings.sampling_rate))
+        dec_agg_results.drop(columns='timestamp', inplace=True)
+
+        lab.append(range(len(dec_agg_results)))
+
+        dec_new_ind = pd.MultiIndex(levels=lev, codes=lab, names=['day', 'epoch', 'timestamp', 'time'])
+
+        dec_agg_results.set_index(dec_new_ind, inplace=True)
+
+        binned_observ = dec_agg_results
+
+        binned_observ = Posteriors.from_dataframe(binned_observ, enc_settings=enc_settings,
+                                                  dec_settings=dec_settings,
+                                                  user_key={'encode_settings': enc_settings,
+                                                            'decode_settings': dec_settings,
+                                                            'multi_index_keys': binned_observ.index.names})
+
+        return binned_observ
+
+    @staticmethod
+    def _calc_observation_single_bin(spikes_in_parallel, elec_grp_list,
+                                     prob_no_spike, time_bin_size, enc_settings, dtype=np.float32):
+
+        global_prob_no_spike = np.prod(list(prob_no_spike.values()), axis=0)
+
+        results = []
+
+        dec_grp = Groupby(spikes_in_parallel.values, spikes_in_parallel['dec_bin'].values)
+        pos_col_ind = spikes_in_parallel.columns.slice_locs(enc_settings.pos_col_names[0],
+                                                            enc_settings.pos_col_names[-1])
+        elec_grp_ind = spikes_in_parallel.columns.get_loc('elec_grp_id')
+        num_missing_ind = spikes_in_parallel.columns.get_loc('num_missing_bins')
+        dec_bin_start_ind = spikes_in_parallel.columns.get_loc('dec_bin_start')
+
+        for dec_bin_ii, spikes_in_bin in dec_grp:
+            obv_in_bin = np.ones(enc_settings.pos_num_bins)
+
+            num_spikes = len(spikes_in_bin)
+
+            elec_set = set()
+
+            spike_bin_raw = spikes_in_bin
+
+            # Contribution of each spike
+            missing_bins_list = []
+            dec_bin_timestamp = spike_bin_raw[0, dec_bin_start_ind]
+            for obv, elec_grp_id, num_missing_bins in zip(spike_bin_raw[:, slice(*pos_col_ind)],
+                                                          spike_bin_raw[:, elec_grp_ind],
+                                                          spike_bin_raw[:, num_missing_ind]):
+
+                elec_set.add(elec_grp_id)
+                missing_bins_list.append(num_missing_bins)
+
+                obv_in_bin = obv_in_bin * (obv + np.finfo(dtype).eps)
+                obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
+                obv_in_bin += np.finfo(dtype).eps
+
+                #obv_in_bin = obv_in_bin / (np.nansum(obv_in_bin) * enc_settings.pos_bin_delta)
+
+            # Contribution for electrodes that no spikes in this bin
+            for elec_grp_id in elec_set.symmetric_difference(elec_grp_list):
+                obv_in_bin = obv_in_bin * prob_no_spike[elec_grp_id]
+
+            # Checking if missing bin has more than 1 whole number (and the rest are zeros)
+            missing_bins_list = np.array(missing_bins_list)
+            if np.count_nonzero(missing_bins_list) > 1:
+                warnings.warn('For decode bin (' + dec_bin_ii + ') bin time (' + dec_bin_timestamp +
+                              ') there are multiple possible values for missing bins ' + missing_bins_list +
+                              ', which is not allowed.')
+
+            results.append(np.concatenate([obv_in_bin, [dec_bin_timestamp, num_spikes, dec_bin_ii]]))
+            for missing_ii in range(int(max(missing_bins_list))):
+                results.append(np.concatenate([global_prob_no_spike, [dec_bin_timestamp+((missing_ii+1)*time_bin_size),
+                                                                      0, dec_bin_ii+missing_ii+1]]))
+
+        likelihoods = pd.DataFrame(np.vstack(results),
+                                   columns=enc_settings.pos_col_names+['timestamp', 'num_spikes', 'dec_bin'])
+        return likelihoods
+
+
+class OfflinePPPosterior:
+
+    def __init__(self, likelihoods: Posteriors, encode_settings: EncodeSettings,
+                 decode_settings: DecodeSettings, time_bin_size=30,
+                 trans_mat=None, prob_no_spike=None,
+                 cuda=False, dtype=np.float32):
+
+        if prob_no_spike:
+            self.prob_no_spike = prob_no_spike
+        else:
+            self.prob_no_spike = {tet_id: np.ones(encode_settings.pos_num_bins) for tet_id in encode_settings.tetrodes}
+        self.trans_mat = trans_mat
+        self.likelihoods = likelihoods
+        self.encode_settings = encode_settings
+        self.decode_settings = decode_settings
+        # self.which_trans_mat = which_trans_mat
+        self.time_bin_size = time_bin_size
+
+        self.cuda = cuda
+        if self.cuda:
+            self.device_name = 'cuda'
+        else:
+            self.device_name = 'cpu'
+        self.dtype = torch.float
+        self.device = torch.device(self.device_name)
+
+        self.dtype = dtype
+
+        self.posteriors = None
+
+    def calc(self):
+        print("Beginning posterior calculation")
+        self.recalc_posterior()
+
+        return self.posteriors
+
+    def recalc_posterior(self):
+        post = self.calc_posterior(self.likelihoods, self.trans_mat, self.encode_settings)
+        self.posteriors = Posteriors.from_dataframe(post, enc_settings=self.encode_settings,
+                                                    dec_settings=self.decode_settings,
+                                                    user_key={'encode_settings': self.encode_settings,
+                                                              'decode_settings': self.decode_settings,
+                                                              'multi_index_keys': post.index.names})
+
+    @staticmethod
+    def calc_posterior(likelihoods, transition_mat, enc_settings: EncodeSettings):
+        """
+
+        Args:
+            likelihoods (pd.DataFrame): The evaluated likelihood function per time bin, from calc_likelihood(...).
+            transition_mat (np.array): The point process state transition matrix.
+            enc_settings (EncodeSettings): Realtime encoding settings.
+
+        Returns (pd.DataFrame): The decoded posteriors per time bin estimating the animal's location.
+
+        """
+        likelihoods_pos = likelihoods.loc[:, pos_col_format(0, enc_settings.pos_num_bins):
+                                             pos_col_format(enc_settings.pos_num_bins-1,
+                                                            enc_settings.pos_num_bins)]
+
+        posteriors = OfflinePPPosterior._posterior_from_numpy(likelihoods_pos.values,
+                                                              transition_mat, enc_settings.pos_num_bins,
+                                                              enc_settings.pos_bin_delta)
+
+        # posteriors = pp_cy.calc_posterior_cy(likelihoods_pos.values.copy(order='C'),
+        #                                      transition_mat.copy(order='C'), enc_settings.pos_num_bins,
+        #                                      enc_settings.pos_bin_delta)
+
+        # copy observ DataFrame and replace with likelihoods, preserving other columns
+
+        posteriors_df = pd.DataFrame(posteriors, index=likelihoods.index,
+                                     columns=enc_settings.pos_col_names)
+
+        posteriors_df['num_spikes'] = likelihoods['num_spikes']
+        posteriors_df['dec_bin'] = likelihoods['dec_bin']
+
+        return posteriors_df
+
+    @staticmethod
+    def _posterior_from_numpy(likelihoods, transition_mat, pos_num_bins, pos_delta):
+
+        last_posterior = np.ones(pos_num_bins)
+
+        posteriors = np.zeros(likelihoods.shape)
+
+        for like_ii, like in enumerate(likelihoods):
+            posteriors[like_ii, :] = like * np.matmul(transition_mat, np.nan_to_num(last_posterior))
+            posteriors[like_ii, :] = posteriors[like_ii, :] / (np.nansum(posteriors[like_ii, :]) *
+                                                               pos_delta)
+            #last_posterior = posteriors[like_ii, :]
+
+            # velocity mask - reset posterior after masked encoding bins
+            if np.isnan(like).all():
+                last_posterior = np.ones(pos_num_bins)
+
+            else:
+                last_posterior = posteriors[like_ii, :]
+
+        # copy observ DataFrame and replace with likelihoods, preserving other columns
+
+        return posteriors
+
+
+class OfflinePPSinglePosterior:
+    def __init__(self, likelihoods: Posteriors, encode_settings: EncodeSettings,
+                 decode_settings: DecodeSettings,
+                 trans_mat=None, prob_no_spike=None,
+                 cuda=False, dtype=np.float32, **kwargs):
+
+        if prob_no_spike:
+            self.prob_no_spike = prob_no_spike
+        else:
+            self.prob_no_spike = {tet_id: np.ones(encode_settings.pos_num_bins) for tet_id in encode_settings.tetrodes}
+        self.trans_mat = trans_mat
+        self.likelihoods = likelihoods
+        self.encode_settings = encode_settings
+        self.decode_settings = decode_settings
+        # self.which_trans_mat = which_trans_mat
+
+        self.cuda = cuda
+        if self.cuda:
+            self.device_name = 'cuda'
+        else:
+            self.device_name = 'cpu'
+        self.dtype = torch.float
+        self.device = torch.device(self.device_name)
+
+        self.dtype = dtype
+
+        self.posteriors = self.likelihoods.copy()
+
+        self.like_np = self.likelihoods.get_distribution_view().values
+        self.post_np = np.zeros(self.like_np.shape)
+
+        self.bin_num = 0
+        self.prior = np.ones(encode_settings.pos_num_bins)
+
+    def calc_cur_raw_post(self):
+        self.post_np[self.bin_num, :] = (OfflinePPSinglePosterior.
+                                         _posterior_single_step(self.like_np[self.bin_num, :],
+                                                                self.prior, self.trans_mat))
+
+    def get_cur_raw_post_integral(self):
+        return np.sum(self.post_np[self.bin_num, :])
+
+    def norm_cur_indicators(self, sum_all_indicators):
+        self.post_np[self.bin_num, :] /= sum_all_indicators
+
+    def next_bin(self):
+        self.prior = self.post_np[self.bin_num, :]
+        self.bin_num += 1
+
+    def get_posterior(self):
+        self.posteriors.set_posterior(self.post_np)
+        return self.posteriors
+
+    @staticmethod
+    def _posterior_single_step(like, last_post, transition_mat):
+        post = like * np.matmul(transition_mat, np.nan_to_num(last_post))
+        return post
+
+
+class OfflinePPIndicatorPosterior:
+
+    def __init__(self, indicator_states, encode_settings: EncodeSettings,
+                 decode_settings: DecodeSettings, cuda=False, dtype=np.float32):
+
+        self.indicator_states = indicator_states
+        self.encode_settings = encode_settings
+        self.decode_settings = decode_settings
+
+        self.bin_num = 0
+
+        self.indicator_num_bins = {}
+        for indic_key, indic_state in indicator_states.items():
+            self.indicator_num_bins[indic_key] = indic_state['likelihoods']['dec_bin'].max()
+        self.num_bins = int(min(self.indicator_num_bins.values()))
+
+        self.cuda = cuda
+        if self.cuda:
+            self.device_name = 'cuda'
+        else:
+            self.device_name = 'cpu'
+        self.dtype = torch.float
+        self.device = torch.device(self.device_name)
+
+        self.dtype = dtype
+
+        self.indicator_posts = {}
+        for indic_key, indic_kwds in indicator_states.items():
+            self.indicator_posts[indic_key] = \
+                OfflinePPSinglePosterior(**indic_kwds,
+                                         encode_settings=self.encode_settings,
+                                         decode_settings=self.decode_settings,
+                                         cuda=self.cuda,
+                                         dtype=self.dtype)
+
+    def calc(self):
+        self.bin_num = 0
+        for bin_ii in range(self.num_bins):
+            self.calc_single_step()
+
+        for indic_key, indic_post in self.indicator_posts.items():
+            indic_state = self.indicator_states.setdefault(indic_key, AttrDict({}))
+            indic_state['posteriors'] = indic_post.posteriors
+
+    def calc_single_step(self):
+        indic_sum = 0
+        for indic_key, indic_post in self.indicator_posts.items():
+            indic_post.calc_cur_raw_post()
+            indic_sum += indic_post.get_cur_raw_post_integral()
+
+        for indic_key, indic_post in self.indicator_posts.items():
+            indic_post.norm_cur_indicators(indic_sum)
+            indic_post.next_bin()
+
+        self.bin_num += 1
+
 
 class OfflinePPDecoder(object):
     """
@@ -427,7 +832,6 @@ class OfflinePPDecoder(object):
         self.posteriors = None
         self.posteriors_obj = None
 
-
     def __del__(self):
         print('decoder deleting')
 
@@ -463,8 +867,6 @@ class OfflinePPDecoder(object):
                                                         user_key={'encode_settings': self.encode_settings,
                                                                   'decode_settings': self.decode_settings,
                                                                   'multi_index_keys': self.posteriors.index.names})
-
-
 
     @staticmethod
     def calc_observation_intensity(observ: SpikeObservation,
@@ -559,6 +961,12 @@ class OfflinePPDecoder(object):
 
         # Smooth and normalize firing rate (conditional intensity function)
 
+        binned_observ = Posteriors.from_dataframe(binned_observ, enc_settings=enc_settings,
+                                                  dec_settings=dec_settings,
+                                                  user_key={'encode_settings': enc_settings,
+                                                            'decode_settings': dec_settings,
+                                                            'multi_index_keys': binned_observ.index.names})
+
         return binned_observ
 
     @staticmethod
@@ -624,7 +1032,6 @@ class OfflinePPDecoder(object):
                 warnings.warn('For decode bin (' + dec_bin_ii + ') bin time (' + dec_bin_timestamp +
                               ') there are multiple possible values for missing bins ' + missing_bins_list +
                               ', which is not allowed.')
-
 
             results.append(np.concatenate([obv_in_bin, [dec_bin_timestamp, num_spikes, dec_bin_ii]]))
             for missing_ii in range(int(max(missing_bins_list))):

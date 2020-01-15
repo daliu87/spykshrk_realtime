@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import holoviews as hv
 from holoviews.operation.datashader import datashade, aggregate, shade, regrid, dynspread
+import bokeh.models.formatters
 from holoviews.operation import decimate
 import datashader as ds
 
@@ -233,6 +234,100 @@ class DecodeVisualizer:
             ax.add_patch(pat)
 
         return ax
+
+
+class MultiDecodeStepVisualizer:
+    def __init__(self, indicator_states, encode_settings, decode_settings):
+        self.indicator_states = indicator_states
+        self.encode_settings = encode_settings
+        self.decode_settings = decode_settings
+
+        self.step_visualizers = {}
+
+        self.indic_num_bins = []
+        for indic_key, indic_state in self.indicator_states.items():
+            self.step_visualizers[indic_key] = DecodeStepVisualizer(**indic_state, encode_settings=encode_settings,
+                                                                    decode_settings=decode_settings,
+                                                                    indic_str=indic_state.name)
+            self.indic_num_bins.append(int(indic_state.posteriors['dec_bin'].iloc[-1]))
+
+        self.num_bins = int(min(self.indic_num_bins))
+
+    def plot_indic_func(self, bin):
+        plot = hv.Layout()
+        for indic_key, step_viz in self.step_visualizers.items():
+            plot = (plot + step_viz.plot_observ_func(bin))
+
+        return plot.cols(6).opts(transpose=True)
+
+    def plot_all(self):
+        dmap = hv.DynamicMap(self.plot_indic_func, kdims=['bin'])
+        dmap = dmap.redim.values(bin=list(range(1, self.num_bins, 1)))
+        return dmap
+
+
+class DecodeStepVisualizer:
+    def __init__(self, observ, likelihoods: Posteriors, posteriors: Posteriors,
+                 linpos: LinearPosition, encode_settings, decode_settings, indic_str='', **kwargs):
+        self.observ = observ
+        self.likelihoods = likelihoods
+        self.posteriors = posteriors
+        self.linpos = linpos
+        self.encode_settings = encode_settings
+        self.decode_settings = decode_settings
+        self.indic_str = indic_str
+
+        if hv.Store.current_backend == 'bokeh':
+            self.yfmt = bokeh.models.formatters.BasicTickFormatter(precision=1, power_limit_high=0, power_limit_low=0)
+        elif hv.Store.current_backend == 'matplotlib':
+            self.yfmt = None
+
+        self.likelihoods['position'] = linpos.get_irregular_resampled(self.likelihoods)['linpos_flat']
+        self.num_bins = int(self.posteriors['dec_bin'].iloc[-1])
+
+    def plot_observ_func(self, bin):
+        plot_list = []
+        plot_aspect = 10
+        sel_observ = self.observ.query('dec_bin == @bin')
+        sel_plot_observ = sel_observ.get_distribution_view()
+        sel_max_observ = sel_plot_observ.max().max()
+        sel_pos = sel_observ['position']
+        sel_like = self.likelihoods.query('dec_bin == @bin')
+        sel_plot_like = sel_like.get_distribution_view()
+        sel_max_like = sel_plot_like.max().max()
+        sel_post = self.posteriors.query('dec_bin == @bin')
+        sel_plot_post = sel_post.get_distribution_view()
+        sel_max_post = sel_plot_post.max().max()
+        sel_post_prev = self.posteriors.query('dec_bin == @bin-1')
+        sel_plot_post_prev = sel_post_prev.get_distribution_view()
+        sel_max_post_prev = sel_plot_post_prev.max().max()
+
+        for ii in range(len(sel_observ)):
+            sel = sel_plot_observ.iloc[ii]
+            plot_list.append(hv.Curve(sel, vdims='observ',
+                                      label=str(ii)).opts(labelled=['y'], ylim=(0, sel_max_observ)))
+            plot_list.append(hv.Points((sel_pos.iloc[ii], [sel_max_observ/10])))
+        if len(sel_observ) == 0:
+            plot_list.append(hv.Curve([0,0], vdims='observ', label='N/A').
+                             opts(labelled=['y'], ylim=(0, sel_max_observ), xaxis=None))
+            plot_list.append(hv.Points((sel_like['position'], [0]), vdims='observation'))
+
+        like_plot = (hv.Curve(sel_plot_like.iloc[0], vdims='like').
+                     opts(labelled=['y'], ylim=(0, sel_max_observ), xaxis=None))
+
+        post_overlay = (hv.Curve(sel_plot_post.iloc[0], vdims='post', label='cur') *
+                        hv.Curve(sel_plot_post_prev.iloc[0], vdims='post', label='prev'))
+        return (hv.Overlay(plot_list, label=f'Spks: {len(sel_observ)} ({self.indic_str})').opts(aspect=plot_aspect) +
+                like_plot +
+                post_overlay).cols(1).opts(hv.opts.Curve(framewise=True, xlim=(0, None), ylim=(0, None),
+                                                         yformatter=self.yfmt, aspect=plot_aspect, yticks=2),
+                                           hv.opts.Points(framewise=True, xlim=(0, None), ylim=(0, None),
+                                                          yformatter=self.yfmt, aspect=plot_aspect, yticks=2))
+
+    def plot_all(self):
+        dmap = hv.DynamicMap(self.plot_observ_func, kdims=['bin'])
+        dmap = dmap.redim.values(bin=list(range(1, self.num_bins, 1)))
+        return dmap
 
 
 class DecodeErrorVisualizer:

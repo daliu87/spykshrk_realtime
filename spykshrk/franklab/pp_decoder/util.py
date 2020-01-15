@@ -24,6 +24,7 @@ def normal_pdf_int_lookup(x, mean, std):
 def normal_pdf_int_lookup_torch(x, mean, std, device=torch.device('cpu'), dtype=torch.float):
     max_amp = 3000
     norm_dist = sp.stats.norm.pdf(x=np.arange(-max_amp,max_amp), loc=0, scale=std)
+    norm_dist /= norm_dist.max()
     norm_dist_torch = torch.from_numpy(norm_dist).to(device=device, dtype=dtype) 
     x_torch = torch.from_numpy(x).to(device=device)
     mean_torch = torch.from_numpy(mean).to(device=device)

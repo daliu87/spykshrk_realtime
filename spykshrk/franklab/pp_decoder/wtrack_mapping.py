@@ -18,10 +18,10 @@ class WtrackLinposDecomposer(AttrDict):
     orders = list(Order)
     prev_next = [Order.prev, Order.next]
 
-    def __init__(self, linpos_flat, encode_settings, bin_size=1):
+    def __init__(self, linpos, encode_settings, bin_size=1):
         super().__init__()
 
-        self.linpos_flat = linpos_flat
+        self.linpos = linpos
         self.encode_settings = encode_settings
         self.wtrack_armcoord = self.encode_settings.wtrack_arm_coordinates
 
@@ -98,7 +98,7 @@ class WtrackLinposDecomposer(AttrDict):
                                                                   eval('self.'+rot_k.name+'_num_bins'),
                                                                   self.encode_settings)
 
-        self.decomp_linpos = self.wtrack_pos_remap_to_decomposed(self.linpos_flat,
+        self.decomp_linpos = self.wtrack_pos_remap_to_decomposed(self.linpos,
                                                                  encode_settings.wtrack_arm_coordinates,
                                                                  self.armcoord_cw, self.armcoord_ccw)
 
@@ -256,6 +256,7 @@ class WtrackLinposRecomposer(AttrDict):
         self.encoder_cw = encoder_cw
         self.encoder_ccw = encoder_ccw
         self.wtrack_decomposed = wtrack_decomposed
+        self.linpos = self.wtrack_decomposed.linpos
         self.encode_settings = encode_settings
         self.observ = self._wtrack_recompose_observ(encoder_cw.observ_obj, encoder_ccw.observ_obj,
                                                     self.wtrack_decomposed, self.encode_settings)
